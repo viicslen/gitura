@@ -98,6 +98,7 @@ func decodeTokenResponse(resp *http.Response) (model.PollResult, string, error) 
 	logger.L.Debug("token response decoded", "has_token", tr.AccessToken != "", "error_field", tr.Error)
 
 	if tr.AccessToken != "" {
+		logger.L.Info("token granted", "scope", tr.Scope, "token_type", tr.TokenType)
 		return model.PollResult{Status: "complete"}, tr.AccessToken, nil
 	}
 

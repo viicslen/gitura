@@ -4,6 +4,8 @@ import {model} from '../models';
 
 export function GetAuthState():Promise<model.AuthState>;
 
+export function ListOpenPRs(arg1:model.PRListFilters):Promise<model.PRListResult>;
+
 export function Logout():Promise<void>;
 
 export function PollDeviceFlow():Promise<model.PollResult>;

@@ -6,6 +6,10 @@ export function GetAuthState() {
   return window['go']['main']['App']['GetAuthState']();
 }
 
+export function ListOpenPRs(arg1) {
+  return window['go']['main']['App']['ListOpenPRs'](arg1);
+}
+
 export function Logout() {
   return window['go']['main']['App']['Logout']();
 }

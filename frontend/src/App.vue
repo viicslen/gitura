@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-background text-foreground">
+  <div class="h-screen flex flex-col overflow-hidden bg-background text-foreground">
     <!-- Nav bar shown only when authenticated -->
     <nav v-if="authState.is_authenticated" class="border-b border-border px-6 py-3 flex items-center gap-6">
       <span class="font-semibold text-sm tracking-tight">gitura</span>
@@ -41,7 +41,7 @@
     </div>
 
     <!-- Page routing -->
-    <main class="container mx-auto px-6 py-8">
+    <main class="flex-1 overflow-y-auto container mx-auto px-6 py-8">
       <AuthPage v-if="!authState.is_authenticated" />
       <PRPage v-else-if="currentPage === 'pr'" />
       <SettingsPage v-else-if="currentPage === 'settings'" />

@@ -23,7 +23,7 @@ A desktop application for reviewing GitHub pull requests without leaving your te
 
 ### Environment
 
-```
+```sh
 GITURA_GITHUB_CLIENT_ID=<your GitHub OAuth App client ID>
 ```
 
@@ -32,6 +32,7 @@ This variable must be set before launching the app. The app will exit with a des
 ### GitHub OAuth App
 
 Create an OAuth App at **GitHub → Settings → Developer settings → OAuth Apps** with:
+
 - **Authorization callback URL**: `http://localhost` (Device Flow does not use a callback, but GitHub requires a value)
 - Copy the **Client ID** into `GITURA_GITHUB_CLIENT_ID`
 
@@ -81,7 +82,7 @@ The binary is placed in `build/bin/`.
 
 ## Project Structure
 
-```
+```text
 .
 ├── app.go                  # Wails-bound App methods (auth, PR, comments, settings)
 ├── main.go                 # wails.Run() entry point
