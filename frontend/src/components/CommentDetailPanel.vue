@@ -114,7 +114,8 @@ function toggleResolved(): void {
         <DiffHunkView
           v-if="rootComment.diff_hunk"
           :diff-hunk="rootComment.diff_hunk"
-          :highlight-line="thread.line || undefined"
+          :absolute-end-line="thread.line || undefined"
+          :absolute-start-line="thread.start_line || undefined"
           :language="langFromPath(thread.path)"
         />
 

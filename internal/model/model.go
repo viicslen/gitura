@@ -49,12 +49,13 @@ type CommentDTO struct {
 // Resolved state is tracked at the thread level only; individual CommentDTOs
 // do not carry a resolved flag.
 type CommentThreadDTO struct {
-	RootID   int64        `json:"root_id"`
-	NodeID   string       `json:"node_id"`
-	Comments []CommentDTO `json:"comments"`
-	Resolved bool         `json:"resolved"`
-	Path     string       `json:"path"`
-	Line     int          `json:"line"`
+	RootID    int64        `json:"root_id"`
+	NodeID    string       `json:"node_id"`
+	Comments  []CommentDTO `json:"comments"`
+	Resolved  bool         `json:"resolved"`
+	Path      string       `json:"path"`
+	Line      int          `json:"line"`
+	StartLine int          `json:"start_line"` // first line of a multi-line comment (equals Line for single-line)
 }
 
 // AuthState represents the current authentication status of the app.

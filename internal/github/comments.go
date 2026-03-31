@@ -54,16 +54,18 @@ type graphQLCommentConnection struct {
 }
 
 type graphQLComment struct {
-	DatabaseID   int64           `json:"databaseId"`
-	Body         string          `json:"body"`
-	Author       graphQLActor    `json:"author"`
-	Path         string          `json:"path"`
-	Line         *int            `json:"line"`
-	OriginalLine *int            `json:"originalLine"`
-	DiffHunk     string          `json:"diffHunk"`
-	CreatedAt    string          `json:"createdAt"` // ISO-8601
-	URL          string          `json:"url"`
-	ReplyTo      *graphQLReplyTo `json:"replyTo"`
+	DatabaseID         int64           `json:"databaseId"`
+	Body               string          `json:"body"`
+	Author             graphQLActor    `json:"author"`
+	Path               string          `json:"path"`
+	Line               *int            `json:"line"`
+	OriginalLine       *int            `json:"originalLine"`
+	StartLine          *int            `json:"startLine"`
+	OriginalStartLine  *int            `json:"originalStartLine"`
+	DiffHunk           string          `json:"diffHunk"`
+	CreatedAt          string          `json:"createdAt"` // ISO-8601
+	URL                string          `json:"url"`
+	ReplyTo            *graphQLReplyTo `json:"replyTo"`
 }
 
 type graphQLActor struct {
@@ -98,6 +100,8 @@ query($owner: String!, $repo: String!, $number: Int!, $after: String) {
               path
               line
               originalLine
+              startLine
+              originalStartLine
               diffHunk
               createdAt
               url
@@ -228,6 +232,13 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 		line = *root.OriginalLine
 	}
 
+	startLine := line // default: single-line comment
+	if root.StartLine != nil {
+		startLine = *root.StartLine
+	} else if root.OriginalStartLine != nil {
+		startLine = *root.OriginalStartLine
+	}
+
 	comments := make([]model.CommentDTO, 0, len(node.Comments.Nodes))
 	for _, c := range node.Comments.Nodes {
 		var replyToID int64
@@ -247,11 +258,12 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 	}
 
 	return model.CommentThreadDTO{
-		RootID:   root.DatabaseID,
-		NodeID:   node.ID,
-		Comments: comments,
-		Resolved: node.IsResolved,
-		Path:     root.Path,
-		Line:     line,
+		RootID:    root.DatabaseID,
+		NodeID:    node.ID,
+		Comments:  comments,
+		Resolved:  node.IsResolved,
+		Path:      root.Path,
+		Line:      line,
+		StartLine: startLine,
 	}
 }
