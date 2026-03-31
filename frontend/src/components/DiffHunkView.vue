@@ -24,6 +24,8 @@ interface DiffLine {
   prefix: string
   highlighted: string  // hljs-escaped HTML for the code portion
   kind: 'add' | 'remove' | 'context' | 'header'
+  /** Absolute old-file line number for this line; 0 for header and addition lines. */
+  oldFileLineNum: number
   /** Absolute new-file line number for this line; 0 for header and removal lines. */
   newFileLineNum: number
 }
@@ -33,23 +35,26 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * Parses the @@ header of a diff hunk and returns the starting new-file line number.
- * For "@@ -10,7 +12,8 @@" this returns 12.
+ * Parses the @@ header of a diff hunk and returns the starting line numbers for
+ * both the old and new files.  For "@@ -10,7 +12,8 @@" this returns { oldStart: 10, newStart: 12 }.
  */
-function parseHunkStart(hunk: string): number {
-  const m = hunk.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
-  return m ? parseInt(m[1], 10) : 1
+function parseHunkStarts(hunk: string): { oldStart: number; newStart: number } {
+  const m = hunk.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
+  return m
+    ? { oldStart: parseInt(m[1], 10), newStart: parseInt(m[2], 10) }
+    : { oldStart: 1, newStart: 1 }
 }
 
 const lines = computed<DiffLine[]>(() => {
   if (!props.diffHunk) return []
   const lang = props.language && hljs.getLanguage(props.language) ? props.language : 'plaintext'
-  const hunkStart = parseHunkStart(props.diffHunk)
-  let newFileLineNum = hunkStart - 1
+  const { oldStart, newStart } = parseHunkStarts(props.diffHunk)
+  let oldFileLineNum = oldStart - 1
+  let newFileLineNum = newStart - 1
 
   return props.diffHunk.split('\n').map((raw) => {
     if (raw.startsWith('@@')) {
-      return { prefix: '', highlighted: escapeHtml(raw), kind: 'header' as const, newFileLineNum: 0 }
+      return { prefix: '', highlighted: escapeHtml(raw), kind: 'header' as const, oldFileLineNum: 0, newFileLineNum: 0 }
     }
     const prefix = raw[0] === '+' || raw[0] === '-' ? raw[0] : ' '
     const code = raw.slice(1)
@@ -60,10 +65,19 @@ const lines = computed<DiffLine[]>(() => {
     } catch {
       highlighted = escapeHtml(code)
     }
-    // Only advance the new-file line counter for context and addition lines;
-    // removal lines exist only in the old file.
-    const lineNum = kind !== 'remove' ? ++newFileLineNum : 0
-    return { prefix, highlighted, kind, newFileLineNum: lineNum }
+    // Advance the relevant counter(s) depending on which side of the diff the line belongs to.
+    let oldNum = 0
+    let newNum = 0
+    if (kind === 'add') {
+      newNum = ++newFileLineNum
+    } else if (kind === 'remove') {
+      oldNum = ++oldFileLineNum
+    } else {
+      // context line: present in both old and new files
+      oldNum = ++oldFileLineNum
+      newNum = ++newFileLineNum
+    }
+    return { prefix, highlighted, kind, oldFileLineNum: oldNum, newFileLineNum: newNum }
   })
 })
 
@@ -82,7 +96,7 @@ function isHighlighted(line: DiffLine): boolean {
       :key="i"
     ><span
         :class="[
-          'block px-3 min-w-0',
+          'flex min-w-0',
           line.kind === 'header'   ? 'bg-muted text-muted-foreground'
           : line.kind === 'add'    ? 'bg-[#f0fff4] dark:bg-[#1b4721]'
           : line.kind === 'remove' ? 'bg-[#ffeef0] dark:bg-[#78191b]'
@@ -92,12 +106,16 @@ function isHighlighted(line: DiffLine): boolean {
             : 'border-l-2 border-transparent',
         ]"
       ><span
+          class="select-none text-muted-foreground text-right shrink-0 w-10 px-1 border-r border-border"
+        >{{ line.oldFileLineNum || '' }}</span><span
+          class="select-none text-muted-foreground text-right shrink-0 w-10 px-1 border-r border-border"
+        >{{ line.newFileLineNum || '' }}</span><span
           :class="[
-            'select-none',
+            'select-none px-2',
             line.kind === 'add'    ? 'text-green-600 dark:text-green-400'
             : line.kind === 'remove' ? 'text-red-500 dark:text-red-400'
             : 'text-muted-foreground',
           ]"
-        >{{ line.prefix }}</span><!-- --><span v-html="line.highlighted" /></span></template></pre>
+        >{{ line.prefix }}</span><!-- --><span class="pr-3" v-html="line.highlighted" /></span></template></pre>
   </div>
 </template>
