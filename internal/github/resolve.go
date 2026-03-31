@@ -36,14 +36,16 @@ type graphQLMutationResponse struct {
 
 // ResolveThread marks a review thread as resolved via the GitHub GraphQL API.
 // threadNodeID is the GraphQL global ID (e.g. "PRRT_kwDO...").
-// Returns a "github:" prefixed error on API or HTTP failures.
+// Returns an "auth:" prefixed error on HTTP 401 and a "github:" prefixed error
+// on all other API or HTTP failures.
 func ResolveThread(ctx context.Context, httpClient *http.Client, threadNodeID string) error {
 	return runThreadMutation(ctx, httpClient, resolveThreadMutation, threadNodeID)
 }
 
 // UnresolveThread marks a review thread as unresolved via the GitHub GraphQL API.
 // threadNodeID is the GraphQL global ID (e.g. "PRRT_kwDO...").
-// Returns a "github:" prefixed error on API or HTTP failures.
+// Returns an "auth:" prefixed error on HTTP 401 and a "github:" prefixed error
+// on all other API or HTTP failures.
 func UnresolveThread(ctx context.Context, httpClient *http.Client, threadNodeID string) error {
 	return runThreadMutation(ctx, httpClient, unresolveThreadMutation, threadNodeID)
 }

@@ -49,6 +49,7 @@ export namespace model {
 	    resolved: boolean;
 	    path: string;
 	    line: number;
+	    start_line: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new CommentThreadDTO(source);
@@ -62,6 +63,7 @@ export namespace model {
 	        this.resolved = source["resolved"];
 	        this.path = source["path"];
 	        this.line = source["line"];
+	        this.start_line = source["start_line"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

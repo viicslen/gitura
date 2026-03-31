@@ -289,6 +289,85 @@ func TestMapGraphQLThread_OriginalLine_FallsBackCorrectly(t *testing.T) {
 	assert.Equal(t, "src/foo.go", dto.Path)
 }
 
+// TestMapGraphQLThread_StartLine_MultiLineComment verifies that StartLine is
+// populated from startLine when both startLine and line are set (multi-line comment).
+func TestMapGraphQLThread_StartLine_MultiLineComment(t *testing.T) {
+	start := 10
+	end := 14
+	node := graphQLThread{
+		ID:         "PRRT_multiline",
+		IsResolved: false,
+		Comments: graphQLCommentConnection{
+			Nodes: []graphQLComment{
+				{
+					DatabaseID: 200,
+					Body:       "multi-line comment",
+					Author:     graphQLActor{Login: "dev"},
+					Path:       "src/foo.go",
+					StartLine:  &start,
+					Line:       &end,
+				},
+			},
+		},
+	}
+	dto := mapGraphQLThread(node)
+	assert.Equal(t, 14, dto.Line)
+	assert.Equal(t, 10, dto.StartLine)
+}
+
+// TestMapGraphQLThread_StartLine_SingleLine_EqualsLine verifies that StartLine
+// equals Line when the comment is on a single line (startLine is nil).
+func TestMapGraphQLThread_StartLine_SingleLine_EqualsLine(t *testing.T) {
+	line := 42
+	node := graphQLThread{
+		ID:         "PRRT_singleline",
+		IsResolved: false,
+		Comments: graphQLCommentConnection{
+			Nodes: []graphQLComment{
+				{
+					DatabaseID: 201,
+					Body:       "single-line comment",
+					Author:     graphQLActor{Login: "dev"},
+					Path:       "src/bar.go",
+					StartLine:  nil,
+					Line:       &line,
+				},
+			},
+		},
+	}
+	dto := mapGraphQLThread(node)
+	assert.Equal(t, 42, dto.Line)
+	assert.Equal(t, 42, dto.StartLine, "StartLine should equal Line for single-line comments")
+}
+
+// TestMapGraphQLThread_OriginalStartLine_FallsBackCorrectly verifies that when
+// StartLine is nil but OriginalStartLine is set, the OriginalStartLine is used.
+func TestMapGraphQLThread_OriginalStartLine_FallsBackCorrectly(t *testing.T) {
+	origStart := 5
+	origEnd := 8
+	node := graphQLThread{
+		ID:         "PRRT_origstart",
+		IsResolved: false,
+		Comments: graphQLCommentConnection{
+			Nodes: []graphQLComment{
+				{
+					DatabaseID:        202,
+					Body:              "comment on old code",
+					Author:            graphQLActor{Login: "dev"},
+					Path:              "src/baz.go",
+					Line:              nil,
+					OriginalLine:      &origEnd,
+					StartLine:         nil,
+					OriginalStartLine: &origStart,
+				},
+			},
+		},
+	}
+	dto := mapGraphQLThread(node)
+	assert.Equal(t, 8, dto.Line)
+	assert.Equal(t, 5, dto.StartLine)
+}
+
 // TestMapGraphQLThread_ReplyTo_SetsInReplyToID verifies that a comment with a
 // non-nil replyTo sets the InReplyToID field correctly.
 func TestMapGraphQLThread_ReplyTo_SetsInReplyToID(t *testing.T) {
