@@ -1,0 +1,32 @@
+build/bin
+frontend/dist
+frontend/node_modules
+
+# Go
+*.exe
+*.test
+*.out
+vendor/
+
+# Wails auto-generated bindings (committed as-is after wails dev)
+# wailsjs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# direnv
+.direnv/
+
+# Test coverage
+coverage.out
+coverage.html

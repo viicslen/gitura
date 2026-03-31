@@ -1,0 +1,8 @@
+{
+  "data": null,
+  "errors": [
+    {
+      "message": "Could not resolve to a node with the global id of 'PRRT_invalid'"
+    }
+  ]
+}

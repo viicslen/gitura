@@ -1,0 +1,10 @@
+{
+  "errors": [
+    {
+      "message": "Could not resolve to a Repository with the name 'owner/nonexistent'.",
+      "locations": [{"line": 2, "column": 3}],
+      "path": ["repository"],
+      "extensions": {"code": "NOT_FOUND"}
+    }
+  ]
+}
