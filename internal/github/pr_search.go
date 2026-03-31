@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/google/go-github/v67/github"
 
+	"gitura/internal/logger"
 	"gitura/internal/model"
 )
 
@@ -132,12 +132,9 @@ func SearchOpenPRs(
 	}
 	query := strings.Join(parts, " ")
 
-	log.Printf("[SearchOpenPRs] query=%q login=%q", query, login)
+	logger.L.Debug("SearchOpenPRs query", "query", query, "login", login)
 
 	issues, incomplete, err := runQuery(ctx, client, query)
-	if err == nil {
-		_ = incomplete
-	}
 	if err != nil {
 		// Check for primary rate limit.
 		var rateLimitErr *github.RateLimitError
@@ -175,11 +172,11 @@ func SearchOpenPRs(
 		if !ok {
 			continue
 		}
-		log.Printf("[SearchOpenPRs] item #%d %q is_author=%v is_assignee=%v is_reviewer=%v", item.Number, item.Title, item.IsAuthor, item.IsAssignee, item.IsReviewer)
+		logger.L.Debug("SearchOpenPRs item", "number", item.Number, "title", item.Title, "is_author", item.IsAuthor, "is_assignee", item.IsAssignee, "is_reviewer", item.IsReviewer)
 		items = append(items, item)
 	}
 
-	log.Printf("[SearchOpenPRs] total issues=%d items=%d incomplete=%v", len(issues), len(items), incomplete)
+	logger.L.Debug("SearchOpenPRs complete", "total_issues", len(issues), "items", len(items), "incomplete", incomplete)
 
 	return model.PRListResult{
 		Items:             items,
