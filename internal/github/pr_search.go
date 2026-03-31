@@ -134,12 +134,6 @@ func SearchOpenPRs(
 
 	log.Printf("[SearchOpenPRs] query=%q login=%q", query, login)
 
-	// Log OAuth scopes for diagnostics (the /user endpoint always returns X-OAuth-Scopes).
-	if _, resp, e := client.Users.Get(ctx, ""); e == nil {
-		log.Printf("[SearchOpenPRs] OAuth scopes: %q", resp.Header.Get("X-OAuth-Scopes"))
-		log.Printf("[SearchOpenPRs] X-GitHub-SSO: %q", resp.Header.Get("X-GitHub-SSO"))
-	}
-
 	issues, incomplete, err := runQuery(ctx, client, query)
 	if err == nil {
 		_ = incomplete
@@ -171,7 +165,7 @@ func SearchOpenPRs(
 
 	// Sort by UpdatedAt descending.
 	sort.Slice(issues, func(i, j int) bool {
-		return issues[i].GetUpdatedAt().Time.After(issues[j].GetUpdatedAt().Time)
+		return issues[i].GetUpdatedAt().After(issues[j].GetUpdatedAt().Time)
 	})
 
 	// Convert to DTOs, tagging involvement types.

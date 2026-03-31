@@ -61,7 +61,7 @@ func StartDeviceFlow(clientID string) (model.DeviceFlowInfo, error) {
 		logger.L.Error("device code request failed", "err", err)
 		return model.DeviceFlowInfo{}, fmt.Errorf("auth: device code request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	logger.L.Debug("device code response", "status", resp.StatusCode)
 	return decodeDeviceCodeResponse(resp)
@@ -83,7 +83,7 @@ func StartDeviceFlowWith(poster HTTPPoster, clientID string) (model.DeviceFlowIn
 	if err != nil {
 		return model.DeviceFlowInfo{}, fmt.Errorf("auth: device code request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return decodeDeviceCodeResponse(resp)
 }

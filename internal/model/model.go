@@ -17,6 +17,7 @@ type PullRequestSummary struct {
 	Number          int    `json:"number"`
 	Title           string `json:"title"`
 	State           string `json:"state"`
+	IsDraft         bool   `json:"is_draft"`
 	Body            string `json:"body"`
 	HeadBranch      string `json:"head_branch"`
 	BaseBranch      string `json:"base_branch"`

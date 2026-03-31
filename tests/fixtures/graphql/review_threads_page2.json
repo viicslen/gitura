@@ -1,0 +1,39 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "reviewThreads": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": ""
+          },
+          "nodes": [
+            {
+              "id": "PRRT_page2_thread1",
+              "isResolved": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "databaseId": 3001,
+                    "body": "Comment on page 2",
+                    "author": {
+                      "login": "bob",
+                      "avatarUrl": "https://avatars.githubusercontent.com/u/20?v=4"
+                    },
+                    "path": "src/util.go",
+                    "line": 55,
+                    "originalLine": 55,
+                    "diffHunk": "@@ -53,6 +53,7 @@\n line53\n line54\n-util_old\n+util_new",
+                    "createdAt": "2025-02-02T11:00:00Z",
+                    "url": "https://github.com/owner/repo/pull/8#discussion_r3001",
+                    "replyTo": null
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

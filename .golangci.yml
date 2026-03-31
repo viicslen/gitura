@@ -1,18 +1,21 @@
+version: "2"
+
 run:
   timeout: 5m
 
 linters:
   enable:
-    - gofmt
     - govet
-    - golint
     - staticcheck
     - errcheck
     - ineffassign
-    - unused
     - gocyclo
     - godot
     - revive
+
+formatters:
+  enable:
+    - gofmt
 
 linters-settings:
   gocyclo:
@@ -32,3 +35,4 @@ issues:
       linters:
         - gocyclo
         - errcheck
+        - revive

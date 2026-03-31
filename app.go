@@ -5,7 +5,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
+	"strings"
+	"time"
 
 	"github.com/google/go-github/v67/github"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -15,6 +16,7 @@ import (
 	"gitura/internal/keyring"
 	"gitura/internal/logger"
 	"gitura/internal/model"
+	"gitura/internal/settings"
 )
 
 // App is the main application struct exposed to Wails.
@@ -32,6 +34,10 @@ type App struct {
 	prCache  *model.PullRequestSummary
 	threads  []model.CommentThreadDTO
 
+	// ignoredCommenters is the persisted list of commenters to filter from review threads.
+	// Lazily loaded on first use via loadIgnoredCommenters.
+	ignoredCommenters []model.IgnoredCommenterDTO
+
 	// Device-flow state, held in memory only during the OAuth flow.
 	deviceCode string
 	authToken  string
@@ -46,7 +52,27 @@ func NewApp() *App {
 // The context is stored for use with Wails runtime calls.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	logger.L.Info("app started", "client_id_set", os.Getenv("GITURA_GITHUB_CLIENT_ID") != "")
+	logger.L.Info("app started", "client_id", githubClientID)
+	// Pre-warm ignored commenters so the first LoadPullRequest call is fast.
+	if err := a.loadIgnoredCommenters(); err != nil {
+		logger.L.Warn("failed to pre-load ignored commenters", "err", err)
+	}
+}
+
+// loadIgnoredCommenters loads the ignored-commenters list from disk if not yet loaded.
+// It is safe to call multiple times; subsequent calls are no-ops.
+func (a *App) loadIgnoredCommenters() error {
+	if a.ignoredCommenters != nil {
+		return nil
+	}
+	commenters, err := settings.Load()
+	if err != nil {
+		a.ignoredCommenters = []model.IgnoredCommenterDTO{}
+		return err
+	}
+	a.ignoredCommenters = commenters
+	logger.L.Debug("ignored commenters loaded", "count", len(a.ignoredCommenters))
+	return nil
 }
 
 // domReady is called by Wails after the frontend DOM is ready.
@@ -74,13 +100,14 @@ func (a *App) emit(name string, data ...interface{}) {
 	runtime.EventsEmit(a.ctx, name, data...)
 }
 
-// clientID returns the GitHub OAuth app client ID from the environment.
+// clientID returns the GitHub OAuth app client ID.
+// The value is baked in at build time via -ldflags "-X main.githubClientID=...".
+// Falls back to a placeholder for local dev builds.
+var githubClientID = "Ov23liFakeClientIDDev"
+
+// clientID returns the GitHub OAuth app client ID.
 func clientID() string {
-	id := os.Getenv("GITURA_GITHUB_CLIENT_ID")
-	if id == "" {
-		id = "Ov23liFakeClientIDDev" // placeholder for dev builds
-	}
-	return id
+	return githubClientID
 }
 
 // StartDeviceFlow initiates GitHub OAuth device flow.
@@ -209,6 +236,355 @@ func (a *App) Logout() error {
 	a.authToken = ""
 	a.deviceCode = ""
 	logger.L.Info("logged out")
+	return nil
+}
+
+// LoadPullRequest fetches PR metadata and all review threads, caches them in memory,
+// and returns a PullRequestSummary with CommentCount and UnresolvedCount computed
+// from the filtered thread list.
+//
+// Progress events ("pr:load-progress") are emitted during the paginated GraphQL fetch.
+// Ignored-commenter threads are filtered out before caching.
+//
+// Error prefixes: "auth:" — no client; "notfound:" — PR absent; "github:" — API error.
+func (a *App) LoadPullRequest(owner, repo string, number int) (model.PullRequestSummary, error) {
+	logger.L.Info("LoadPullRequest called", "owner", owner, "repo", repo, "number", number)
+
+	if a.ghClient == nil {
+		return model.PullRequestSummary{}, fmt.Errorf("auth: not authenticated")
+	}
+	if err := a.loadIgnoredCommenters(); err != nil {
+		logger.L.Warn("LoadPullRequest: failed to load ignored commenters", "err", err)
+	}
+
+	pr, err := githubclient.FetchPR(a.ctx, a.ghClient, owner, repo, number)
+	if err != nil {
+		logger.L.Error("FetchPR failed", "err", err)
+		return model.PullRequestSummary{}, err
+	}
+
+	httpClient := githubclient.NewHTTPClient(a.authToken)
+	threads, err := githubclient.FetchReviewThreads(
+		a.ctx, httpClient, owner, repo, number,
+		func(loaded, total int) {
+			a.emit("pr:load-progress", map[string]int{"loaded": loaded, "total": total})
+		},
+	)
+	if err != nil {
+		logger.L.Error("FetchReviewThreads failed", "err", err)
+		return model.PullRequestSummary{}, err
+	}
+
+	// Build ignored-login set for O(1) lookup.
+	ignoredSet := make(map[string]struct{}, len(a.ignoredCommenters))
+	for _, ic := range a.ignoredCommenters {
+		ignoredSet[ic.Login] = struct{}{}
+	}
+
+	// Filter threads whose root comment author is ignored.
+	filtered := make([]model.CommentThreadDTO, 0, len(threads))
+	for _, t := range threads {
+		if len(t.Comments) == 0 {
+			filtered = append(filtered, t)
+			continue
+		}
+		if _, ignored := ignoredSet[t.Comments[0].AuthorLogin]; !ignored {
+			filtered = append(filtered, t)
+		}
+	}
+
+	// Compute counts from filtered threads.
+	commentCount := len(filtered)
+	unresolvedCount := 0
+	for _, t := range filtered {
+		if !t.Resolved {
+			unresolvedCount++
+		}
+	}
+
+	pr.CommentCount = commentCount
+	pr.UnresolvedCount = unresolvedCount
+	pr.Owner = owner
+	pr.Repo = repo
+
+	// Cache for subsequent GetCommentThreads / GetThread calls.
+	a.prOwner = owner
+	a.prRepo = repo
+	a.prNumber = number
+	a.prCache = pr
+	a.threads = filtered
+
+	logger.L.Info("LoadPullRequest complete",
+		"threads", len(filtered),
+		"unresolved", unresolvedCount,
+	)
+	return *pr, nil
+}
+
+// GetCommentThreads returns the cached review threads for the loaded PR.
+// When includeResolved is false, resolved threads are excluded.
+// Returns "notfound:" error if no PR has been loaded yet.
+func (a *App) GetCommentThreads(includeResolved bool) ([]model.CommentThreadDTO, error) {
+	if a.prCache == nil {
+		return nil, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+	if includeResolved {
+		return a.threads, nil
+	}
+	result := make([]model.CommentThreadDTO, 0, len(a.threads))
+	for _, t := range a.threads {
+		if !t.Resolved {
+			result = append(result, t)
+		}
+	}
+	return result, nil
+}
+
+// GetThread returns a single review thread by its root comment ID.
+// Returns "notfound:thread" if no thread with that ID exists in the cache.
+func (a *App) GetThread(rootID int64) (model.CommentThreadDTO, error) {
+	if a.prCache == nil {
+		return model.CommentThreadDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+	for _, t := range a.threads {
+		if t.RootID == rootID {
+			return t, nil
+		}
+	}
+	return model.CommentThreadDTO{}, fmt.Errorf("notfound:thread %d", rootID)
+}
+
+// ReplyToComment posts a reply to an existing review thread.
+// threadRootID identifies the thread by its root comment's database ID.
+// Returns the new CommentDTO on success and appends it to the cached thread.
+// Error prefixes: "validation:" — empty body; "notfound:thread" — unknown thread; "github:" — API error.
+func (a *App) ReplyToComment(threadRootID int64, body string) (model.CommentDTO, error) {
+	if strings.TrimSpace(body) == "" {
+		return model.CommentDTO{}, fmt.Errorf("validation:body required")
+	}
+	if a.ghClient == nil {
+		return model.CommentDTO{}, fmt.Errorf("auth: not authenticated")
+	}
+
+	// Find thread in cache.
+	threadIdx := -1
+	for i, t := range a.threads {
+		if t.RootID == threadRootID {
+			threadIdx = i
+			break
+		}
+	}
+	if threadIdx == -1 {
+		return model.CommentDTO{}, fmt.Errorf("notfound:thread %d", threadRootID)
+	}
+
+	comment, _, err := a.ghClient.PullRequests.CreateComment(a.ctx, a.prOwner, a.prRepo, a.prNumber, &github.PullRequestComment{
+		Body:      &body,
+		InReplyTo: &threadRootID,
+	})
+	if err != nil {
+		return model.CommentDTO{}, fmt.Errorf("github: create comment: %w", err)
+	}
+
+	dto := model.CommentDTO{
+		ID:           comment.GetID(),
+		InReplyToID:  threadRootID,
+		Body:         comment.GetBody(),
+		AuthorLogin:  comment.GetUser().GetLogin(),
+		AuthorAvatar: comment.GetUser().GetAvatarURL(),
+		CreatedAt:    comment.GetCreatedAt().UTC().Format("2006-01-02T15:04:05Z"),
+		IsSuggestion: strings.Contains(comment.GetBody(), "```suggestion"),
+	}
+
+	// Append to cached thread.
+	a.threads[threadIdx].Comments = append(a.threads[threadIdx].Comments, dto)
+
+	logger.L.Info("ReplyToComment complete", "thread_root_id", threadRootID, "new_comment_id", dto.ID)
+	return dto, nil
+}
+
+// ResolveThread marks a review thread as resolved.
+// threadRootID identifies the thread by its root comment's database ID.
+// Error prefixes: "notfound:thread" — unknown thread; "github:" — API error.
+func (a *App) ResolveThread(threadRootID int64) error {
+	if a.ghClient == nil {
+		return fmt.Errorf("auth: not authenticated")
+	}
+
+	threadIdx := -1
+	for i, t := range a.threads {
+		if t.RootID == threadRootID {
+			threadIdx = i
+			break
+		}
+	}
+	if threadIdx == -1 {
+		return fmt.Errorf("notfound:thread %d", threadRootID)
+	}
+
+	nodeID := a.threads[threadIdx].NodeID
+	httpClient := githubclient.NewHTTPClient(a.authToken)
+	if err := githubclient.ResolveThread(a.ctx, httpClient, nodeID); err != nil {
+		return err
+	}
+
+	a.threads[threadIdx].Resolved = true
+	logger.L.Info("ResolveThread complete", "thread_root_id", threadRootID)
+	return nil
+}
+
+// UnresolveThread marks a review thread as unresolved.
+// threadRootID identifies the thread by its root comment's database ID.
+// Error prefixes: "notfound:thread" — unknown thread; "github:" — API error.
+func (a *App) UnresolveThread(threadRootID int64) error {
+	if a.ghClient == nil {
+		return fmt.Errorf("auth: not authenticated")
+	}
+
+	threadIdx := -1
+	for i, t := range a.threads {
+		if t.RootID == threadRootID {
+			threadIdx = i
+			break
+		}
+	}
+	if threadIdx == -1 {
+		return fmt.Errorf("notfound:thread %d", threadRootID)
+	}
+
+	nodeID := a.threads[threadIdx].NodeID
+	httpClient := githubclient.NewHTTPClient(a.authToken)
+	if err := githubclient.UnresolveThread(a.ctx, httpClient, nodeID); err != nil {
+		return err
+	}
+
+	a.threads[threadIdx].Resolved = false
+	logger.L.Info("UnresolveThread complete", "thread_root_id", threadRootID)
+	return nil
+}
+
+// CommitSuggestion applies the suggestion block in a review comment to the PR
+// branch and creates a commit.
+//
+// commentID is the database ID of the comment that contains the suggestion.
+// The method finds the comment across all cached threads, resolves the file
+// path from its parent thread, and delegates to suggestion.CommitSuggestion.
+//
+// Error prefixes: "auth:" — no client; "notfound:comment" — unknown comment;
+// "validation:" — not a suggestion; "github:conflict" — SHA conflict;
+// "github:" — other API errors.
+func (a *App) CommitSuggestion(commentID int64, commitMessage string) (model.SuggestionCommitResult, error) {
+	if a.ghClient == nil {
+		return model.SuggestionCommitResult{}, fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return model.SuggestionCommitResult{}, fmt.Errorf("notfound:comment %d — no PR loaded", commentID)
+	}
+
+	// Find the comment and its parent thread.
+	var (
+		found      model.CommentDTO
+		threadPath string
+	)
+	for _, t := range a.threads {
+		for _, c := range t.Comments {
+			if c.ID == commentID {
+				found = c
+				threadPath = t.Path
+				goto done
+			}
+		}
+	}
+done:
+	if found.ID == 0 {
+		return model.SuggestionCommitResult{}, fmt.Errorf("notfound:comment %d", commentID)
+	}
+
+	result, err := githubclient.CommitSuggestion(
+		a.ctx,
+		a.ghClient,
+		a.prOwner,
+		a.prRepo,
+		a.prCache.HeadBranch,
+		threadPath,
+		found,
+		commitMessage,
+	)
+	if err != nil {
+		logger.L.Error("CommitSuggestion failed", "comment_id", commentID, "err", err)
+		return model.SuggestionCommitResult{}, err
+	}
+
+	logger.L.Info("CommitSuggestion complete", "comment_id", commentID, "commit_sha", result.CommitSHA)
+	return result, nil
+}
+
+// GetIgnoredCommenters returns the current list of ignored-commenter entries.
+// The list is lazily loaded from disk on the first call.
+// Error prefix: none — returns empty slice on load failure.
+func (a *App) GetIgnoredCommenters() ([]model.IgnoredCommenterDTO, error) {
+	if err := a.loadIgnoredCommenters(); err != nil {
+		return nil, fmt.Errorf("settings: load: %w", err)
+	}
+	result := make([]model.IgnoredCommenterDTO, len(a.ignoredCommenters))
+	copy(result, a.ignoredCommenters)
+	return result, nil
+}
+
+// AddIgnoredCommenter adds a GitHub login to the ignored-commenters list.
+// Silently no-ops if the login is already present.
+// Error prefixes: "validation:" — empty login; "settings:" — save failure.
+func (a *App) AddIgnoredCommenter(login string) error {
+	login = strings.TrimSpace(login)
+	if login == "" {
+		return fmt.Errorf("validation: login required")
+	}
+	if err := a.loadIgnoredCommenters(); err != nil {
+		return fmt.Errorf("settings: load: %w", err)
+	}
+	for _, ic := range a.ignoredCommenters {
+		if ic.Login == login {
+			return nil // already present — no-op
+		}
+	}
+	a.ignoredCommenters = append(a.ignoredCommenters, model.IgnoredCommenterDTO{
+		Login:   login,
+		AddedAt: time.Now().UTC(),
+	})
+	if err := settings.Save(a.ignoredCommenters); err != nil {
+		// Roll back in-memory change.
+		a.ignoredCommenters = a.ignoredCommenters[:len(a.ignoredCommenters)-1]
+		return fmt.Errorf("settings: save: %w", err)
+	}
+	logger.L.Info("AddIgnoredCommenter", "login", login)
+	return nil
+}
+
+// RemoveIgnoredCommenter removes a GitHub login from the ignored-commenters list.
+// Silently no-ops if the login is not present.
+// Error prefix: "settings:" — save failure.
+func (a *App) RemoveIgnoredCommenter(login string) error {
+	if err := a.loadIgnoredCommenters(); err != nil {
+		return fmt.Errorf("settings: load: %w", err)
+	}
+	idx := -1
+	for i, ic := range a.ignoredCommenters {
+		if ic.Login == login {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return nil // not present — no-op
+	}
+	updated := make([]model.IgnoredCommenterDTO, 0, len(a.ignoredCommenters)-1)
+	updated = append(updated, a.ignoredCommenters[:idx]...)
+	updated = append(updated, a.ignoredCommenters[idx+1:]...)
+	if err := settings.Save(updated); err != nil {
+		return fmt.Errorf("settings: save: %w", err)
+	}
+	a.ignoredCommenters = updated
+	logger.L.Info("RemoveIgnoredCommenter", "login", login)
 	return nil
 }
 

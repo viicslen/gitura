@@ -1,5 +1,5 @@
 <template>
-  <div class="flex gap-6 items-start">
+  <div class="flex gap-6 items-start p-6">
     <!-- ── Filter sidebar ───────────────────────────────────────────────── -->
     <aside class="w-64 shrink-0 space-y-6 sticky top-0 self-start max-h-screen overflow-y-auto" aria-label="PR filters">
       <!-- Involvement types -->
@@ -321,6 +321,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { usePRFilters } from '@/composables/usePRFilters'
 import * as App from '../wailsjs/go/main/App'
 import type { model } from '../wailsjs/go/models'
+import type { ReviewLoadInput } from '@/types/review'
+
+const emit = defineEmits<{
+  (e: 'open-review', item: ReviewLoadInput): void
+}>()
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -476,8 +481,13 @@ async function fetchPRs(): Promise<void> {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
-function openPR(_pr: model.PRListItem): void {
-  // TODO: navigate to in-app PR review view (FR-002 — later feature).
+function openPR(pr: model.PRListItem): void {
+  emit('open-review', {
+    owner: pr.owner,
+    repo: pr.repo,
+    number: pr.number,
+    title: pr.title,
+  })
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────

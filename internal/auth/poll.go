@@ -60,7 +60,7 @@ func PollForToken(deviceCode, clientID string) (model.PollResult, string, error)
 		logger.L.Error("token poll request failed", "err", err)
 		return model.PollResult{Status: "error", Error: err.Error()}, "", fmt.Errorf("auth: token poll request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	logger.L.Debug("token poll response", "http_status", resp.StatusCode)
 	return decodeTokenResponse(resp)
@@ -82,7 +82,7 @@ func PollForTokenWith(poster HTTPPoster, deviceCode, clientID string) (model.Pol
 	if err != nil {
 		return model.PollResult{Status: "error", Error: err.Error()}, "", fmt.Errorf("auth: token poll request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return decodeTokenResponse(resp)
 }

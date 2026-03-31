@@ -80,9 +80,9 @@ func TestRunQuery_SinglePage_ReturnsAllIssues(t *testing.T) {
 	item := makeIssueJSON(1, "Fix it", "https://github.com/o/r/pull/1",
 		"https://api.github.com/repos/o/r", "alice", false, now, nil, nil)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, searchResponse([]map[string]interface{}{item}, 1, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{item}, 1, false))
 	}))
 	defer srv.Close()
 
@@ -97,9 +97,9 @@ func TestRunQuery_SinglePage_ReturnsAllIssues(t *testing.T) {
 // TestRunQuery_IncompleteResults_SetsFlag verifies that incomplete_results=true
 // from the API is surfaced.
 func TestRunQuery_IncompleteResults_SetsFlag(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, true))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, true))
 	}))
 	defer srv.Close()
 
@@ -112,13 +112,13 @@ func TestRunQuery_IncompleteResults_SetsFlag(t *testing.T) {
 // TestRunQuery_RateLimited_ReturnsError verifies 403 with rate limit header is
 // returned as an error.
 func TestRunQuery_RateLimited_ReturnsError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-RateLimit-Limit", "30")
 		w.Header().Set("X-RateLimit-Remaining", "0")
 		w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(60*time.Second).Unix()))
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, `{"message":"API rate limit exceeded","documentation_url":"https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"}`)
+		_, _ = fmt.Fprint(w, `{"message":"API rate limit exceeded","documentation_url":"https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"}`)
 	}))
 	defer srv.Close()
 
@@ -249,7 +249,7 @@ func TestSearchOpenPRs_SingleQuery_UsesInvolvesQualifier(t *testing.T) {
 		callCount++
 		capturedQuery = r.URL.Query().Get("q")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
 	}))
 	defer srv.Close()
 
@@ -273,9 +273,9 @@ func TestSearchOpenPRs_FieldMapping_MapsIssueToItem(t *testing.T) {
 	pr := makeIssueJSON(42, "My PR", "https://github.com/org/repo/pull/42",
 		"https://api.github.com/repos/org/repo", "bob", true, now, nil, nil)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, searchResponse([]map[string]interface{}{pr}, 1, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{pr}, 1, false))
 	}))
 	defer srv.Close()
 
@@ -308,9 +308,9 @@ func TestSearchOpenPRs_InvolvementTags_AssigneeAndReviewer(t *testing.T) {
 	prReviewer := makeIssueJSON(2, "Reviewer", "https://github.com/o/r/pull/2",
 		"https://api.github.com/repos/o/r", "alice", false, now.Add(-time.Hour), nil, nil)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, searchResponse([]map[string]interface{}{prAssigned, prReviewer}, 2, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{prAssigned, prReviewer}, 2, false))
 	}))
 	defer srv.Close()
 
@@ -334,13 +334,13 @@ func TestSearchOpenPRs_InvolvementTags_AssigneeAndReviewer(t *testing.T) {
 // error from the API is translated into PRListResult.Error + RateLimitReset.
 func TestSearchOpenPRs_RateLimit_ReturnsMappedResult(t *testing.T) {
 	resetTime := time.Now().Add(60 * time.Second).Unix()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-RateLimit-Limit", "30")
 		w.Header().Set("X-RateLimit-Remaining", "0")
 		w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", resetTime))
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, `{"message":"API rate limit exceeded","documentation_url":"https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"}`)
+		_, _ = fmt.Fprint(w, `{"message":"API rate limit exceeded","documentation_url":"https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"}`)
 	}))
 	defer srv.Close()
 
@@ -362,9 +362,9 @@ func TestSearchOpenPRs_SortedByUpdatedAtDesc(t *testing.T) {
 	prNew := makeIssueJSON(2, "New PR", "https://github.com/o/r/pull/2",
 		"https://api.github.com/repos/o/r", "alice", false, newer, nil, nil)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, searchResponse([]map[string]interface{}{prOld, prNew}, 2, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{prOld, prNew}, 2, false))
 	}))
 	defer srv.Close()
 
@@ -380,10 +380,10 @@ func TestSearchOpenPRs_SortedByUpdatedAtDesc(t *testing.T) {
 // TestSearchOpenPRs_GenericError_ReturnsMappedResult verifies that a non-rate-limit
 // HTTP error is translated into PRListResult.Error.
 func TestSearchOpenPRs_GenericError_ReturnsMappedResult(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"message":"Internal Server Error"}`)
+		_, _ = fmt.Fprint(w, `{"message":"Internal Server Error"}`)
 	}))
 	defer srv.Close()
 
@@ -401,7 +401,7 @@ func TestSearchOpenPRs_IncludeDrafts_OmitsDraftFalseQualifier(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedQuery = r.URL.Query().Get("q")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
 	}))
 	defer srv.Close()
 
@@ -419,7 +419,7 @@ func TestSearchOpenPRs_ExcludeDrafts_AddsDraftFalseQualifier(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedQuery = r.URL.Query().Get("q")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
 	}))
 	defer srv.Close()
 
@@ -433,11 +433,11 @@ func TestSearchOpenPRs_ExcludeDrafts_AddsDraftFalseQualifier(t *testing.T) {
 // TestSearchOpenPRs_AbuseLimitRetryAfter_ReturnsMappedResult verifies that an
 // abuse/secondary rate limit error is translated into PRListResult.Error.
 func TestSearchOpenPRs_AbuseLimitRetryAfter_ReturnsMappedResult(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Retry-After", "30")
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, `{"message":"You have exceeded a secondary rate limit","documentation_url":"https://docs.github.com/rest/overview/rate-limits-for-the-rest-api#about-secondary-rate-limits"}`)
+		_, _ = fmt.Fprint(w, `{"message":"You have exceeded a secondary rate limit","documentation_url":"https://docs.github.com/rest/overview/rate-limits-for-the-rest-api#about-secondary-rate-limits"}`)
 	}))
 	defer srv.Close()
 
@@ -455,7 +455,7 @@ func TestSearchOpenPRs_NoFiltersAppliedServerSide_RepoNotInQuery(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedQuery = r.URL.Query().Get("q")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
 	}))
 	defer srv.Close()
 
@@ -496,7 +496,7 @@ func TestRepoFromURL_OnlyOwner_ReturnsBothEmpty(t *testing.T) {
 }
 
 // TestRepoFromURL_NonAPIURL_DoesNotPanic verifies that a non-API URL doesn't panic.
-func TestRepoFromURL_NonAPIURL_DoesNotPanic(t *testing.T) {
+func TestRepoFromURL_NonAPIURL_DoesNotPanic(t *testing.T) { //nolint:revive
 	owner, repo := repoFromURL("https://github.com/octocat/Hello-World")
 	_ = owner
 	_ = repo

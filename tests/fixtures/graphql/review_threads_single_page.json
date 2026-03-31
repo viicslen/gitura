@@ -1,0 +1,39 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "reviewThreads": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": ""
+          },
+          "nodes": [
+            {
+              "id": "PRRT_kwDOA1B2Mc4ADeF1",
+              "isResolved": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "databaseId": 1001,
+                    "body": "Please use a constant here.",
+                    "author": {
+                      "login": "reviewer1",
+                      "avatarUrl": "https://avatars.githubusercontent.com/u/1?v=4"
+                    },
+                    "path": "internal/foo/bar.go",
+                    "line": 42,
+                    "originalLine": 42,
+                    "diffHunk": "@@ -40,6 +40,7 @@\n context line\n context line\n-old line\n+new line",
+                    "createdAt": "2025-01-10T10:00:00Z",
+                    "url": "https://github.com/owner/repo/pull/7#discussion_r1001",
+                    "replyTo": null
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

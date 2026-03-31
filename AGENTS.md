@@ -5,6 +5,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-31
 ## Active Technologies
 - Go 1.25; TypeScript 5.x (strict mode) + Wails v2.11, go-github/v67 (Search.Issues), golang.org/x/oauth2, go-keyring; Vue 3, VueUse ^14.2.1, shadcn-vue (reka-ui + radix-vue), lucide-vue-next (003-pr-list-filters)
 - N/A — all data fetched live from GitHub REST API; filter state in-memory only (003-pr-list-filters)
+- Go 1.25; TypeScript 5.x (strict mode) + Wails v2.11, go-github/v67 (PR metadata + REST write ops), raw HTTP (004-pr-review-workflow)
+- `os.UserConfigDir()/gitura/ignored_commenters.json` (ignored commenters only); (004-pr-review-workflow)
 
 - **Language**: Go 1.22+
 - **UI Framework**: Wails v2 (WebView-based desktop app)
@@ -86,6 +88,7 @@ Frontend: TypeScript strict mode. shadcn-vue components are the single source of
 UI primitives — no ad-hoc inline styles.
 
 ## Recent Changes
+- 004-pr-review-workflow: Added Go 1.25; TypeScript 5.x (strict mode) + Wails v2.11, go-github/v67 (PR metadata + REST write ops), raw HTTP
 - 003-pr-list-filters: Added Go 1.25; TypeScript 5.x (strict mode) + Wails v2.11, go-github/v67 (Search.Issues), golang.org/x/oauth2, go-keyring; Vue 3, VueUse ^14.2.1, shadcn-vue (reka-ui + radix-vue), lucide-vue-next
 
 - 001-pr-review-ui: Added Wails+Vue+shadcn-vue stack, go-github client, device flow auth
