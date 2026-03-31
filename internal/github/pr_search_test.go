@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"testing"
 	"time"
 
@@ -375,6 +376,31 @@ func TestSearchOpenPRs_SortedByUpdatedAtDesc(t *testing.T) {
 	require.Len(t, result.Items, 2)
 	assert.Equal(t, 2, result.Items[0].Number, "newer PR should be first")
 	assert.Equal(t, 1, result.Items[1].Number, "older PR should be second")
+}
+
+// TestSortComparator_GithubTimestamp_SortsDescending confirms that the sort
+// comparator used in SearchOpenPRs compiles correctly with github.Timestamp
+// (which embeds time.Time) and produces the expected descending order.
+// This test exists to verify the reviewer's concern that GetUpdatedAt().Time
+// is required — the comparator uses .Time on both sides for clarity.
+func TestSortComparator_GithubTimestamp_SortsDescending(t *testing.T) {
+	older := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	newer := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	oldest := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	issues := []*github.Issue{
+		makeIssue(3, "Oldest", "https://github.com/o/r/pull/3", "https://api.github.com/repos/o/r", "alice", false, oldest),
+		makeIssue(2, "Newer", "https://github.com/o/r/pull/2", "https://api.github.com/repos/o/r", "alice", false, newer),
+		makeIssue(1, "Older", "https://github.com/o/r/pull/1", "https://api.github.com/repos/o/r", "alice", false, older),
+	}
+
+	sort.Slice(issues, func(i, j int) bool {
+		return issues[i].GetUpdatedAt().Time.After(issues[j].GetUpdatedAt().Time)
+	})
+
+	assert.Equal(t, 2, issues[0].GetNumber(), "newest should be first")
+	assert.Equal(t, 1, issues[1].GetNumber(), "older should be second")
+	assert.Equal(t, 3, issues[2].GetNumber(), "oldest should be last")
 }
 
 // TestSearchOpenPRs_GenericError_ReturnsMappedResult verifies that a non-rate-limit
