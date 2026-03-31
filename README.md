@@ -24,17 +24,17 @@ A desktop application for reviewing GitHub pull requests without leaving your te
 ### Environment
 
 ```sh
-GITURA_GITHUB_CLIENT_ID=<your GitHub OAuth App client ID>
+GITHUB_CLIENT_ID=<your GitHub OAuth App client ID>
 ```
 
-This variable must be set before launching the app. The app will exit with a descriptive error if it is missing.
+This variable is read at **build/dev time** and injected into the binary via `-ldflags`. The easiest way to supply it is to copy `.env.example` to `.env`, fill in the value, and use the `just dev` / `just build` recipes (see [Development](#development) below).
 
 ### GitHub OAuth App
 
 Create an OAuth App at **GitHub → Settings → Developer settings → OAuth Apps** with:
 
 - **Authorization callback URL**: `http://localhost` (Device Flow does not use a callback, but GitHub requires a value)
-- Copy the **Client ID** into `GITURA_GITHUB_CLIENT_ID`
+- Copy the **Client ID** into `GITHUB_CLIENT_ID`
 
 No client secret is needed — the app uses the [Device Authorization Grant](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow) (no browser redirect required).
 
@@ -44,7 +44,7 @@ The OAuth scope requested is **`repo`**, required for GraphQL mutations that res
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.25+
 - Node.js 20+
 - [Wails v2 CLI](https://wails.io/docs/gettingstarted/installation): `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
 - On Linux: `libwebkit2gtk-4.0-dev`, `libsecret-1-dev`
@@ -52,8 +52,11 @@ The OAuth scope requested is **`repo`**, required for GraphQL mutations that res
 ### Run in dev mode (hot reload)
 
 ```bash
-export GITURA_GITHUB_CLIENT_ID=<your client ID>
-wails dev
+# Recommended: uses just to inject GITHUB_CLIENT_ID from .env automatically
+just dev
+
+# Or directly (requires GITHUB_CLIENT_ID to be exported in your shell):
+wails dev -ldflags "-X 'main.githubClientID=$GITHUB_CLIENT_ID'"
 ```
 
 This starts a Vite dev server for the frontend with hot reload. A browser-accessible dev server is also available at `http://localhost:34115`.
@@ -90,14 +93,15 @@ The binary is placed in `build/bin/`.
 │   ├── auth/               # GitHub OAuth 2.0 Device Flow
 │   ├── github/             # GitHub REST + GraphQL API client
 │   ├── keyring/            # OS keychain token storage (go-keyring)
+│   ├── logger/             # Structured slog logger (GITURA_LOG_LEVEL)
 │   ├── model/              # Shared DTO types (Go ↔ Vue boundary)
-│   └── settings/           # Ignored-commenter list persistence
+│   └── settings/           # Ignored-commenter list persistence (settings.toml)
 ├── frontend/
 │   └── src/
 │       ├── components/     # App-specific Vue components
 │       ├── components/ui/  # shadcn-vue primitives
-│       ├── composables/    # useAuth, usePR, useSettings
-│       └── pages/          # AuthPage, PRPage, SettingsPage
+│       ├── composables/    # useAuth, usePRFilters, useReview, useTheme
+│       └── pages/          # AuthPage, PRPage, ReviewPage, SettingsPage
 ├── specs/                  # Feature specifications and contracts
 └── tests/
     └── fixtures/           # Recorded GitHub API responses for offline tests
