@@ -1,0 +1,16 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "gitura",
+  "outputfilename": "gitura",
+  "frontend:install": "bun install",
+  "frontend:build": "bun run build",
+  "frontend:dev:watcher": "bun run dev",
+  "frontend:dev:serverUrl": "auto",
+  "wailsjsdir": "./frontend/src",
+  "assetdir": "frontend/dist",
+  "build:tags": "webkit2_41",
+  "author": {
+    "name": "Victor R",
+    "email": "39545521+viicslen@users.noreply.github.com"
+  }
+}
