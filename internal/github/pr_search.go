@@ -162,7 +162,7 @@ func SearchOpenPRs(
 
 	// Sort by UpdatedAt descending.
 	sort.Slice(issues, func(i, j int) bool {
-		return issues[i].GetUpdatedAt().After(issues[j].GetUpdatedAt().Time)
+		return issues[i].GetUpdatedAt().Time.After(issues[j].GetUpdatedAt().Time)
 	})
 
 	// Convert to DTOs, tagging involvement types.
