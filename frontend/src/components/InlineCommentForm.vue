@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, inject } from 'vue'
+import type { ComputedRef } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -14,6 +15,7 @@ const emit = defineEmits<{
 
 const body = ref('')
 const submitting = ref(false)
+const hasPendingReview = inject<ComputedRef<boolean>>('hasPendingReview')
 
 async function submit(mode: 'draft' | 'immediate'): Promise<void> {
   if (!body.value.trim() || submitting.value) return
@@ -74,7 +76,7 @@ function handleKeydown(event: KeyboardEvent): void {
         aria-label="Add to review"
         @click="submit('draft')"
       >
-        Start a review
+        {{ hasPendingReview ? 'Add to review' : 'Start a review' }}
       </Button>
     </div>
   </div>

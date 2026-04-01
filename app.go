@@ -697,22 +697,35 @@ func (a *App) GetFileDiff(path string) (model.ParsedDiffDTO, error) {
 // GetPendingReview returns the current in-memory pending review state.
 // Returns PendingReviewDTO{HasPending: false} when no pending review exists.
 func (a *App) GetPendingReview() (model.PendingReviewDTO, error) {
-	if a.pendingReviewID == 0 {
+	if len(a.pendingComments) == 0 {
 		return model.PendingReviewDTO{HasPending: false}, nil
 	}
 	comments := make([]model.DraftCommentDTO, len(a.pendingComments))
 	copy(comments, a.pendingComments)
 	return model.PendingReviewDTO{
-		ReviewID:   a.pendingReviewID,
 		Comments:   comments,
 		HasPending: true,
 	}, nil
 }
 
-// AddDraftComment adds a comment to the pending review batch.
-// On the first call it creates a pending review on GitHub (with the comment
-// included). Subsequent calls append to the existing pending review via raw HTTP.
-// Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+// SyncPendingReview returns the current in-memory pending review state.
+// Draft comments are stored locally only (no GitHub API calls during draft
+// phase), so no network sync is required.
+// Error prefix: "auth:" — no client; "notfound:" — no PR loaded.
+func (a *App) SyncPendingReview() (model.PendingReviewDTO, error) {
+	if a.ghClient == nil {
+		return model.PendingReviewDTO{}, fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return model.PendingReviewDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+	return a.GetPendingReview()
+}
+
+// AddDraftComment adds a comment to the local pending review batch.
+// Comments are stored in-memory only; no GitHub API calls are made during
+// the draft phase. All comments are submitted together by SubmitReview.
+// Error prefix: "auth:" — no client; "notfound:" — no PR loaded.
 func (a *App) AddDraftComment(comment model.DraftCommentDTO) (model.PendingReviewDTO, error) {
 	if a.ghClient == nil {
 		return model.PendingReviewDTO{}, fmt.Errorf("auth: not authenticated")
@@ -721,42 +734,12 @@ func (a *App) AddDraftComment(comment model.DraftCommentDTO) (model.PendingRevie
 		return model.PendingReviewDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
 	}
 
-	if a.pendingReviewID == 0 {
-		// First comment: create the pending review with the comment included.
-		draftComment := draftCommentToGitHub(comment)
-		pending := ""
-		commitSHA := a.prCache.HeadSHA
-		review, _, err := a.ghClient.PullRequests.CreateReview(
-			a.ctx, a.prOwner, a.prRepo, a.prNumber,
-			&github.PullRequestReviewRequest{
-				CommitID: &commitSHA,
-				Event:    &pending,
-				Comments: []*github.DraftReviewComment{draftComment},
-			},
-		)
-		if err != nil {
-			return model.PendingReviewDTO{}, fmt.Errorf("github: create pending review: %w", err)
-		}
-		a.pendingReviewID = review.GetID()
-	} else {
-		// Subsequent comment: add to existing pending review via raw HTTP.
-		httpClient := githubclient.NewHTTPClient(a.authToken)
-		if err := githubclient.AddCommentToPendingReview(
-			a.ctx, httpClient,
-			a.prOwner, a.prRepo, a.prNumber,
-			a.pendingReviewID, comment,
-		); err != nil {
-			return model.PendingReviewDTO{}, err
-		}
-	}
-
 	a.pendingComments = append(a.pendingComments, comment)
-	logger.L.Info("AddDraftComment", "review_id", a.pendingReviewID, "path", comment.Path, "line", comment.Line)
+	logger.L.Info("AddDraftComment (local)", "path", comment.Path, "line", comment.Line, "total", len(a.pendingComments))
 
 	comments := make([]model.DraftCommentDTO, len(a.pendingComments))
 	copy(comments, a.pendingComments)
 	return model.PendingReviewDTO{
-		ReviewID:   a.pendingReviewID,
 		Comments:   comments,
 		HasPending: true,
 	}, nil
@@ -803,8 +786,9 @@ func (a *App) PostImmediateComment(comment model.DraftCommentDTO) (model.Comment
 	}, nil
 }
 
-// SubmitReview submits the pending review with a verdict.
-// If no pending review exists, a new one is created and immediately submitted.
+// SubmitReview submits all pending draft comments as a single review.
+// All locally-buffered comments are sent together with the verdict in one
+// CreateReview call — no separate pending-review state on GitHub is required.
 // Side effect: clears pendingReviewID and pendingComments on success.
 // Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
 func (a *App) SubmitReview(req model.ReviewSubmitDTO) (model.ReviewSubmitResult, error) {
@@ -815,50 +799,40 @@ func (a *App) SubmitReview(req model.ReviewSubmitDTO) (model.ReviewSubmitResult,
 		return model.ReviewSubmitResult{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
 	}
 
-	if a.pendingReviewID == 0 {
-		// No pending review — create one now so we have an ID to submit.
-		id, err := githubclient.CreatePendingReview(a.ctx, a.ghClient, a.prOwner, a.prRepo, a.prNumber)
-		if err != nil {
-			return model.ReviewSubmitResult{}, err
-		}
-		a.pendingReviewID = id
+	draftComments := make([]*github.DraftReviewComment, len(a.pendingComments))
+	for i, c := range a.pendingComments {
+		draftComments[i] = draftCommentToGitHub(c)
 	}
 
-	result, err := githubclient.SubmitReview(
-		a.ctx, a.ghClient,
-		a.prOwner, a.prRepo, a.prNumber,
-		a.pendingReviewID, req,
+	commitSHA := a.prCache.HeadSHA
+	review, _, err := a.ghClient.PullRequests.CreateReview(
+		a.ctx, a.prOwner, a.prRepo, a.prNumber,
+		&github.PullRequestReviewRequest{
+			CommitID: &commitSHA,
+			Body:     &req.Body,
+			Event:    &req.Verdict,
+			Comments: draftComments,
+		},
 	)
 	if err != nil {
-		return model.ReviewSubmitResult{}, err
+		return model.ReviewSubmitResult{}, fmt.Errorf("github: submit review: %w", err)
 	}
 
 	a.pendingReviewID = 0
 	a.pendingComments = nil
-	logger.L.Info("SubmitReview complete", "review_id", result.ReviewID, "verdict", req.Verdict)
-	return result, nil
+	logger.L.Info("SubmitReview complete", "review_id", review.GetID(), "verdict", req.Verdict)
+	return model.ReviewSubmitResult{
+		ReviewID: review.GetID(),
+		HTMLURL:  review.GetHTMLURL(),
+	}, nil
 }
 
-// DiscardPendingReview deletes the pending review on GitHub and clears local state.
-// No-ops silently if no pending review exists.
-// Error prefix: "auth:" — no client; "github:" — API error.
+// DiscardPendingReview clears the local pending review state.
+// No GitHub API calls are made; comments are stored locally only.
 func (a *App) DiscardPendingReview() error {
-	if a.ghClient == nil {
-		return fmt.Errorf("auth: not authenticated")
-	}
-	if a.pendingReviewID == 0 {
-		return nil
-	}
-	if err := githubclient.DeletePendingReview(
-		a.ctx, a.ghClient,
-		a.prOwner, a.prRepo, a.prNumber,
-		a.pendingReviewID,
-	); err != nil {
-		return err
-	}
 	a.pendingReviewID = 0
 	a.pendingComments = nil
-	logger.L.Info("DiscardPendingReview complete")
+	logger.L.Info("DiscardPendingReview: cleared local state")
 	return nil
 }
 

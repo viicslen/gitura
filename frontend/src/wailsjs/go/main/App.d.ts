@@ -44,4 +44,6 @@ export function StartDeviceFlow():Promise<model.DeviceFlowInfo>;
 
 export function SubmitReview(arg1:model.ReviewSubmitDTO):Promise<model.ReviewSubmitResult>;
 
+export function SyncPendingReview():Promise<model.PendingReviewDTO>;
+
 export function UnresolveThread(arg1:number):Promise<void>;

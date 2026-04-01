@@ -1,4 +1,8 @@
 <template>
+  <!-- Toaster must live outside the overflow-hidden root div; fixed positioning
+       in WebKit (Wails) is clipped by overflow:hidden ancestors. Vue 3 fragments
+       allow multiple root elements. -->
+  <Toaster position="bottom-right" richColors />
   <div class="h-screen flex flex-col overflow-hidden bg-background text-foreground">
     <!-- Nav bar shown when authenticated -->
     <nav v-if="authState.is_authenticated" class="border-b border-border px-6 py-3 flex items-center gap-6">
@@ -69,6 +73,7 @@ import PRPage from '@/pages/PRPage.vue'
 import SettingsPage from '@/pages/SettingsPage.vue'
 import ReviewPage from '@/pages/ReviewPage.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import { Toaster } from '@/components/ui/sonner'
 import { useAuth } from '@/composables/useAuth'
 import type { ReviewLoadInput } from '@/types/review'
 

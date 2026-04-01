@@ -109,7 +109,7 @@ export function useDiffReview() {
 
   async function loadPendingReview(): Promise<void> {
     try {
-      pendingReview.value = await App.GetPendingReview()
+      pendingReview.value = await App.SyncPendingReview()
     } catch {
       pendingReview.value = null
     }

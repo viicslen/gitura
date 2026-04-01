@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, computed, provide } from 'vue'
 import { Send, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -59,6 +59,9 @@ const VERDICT_OPTIONS: { value: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'; label
 // ── Discard confirmation dialog ────────────────────────────────────────────
 const discardDialogOpen = ref(false)
 const discardLoading = ref(false)
+
+// Provide pending-review state to deep descendants (e.g. InlineCommentForm)
+provide('hasPendingReview', computed(() => pendingReview.value?.has_pending ?? false))
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 onMounted(async () => {

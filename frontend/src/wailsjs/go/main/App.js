@@ -86,6 +86,10 @@ export function SubmitReview(arg1) {
   return window['go']['main']['App']['SubmitReview'](arg1);
 }
 
+export function SyncPendingReview() {
+  return window['go']['main']['App']['SyncPendingReview']();
+}
+
 export function UnresolveThread(arg1) {
   return window['go']['main']['App']['UnresolveThread'](arg1);
 }
