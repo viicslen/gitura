@@ -31,6 +31,10 @@ const diffReviewRef = ref<InstanceType<typeof DiffReviewView> | null>(null)
 const diffCanGoPrev = computed(() => diffReviewRef.value?.canGoPrev ?? false)
 const diffCanGoNext = computed(() => diffReviewRef.value?.canGoNext ?? false)
 const diffShowOtherThreads = computed(() => diffReviewRef.value?.showOtherThreads ?? false)
+const diffFileCount = computed(() => diffReviewRef.value?.files?.length ?? 0)
+const diffAdded = computed(() => diffReviewRef.value?.files?.filter(f => f.status === 'added').length ?? 0)
+const diffDeleted = computed(() => diffReviewRef.value?.files?.filter(f => f.status === 'removed').length ?? 0)
+const diffModified = computed(() => diffReviewRef.value?.files?.filter(f => f.status !== 'added' && f.status !== 'removed').length ?? 0)
 function diffPrevFile(): void { diffReviewRef.value?.prevFile() }
 function diffNextFile(): void { diffReviewRef.value?.nextFile() }
 function diffToggleOtherThreads(): void { diffReviewRef.value?.toggleOtherThreads() }
@@ -154,27 +158,42 @@ onMounted(() => {
         <span>{{ prSummary.comment_count }} total</span>
       </div>
 
-      <!-- File nav (files view only) -->
-      <template v-if="prView === 'files'">
-        <Button
-          variant="ghost"
-          size="icon"
-          :disabled="!diffCanGoPrev"
-          aria-label="Previous file"
-          @click="diffPrevFile"
-        >
-          <ChevronLeft class="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          :disabled="!diffCanGoNext"
-          aria-label="Next file"
-          @click="diffNextFile"
-        >
-          <ChevronRight class="h-4 w-4" />
-        </Button>
-      </template>
+      <!-- File count (files view only) -->
+      <div v-if="prView === 'files' && diffFileCount > 0" class="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+        <template v-if="diffModified > 0">
+          <span>{{ diffModified }} modified</span>
+        </template>
+        <template v-if="diffAdded > 0">
+          <span v-if="diffModified > 0" class="text-border">·</span>
+          <span>{{ diffAdded }} added</span>
+        </template>
+        <template v-if="diffDeleted > 0">
+          <span v-if="diffModified > 0 || diffAdded > 0" class="text-border">·</span>
+          <span>{{ diffDeleted }} deleted</span>
+        </template>
+        <span class="text-border">·</span>
+        <span>{{ diffFileCount }} total</span>
+      </div>
+
+      <!-- Prev/Next (both views) -->
+      <Button
+        variant="ghost"
+        size="icon"
+        :disabled="prView === 'conversation' ? !canGoBack : !diffCanGoPrev"
+        :aria-label="prView === 'conversation' ? 'Previous comment' : 'Previous file'"
+        @click="prView === 'conversation' ? goPrev() : diffPrevFile()"
+      >
+        <ChevronLeft class="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        :disabled="prView === 'conversation' ? !canGoForward : !diffCanGoNext"
+        :aria-label="prView === 'conversation' ? 'Next comment' : 'Next file'"
+        @click="prView === 'conversation' ? goNext() : diffNextFile()"
+      >
+        <ChevronRight class="h-4 w-4" />
+      </Button>
     </header>
 
     <!-- ── Loading state ───────────────────────────────────────────────────── -->
@@ -223,38 +242,6 @@ onMounted(() => {
             @reply-sent="handleReplySent"
             @suggestion-committed="handleSuggestionCommitted"
           />
-
-          <!-- Bottom nav bar -->
-          <div
-            v-if="queue.length > 0"
-            class="flex items-center justify-between px-4 py-2 border-t border-border shrink-0"
-          >
-            <Button
-              variant="outline"
-              size="sm"
-              :disabled="!canGoBack"
-              aria-label="Previous comment"
-              @click="goPrev()"
-            >
-              <ChevronLeft class="h-4 w-4 mr-1" />
-              Prev
-            </Button>
-
-            <span class="text-xs text-muted-foreground">
-              {{ currentIndex + 1 }} / {{ queue.length }}
-            </span>
-
-            <Button
-              variant="outline"
-              size="sm"
-              :disabled="!canGoForward"
-              aria-label="Next comment"
-              @click="goNext()"
-            >
-              Next
-              <ChevronRight class="h-4 w-4 ml-1" />
-            </Button>
-          </div>
         </div>
       </div>
 

@@ -52,14 +52,6 @@ function handleKeydown(event: KeyboardEvent, path: string): void {
 
 <template>
   <div class="flex flex-col h-full border-r border-border" aria-label="Changed files">
-    <!-- Header -->
-    <div class="px-3 py-2 border-b border-border shrink-0">
-      <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-        Files changed
-        <span v-if="files.length > 0" class="ml-1 font-normal">({{ files.length }})</span>
-      </span>
-    </div>
-
     <!-- Loading skeleton -->
     <div v-if="loading" class="flex flex-col gap-1 p-2">
       <div

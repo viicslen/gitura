@@ -122,7 +122,7 @@ function handleKeydown(event: KeyboardEvent): void {
 }
 
 // ── Exposed interface for parent ──────────────────────────────────────────
-defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggleOtherThreads })
+defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggleOtherThreads, files })
 </script>
 
 <template>
