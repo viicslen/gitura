@@ -62,8 +62,14 @@ jobs:
         run: mv build/bin/${{ matrix.binary }} build/bin/${{ matrix.asset_name }}
         shell: bash
 
-      - name: Upload release asset
+      - name: Generate checksum
+        run: sha256sum build/bin/${{ matrix.asset_name }} > build/bin/${{ matrix.asset_name }}.sha256
+        shell: bash
+
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: build/bin/${{ matrix.asset_name }}
+          files: |
+            build/bin/${{ matrix.asset_name }}
+            build/bin/${{ matrix.asset_name }}.sha256
           token: ${{ secrets.GITHUB_TOKEN }}
