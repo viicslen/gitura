@@ -65,6 +65,7 @@ jobs:
           install-mode: goinstall
         env:
           CGO_ENABLED: 1
+          GOFLAGS: -tags=dev
 
   frontend:
     name: Frontend Check
