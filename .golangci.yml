@@ -12,27 +12,25 @@ linters:
     - gocyclo
     - godot
     - revive
+  settings:
+    gocyclo:
+      min-complexity: 10
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+          disabled: false
+          arguments:
+            - "checkPrivateReceivers"
+            - "sayRepetitiveInsteadOfStutters"
+  exclusions:
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - gocyclo
+          - errcheck
+          - revive
 
 formatters:
   enable:
     - gofmt
-
-linters-settings:
-  gocyclo:
-    min-complexity: 10
-  revive:
-    rules:
-      - name: exported
-        severity: warning
-        disabled: false
-        arguments:
-          - "checkPrivateReceivers"
-          - "sayRepetitiveInsteadOfStutters"
-
-issues:
-  exclude-rules:
-    - path: "_test\\.go"
-      linters:
-        - gocyclo
-        - errcheck
-        - revive
