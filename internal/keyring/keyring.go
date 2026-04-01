@@ -25,14 +25,17 @@ type Keyringer interface {
 // Keyringer interface so that production code can be swapped for test doubles.
 type osKeyring struct{}
 
+// Set stores pwd in the OS keychain under svc and acct.
 func (osKeyring) Set(svc, acct, pwd string) error {
 	return keyring.Set(svc, acct, pwd)
 }
 
+// Get retrieves the password stored in the OS keychain for svc and acct.
 func (osKeyring) Get(svc, acct string) (string, error) {
 	return keyring.Get(svc, acct)
 }
 
+// Delete removes the password stored in the OS keychain for svc and acct.
 func (osKeyring) Delete(svc, acct string) error {
 	return keyring.Delete(svc, acct)
 }

@@ -281,26 +281,10 @@ func (a *App) LoadPullRequest(owner, repo string, number int) (model.PullRequest
 		ignoredSet[ic.Login] = struct{}{}
 	}
 
-	// Filter threads whose root comment author is ignored.
-	filtered := make([]model.CommentThreadDTO, 0, len(threads))
-	for _, t := range threads {
-		if len(t.Comments) == 0 {
-			filtered = append(filtered, t)
-			continue
-		}
-		if _, ignored := ignoredSet[t.Comments[0].AuthorLogin]; !ignored {
-			filtered = append(filtered, t)
-		}
-	}
+	filtered := filterIgnoredThreads(threads, ignoredSet)
 
-	// Compute counts from filtered threads.
 	commentCount := len(filtered)
-	unresolvedCount := 0
-	for _, t := range filtered {
-		if !t.Resolved {
-			unresolvedCount++
-		}
-	}
+	unresolvedCount := countUnresolved(filtered)
 
 	pr.CommentCount = commentCount
 	pr.UnresolvedCount = unresolvedCount
@@ -319,6 +303,33 @@ func (a *App) LoadPullRequest(owner, repo string, number int) (model.PullRequest
 		"unresolved", unresolvedCount,
 	)
 	return *pr, nil
+}
+
+// filterIgnoredThreads returns threads whose root comment author is not in ignored.
+// Threads with no comments are always included.
+func filterIgnoredThreads(threads []model.CommentThreadDTO, ignored map[string]struct{}) []model.CommentThreadDTO {
+	filtered := make([]model.CommentThreadDTO, 0, len(threads))
+	for _, t := range threads {
+		if len(t.Comments) == 0 {
+			filtered = append(filtered, t)
+			continue
+		}
+		if _, ok := ignored[t.Comments[0].AuthorLogin]; !ok {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
+}
+
+// countUnresolved returns the number of unresolved threads in the slice.
+func countUnresolved(threads []model.CommentThreadDTO) int {
+	n := 0
+	for _, t := range threads {
+		if !t.Resolved {
+			n++
+		}
+	}
+	return n
 }
 
 // GetCommentThreads returns the cached review threads for the loaded PR.

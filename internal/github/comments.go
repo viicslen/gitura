@@ -143,48 +143,9 @@ func FetchReviewThreads(
 			vars["after"] = *afterCursor
 		}
 
-		payload := map[string]interface{}{
-			"query":     reviewThreadsQueryBase,
-			"variables": vars,
-		}
-		body, err := json.Marshal(payload)
+		gqlResp, err := fetchReviewThreadsPage(ctx, httpClient, vars)
 		if err != nil {
-			return nil, fmt.Errorf("github: marshal GraphQL request: %w", err)
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, githubGraphQLURL, bytes.NewReader(body))
-		if err != nil {
-			return nil, fmt.Errorf("github: create GraphQL request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("github: GraphQL request failed: %w", err)
-		}
-
-		if resp.StatusCode == http.StatusUnauthorized {
-			_ = resp.Body.Close()
-			return nil, fmt.Errorf("auth: GitHub API returned 401 — token invalid or missing 'repo' scope")
-		}
-		if resp.StatusCode != http.StatusOK {
-			_ = resp.Body.Close()
-			return nil, fmt.Errorf("github: GraphQL returned HTTP %d", resp.StatusCode)
-		}
-
-		var gqlResp graphQLReviewThreadsResponse
-		if err := json.NewDecoder(resp.Body).Decode(&gqlResp); err != nil {
-			_ = resp.Body.Close()
-			return nil, fmt.Errorf("github: decode GraphQL response: %w", err)
-		}
-		_ = resp.Body.Close()
-
-		if len(gqlResp.Errors) > 0 {
-			msgs := make([]string, len(gqlResp.Errors))
-			for i, e := range gqlResp.Errors {
-				msgs[i] = e.Message
-			}
-			return nil, fmt.Errorf("github: GraphQL errors: %s", strings.Join(msgs, "; "))
+			return nil, err
 		}
 
 		nodes := gqlResp.Data.Repository.PullRequest.ReviewThreads.Nodes
@@ -208,6 +169,54 @@ func FetchReviewThreads(
 		threads = []model.CommentThreadDTO{}
 	}
 	return threads, nil
+}
+
+// fetchReviewThreadsPage executes a single GraphQL request with the given
+// variables and returns the decoded response.
+// Errors are prefixed with "github:" on API/decode failures or "auth:" on 401.
+func fetchReviewThreadsPage(ctx context.Context, httpClient *http.Client, vars map[string]interface{}) (graphQLReviewThreadsResponse, error) {
+	payload := map[string]interface{}{
+		"query":     reviewThreadsQueryBase,
+		"variables": vars,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return graphQLReviewThreadsResponse{}, fmt.Errorf("github: marshal GraphQL request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, githubGraphQLURL, bytes.NewReader(body))
+	if err != nil {
+		return graphQLReviewThreadsResponse{}, fmt.Errorf("github: create GraphQL request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return graphQLReviewThreadsResponse{}, fmt.Errorf("github: GraphQL request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return graphQLReviewThreadsResponse{}, fmt.Errorf("auth: GitHub API returned 401 — token invalid or missing 'repo' scope")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return graphQLReviewThreadsResponse{}, fmt.Errorf("github: GraphQL returned HTTP %d", resp.StatusCode)
+	}
+
+	var gqlResp graphQLReviewThreadsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&gqlResp); err != nil {
+		return graphQLReviewThreadsResponse{}, fmt.Errorf("github: decode GraphQL response: %w", err)
+	}
+
+	if len(gqlResp.Errors) > 0 {
+		msgs := make([]string, len(gqlResp.Errors))
+		for i, e := range gqlResp.Errors {
+			msgs[i] = e.Message
+		}
+		return graphQLReviewThreadsResponse{}, fmt.Errorf("github: GraphQL errors: %s", strings.Join(msgs, "; "))
+	}
+
+	return gqlResp, nil
 }
 
 // mapGraphQLThread converts a GraphQL thread node to a CommentThreadDTO.

@@ -44,18 +44,9 @@ func CommitSuggestion(
 		return model.SuggestionCommitResult{}, fmt.Errorf("github:parse diff hunk: %w", err)
 	}
 
-	fileContent, _, resp, err := client.Repositories.GetContents(ctx, owner, repo, filePath,
-		&github.RepositoryContentGetOptions{Ref: headBranch})
+	rawContent, sha, err := fetchFileContent(ctx, client, owner, repo, filePath, headBranch)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return model.SuggestionCommitResult{}, fmt.Errorf("notfound:file %s", filePath)
-		}
-		return model.SuggestionCommitResult{}, fmt.Errorf("github:get file contents: %w", err)
-	}
-
-	rawContent, err := fileContent.GetContent()
-	if err != nil {
-		return model.SuggestionCommitResult{}, fmt.Errorf("github:decode file content: %w", err)
+		return model.SuggestionCommitResult{}, err
 	}
 
 	newContent, err := applyPatch(rawContent, startLine, endLine, suggestionContent)
@@ -63,7 +54,6 @@ func CommitSuggestion(
 		return model.SuggestionCommitResult{}, fmt.Errorf("github:apply patch: %w", err)
 	}
 
-	sha := fileContent.GetSHA()
 	commitResp, _, err := client.Repositories.UpdateFile(ctx, owner, repo, filePath,
 		&github.RepositoryContentFileOptions{
 			Message: &commitMessage,
@@ -84,6 +74,25 @@ func CommitSuggestion(
 		CommitSHA: commitResp.GetSHA(),
 		HTMLURL:   commitResp.GetHTMLURL(),
 	}, nil
+}
+
+// fetchFileContent retrieves the decoded text content and SHA of a file from
+// a GitHub repository at the given ref.
+// Returns "notfound:" if the file does not exist, "github:" for other errors.
+func fetchFileContent(ctx context.Context, client *github.Client, owner, repo, filePath, ref string) (content, sha string, err error) {
+	fileContent, _, resp, err := client.Repositories.GetContents(ctx, owner, repo, filePath,
+		&github.RepositoryContentGetOptions{Ref: ref})
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return "", "", fmt.Errorf("notfound:file %s", filePath)
+		}
+		return "", "", fmt.Errorf("github:get file contents: %w", err)
+	}
+	decoded, err := fileContent.GetContent()
+	if err != nil {
+		return "", "", fmt.Errorf("github:decode file content: %w", err)
+	}
+	return decoded, fileContent.GetSHA(), nil
 }
 
 // parseSuggestionBlock extracts the content inside a ```suggestion fenced block
