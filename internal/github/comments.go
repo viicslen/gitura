@@ -231,10 +231,12 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 
 	root := node.Comments.Nodes[0]
 	line := 0
+	outdated := false
 	if root.Line != nil {
 		line = *root.Line
 	} else if root.OriginalLine != nil {
 		line = *root.OriginalLine
+		outdated = true
 	}
 
 	comments := make([]model.CommentDTO, 0, len(node.Comments.Nodes))
@@ -262,5 +264,6 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 		Resolved: node.IsResolved,
 		Path:     root.Path,
 		Line:     line,
+		Outdated: outdated,
 	}
 }

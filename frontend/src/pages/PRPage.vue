@@ -1,5 +1,5 @@
 <template>
-  <div class="flex gap-6 items-start p-6">
+  <div class="h-full overflow-y-auto flex gap-6 items-start p-6">
     <!-- ── Filter sidebar ───────────────────────────────────────────────── -->
     <aside class="w-64 shrink-0 space-y-6 sticky top-0 self-start max-h-screen overflow-y-auto" aria-label="PR filters">
       <!-- Involvement types -->

@@ -55,6 +55,9 @@ type CommentThreadDTO struct {
 	Resolved bool         `json:"resolved"`
 	Path     string       `json:"path"`
 	Line     int          `json:"line"`
+	// Outdated is true when GitHub reports the thread's current line as null
+	// (the surrounding code changed since the comment was posted).
+	Outdated bool `json:"outdated"`
 }
 
 // AuthState represents the current authentication status of the app.
@@ -143,4 +146,91 @@ type PRListResult struct {
 	RateLimitReset    string       `json:"rate_limit_reset,omitempty"` // RFC3339
 	IncompleteResults bool         `json:"incomplete_results,omitempty"`
 	Error             string       `json:"error,omitempty"`
+}
+
+// PRFileDTO represents a single file changed in a pull request.
+// Returned by GetPRFiles; does not include diff content.
+type PRFileDTO struct {
+	Filename         string `json:"filename"`
+	Status           string `json:"status"` // "added"|"removed"|"modified"|"renamed"|"copied"
+	Additions        int    `json:"additions"`
+	Deletions        int    `json:"deletions"`
+	Changes          int    `json:"changes"`
+	PreviousFilename string `json:"previous_filename,omitempty"` // non-empty for renames
+	IsBinary         bool   `json:"is_binary"`
+}
+
+// DiffLineType classifies a single line in a diff hunk.
+type DiffLineType string
+
+const (
+	// DiffLineContext is a line present in both old and new versions (no change).
+	DiffLineContext DiffLineType = "context"
+	// DiffLineAdd is a line added in the new version.
+	DiffLineAdd DiffLineType = "add"
+	// DiffLineDelete is a line removed from the old version.
+	DiffLineDelete DiffLineType = "delete"
+)
+
+// DiffLineDTO represents a single parsed line within a diff hunk.
+// OldNo and NewNo are 0 when the line does not exist on that side.
+type DiffLineDTO struct {
+	Type    DiffLineType `json:"type"`
+	OldNo   int          `json:"old_no"`  // line number in old file; 0 for add lines
+	NewNo   int          `json:"new_no"`  // line number in new file; 0 for delete lines
+	Content string       `json:"content"` // line text without diff prefix character
+}
+
+// DiffHunkDTO represents a contiguous block of changed lines within a file diff.
+type DiffHunkDTO struct {
+	Header   string        `json:"header"` // raw hunk header, e.g. "@@ -10,7 +12,9 @@"
+	OldStart int           `json:"old_start"`
+	OldLines int           `json:"old_lines"`
+	NewStart int           `json:"new_start"`
+	NewLines int           `json:"new_lines"`
+	Lines    []DiffLineDTO `json:"lines"`
+}
+
+// ParsedDiffDTO is the structured representation of a single file's diff.
+// Returned by GetFileDiff. The frontend renders this directly without further parsing.
+type ParsedDiffDTO struct {
+	Filename         string        `json:"filename"`
+	PreviousFilename string        `json:"previous_filename,omitempty"`
+	Status           string        `json:"status"`
+	IsBinary         bool          `json:"is_binary"`
+	TotalAdditions   int           `json:"total_additions"`
+	TotalDeletions   int           `json:"total_deletions"`
+	Hunks            []DiffHunkDTO `json:"hunks"`
+}
+
+// DraftCommentDTO is the request payload for creating an inline review comment.
+// Uses comfort-fade positioning (line + side), not legacy diff position integers.
+// StartLine and StartSide are only required for multi-line comments.
+type DraftCommentDTO struct {
+	Path      string `json:"path"`
+	Body      string `json:"body"`
+	Line      int    `json:"line"`                 // end line (or only line for single-line)
+	Side      string `json:"side"`                 // "LEFT" or "RIGHT"
+	StartLine int    `json:"start_line,omitempty"` // 0 means single-line comment
+	StartSide string `json:"start_side,omitempty"` // "LEFT" or "RIGHT"; required when StartLine > 0
+}
+
+// PendingReviewDTO describes the current pending review state.
+// ReviewID of 0 means no pending review has been created on GitHub yet.
+type PendingReviewDTO struct {
+	ReviewID   int64             `json:"review_id"` // 0 = none
+	Comments   []DraftCommentDTO `json:"comments"`
+	HasPending bool              `json:"has_pending"`
+}
+
+// ReviewSubmitDTO is the request payload for submitting a review verdict.
+type ReviewSubmitDTO struct {
+	Body    string `json:"body,omitempty"` // optional top-level review message
+	Verdict string `json:"verdict"`        // "APPROVE" | "REQUEST_CHANGES" | "COMMENT"
+}
+
+// ReviewSubmitResult is returned after a successful review submission.
+type ReviewSubmitResult struct {
+	ReviewID int64  `json:"review_id"`
+	HTMLURL  string `json:"html_url"`
 }

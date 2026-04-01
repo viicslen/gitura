@@ -49,6 +49,7 @@ export namespace model {
 	    resolved: boolean;
 	    path: string;
 	    line: number;
+	    outdated: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new CommentThreadDTO(source);
@@ -62,6 +63,7 @@ export namespace model {
 	        this.resolved = source["resolved"];
 	        this.path = source["path"];
 	        this.line = source["line"];
+	        this.outdated = source["outdated"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -102,6 +104,87 @@ export namespace model {
 	        this.interval = source["interval"];
 	    }
 	}
+	export class DiffLineDTO {
+	    type: string;
+	    old_no: number;
+	    new_no: number;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DiffLineDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.old_no = source["old_no"];
+	        this.new_no = source["new_no"];
+	        this.content = source["content"];
+	    }
+	}
+	export class DiffHunkDTO {
+	    header: string;
+	    old_start: number;
+	    old_lines: number;
+	    new_start: number;
+	    new_lines: number;
+	    lines: DiffLineDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DiffHunkDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.header = source["header"];
+	        this.old_start = source["old_start"];
+	        this.old_lines = source["old_lines"];
+	        this.new_start = source["new_start"];
+	        this.new_lines = source["new_lines"];
+	        this.lines = this.convertValues(source["lines"], DiffLineDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class DraftCommentDTO {
+	    path: string;
+	    body: string;
+	    line: number;
+	    side: string;
+	    start_line?: number;
+	    start_side?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftCommentDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.body = source["body"];
+	        this.line = source["line"];
+	        this.side = source["side"];
+	        this.start_line = source["start_line"];
+	        this.start_side = source["start_side"];
+	    }
+	}
 	export class IgnoredCommenterDTO {
 	    login: string;
 	    // Go type: time
@@ -134,6 +217,30 @@ export namespace model {
 		    }
 		    return a;
 		}
+	}
+	export class PRFileDTO {
+	    filename: string;
+	    status: string;
+	    additions: number;
+	    deletions: number;
+	    changes: number;
+	    previous_filename?: string;
+	    is_binary: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PRFileDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filename = source["filename"];
+	        this.status = source["status"];
+	        this.additions = source["additions"];
+	        this.deletions = source["deletions"];
+	        this.changes = source["changes"];
+	        this.previous_filename = source["previous_filename"];
+	        this.is_binary = source["is_binary"];
+	    }
 	}
 	export class PRListFilters {
 	    include_author: boolean;
@@ -231,6 +338,82 @@ export namespace model {
 		    return a;
 		}
 	}
+	export class ParsedDiffDTO {
+	    filename: string;
+	    previous_filename?: string;
+	    status: string;
+	    is_binary: boolean;
+	    total_additions: number;
+	    total_deletions: number;
+	    hunks: DiffHunkDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ParsedDiffDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filename = source["filename"];
+	        this.previous_filename = source["previous_filename"];
+	        this.status = source["status"];
+	        this.is_binary = source["is_binary"];
+	        this.total_additions = source["total_additions"];
+	        this.total_deletions = source["total_deletions"];
+	        this.hunks = this.convertValues(source["hunks"], DiffHunkDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PendingReviewDTO {
+	    review_id: number;
+	    comments: DraftCommentDTO[];
+	    has_pending: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PendingReviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.review_id = source["review_id"];
+	        this.comments = this.convertValues(source["comments"], DraftCommentDTO);
+	        this.has_pending = source["has_pending"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PollResult {
 	    status: string;
 	    error?: string;
@@ -285,6 +468,34 @@ export namespace model {
 	        this.repo = source["repo"];
 	        this.comment_count = source["comment_count"];
 	        this.unresolved_count = source["unresolved_count"];
+	    }
+	}
+	export class ReviewSubmitDTO {
+	    body?: string;
+	    verdict: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewSubmitDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.body = source["body"];
+	        this.verdict = source["verdict"];
+	    }
+	}
+	export class ReviewSubmitResult {
+	    review_id: number;
+	    html_url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewSubmitResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.review_id = source["review_id"];
+	        this.html_url = source["html_url"];
 	    }
 	}
 	export class SuggestionCommitResult {

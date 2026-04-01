@@ -34,6 +34,14 @@ type App struct {
 	prCache  *model.PullRequestSummary
 	threads  []model.CommentThreadDTO
 
+	// prFilesCache holds the raw CommitFile list from the GitHub ListFiles API.
+	// Populated lazily by GetPRFiles; cleared on LoadPullRequest.
+	prFilesCache []*github.CommitFile
+
+	// Pending review state. pendingReviewID is 0 when no pending review exists.
+	pendingReviewID int64
+	pendingComments []model.DraftCommentDTO
+
 	// ignoredCommenters is the persisted list of commenters to filter from review threads.
 	// Lazily loaded on first use via loadIgnoredCommenters.
 	ignoredCommenters []model.IgnoredCommenterDTO
@@ -297,6 +305,10 @@ func (a *App) LoadPullRequest(owner, repo string, number int) (model.PullRequest
 	a.prNumber = number
 	a.prCache = pr
 	a.threads = filtered
+	// Clear diff and review caches for the new PR.
+	a.prFilesCache = nil
+	a.pendingReviewID = 0
+	a.pendingComments = nil
 
 	logger.L.Info("LoadPullRequest complete",
 		"threads", len(filtered),
@@ -631,4 +643,236 @@ func (a *App) ListOpenPRs(filters model.PRListFilters) (model.PRListResult, erro
 		"error", result.Error,
 	)
 	return result, nil
+}
+
+// GetPRFiles returns the list of files changed in the currently loaded PR.
+// Results are cached; the cache is cleared when LoadPullRequest is called.
+// Error prefix: "notfound:" if no PR has been loaded.
+func (a *App) GetPRFiles() ([]model.PRFileDTO, error) {
+	if a.ghClient == nil {
+		return nil, fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return nil, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+	if a.prFilesCache == nil {
+		rawFiles, err := githubclient.FetchPRFilesRaw(a.ctx, a.ghClient, a.prOwner, a.prRepo, a.prNumber)
+		if err != nil {
+			return nil, err
+		}
+		a.prFilesCache = rawFiles
+	}
+	result := make([]model.PRFileDTO, 0, len(a.prFilesCache))
+	for _, f := range a.prFilesCache {
+		result = append(result, githubclient.CommitFileToPRFileDTO(f))
+	}
+	return result, nil
+}
+
+// GetFileDiff fetches and parses the diff for a single file in the loaded PR.
+// Binary files return ParsedDiffDTO{IsBinary: true} with no hunks, no error.
+// Error prefix: "notfound:" if no PR is loaded or the file is not in the diff.
+func (a *App) GetFileDiff(path string) (model.ParsedDiffDTO, error) {
+	if a.ghClient == nil {
+		return model.ParsedDiffDTO{}, fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return model.ParsedDiffDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+	if a.prFilesCache == nil {
+		rawFiles, err := githubclient.FetchPRFilesRaw(a.ctx, a.ghClient, a.prOwner, a.prRepo, a.prNumber)
+		if err != nil {
+			return model.ParsedDiffDTO{}, err
+		}
+		a.prFilesCache = rawFiles
+	}
+	for _, f := range a.prFilesCache {
+		if f.GetFilename() == path {
+			return githubclient.ParseCommitFileDiff(f), nil
+		}
+	}
+	return model.ParsedDiffDTO{}, fmt.Errorf("notfound: file %q not in PR diff", path)
+}
+
+// GetPendingReview returns the current in-memory pending review state.
+// Returns PendingReviewDTO{HasPending: false} when no pending review exists.
+func (a *App) GetPendingReview() (model.PendingReviewDTO, error) {
+	if a.pendingReviewID == 0 {
+		return model.PendingReviewDTO{HasPending: false}, nil
+	}
+	comments := make([]model.DraftCommentDTO, len(a.pendingComments))
+	copy(comments, a.pendingComments)
+	return model.PendingReviewDTO{
+		ReviewID:   a.pendingReviewID,
+		Comments:   comments,
+		HasPending: true,
+	}, nil
+}
+
+// AddDraftComment adds a comment to the pending review batch.
+// On the first call it creates a pending review on GitHub (with the comment
+// included). Subsequent calls append to the existing pending review via raw HTTP.
+// Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+func (a *App) AddDraftComment(comment model.DraftCommentDTO) (model.PendingReviewDTO, error) {
+	if a.ghClient == nil {
+		return model.PendingReviewDTO{}, fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return model.PendingReviewDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+
+	if a.pendingReviewID == 0 {
+		// First comment: create the pending review with the comment included.
+		draftComment := draftCommentToGitHub(comment)
+		pending := ""
+		commitSHA := a.prCache.HeadSHA
+		review, _, err := a.ghClient.PullRequests.CreateReview(
+			a.ctx, a.prOwner, a.prRepo, a.prNumber,
+			&github.PullRequestReviewRequest{
+				CommitID: &commitSHA,
+				Event:    &pending,
+				Comments: []*github.DraftReviewComment{draftComment},
+			},
+		)
+		if err != nil {
+			return model.PendingReviewDTO{}, fmt.Errorf("github: create pending review: %w", err)
+		}
+		a.pendingReviewID = review.GetID()
+	} else {
+		// Subsequent comment: add to existing pending review via raw HTTP.
+		httpClient := githubclient.NewHTTPClient(a.authToken)
+		if err := githubclient.AddCommentToPendingReview(
+			a.ctx, httpClient,
+			a.prOwner, a.prRepo, a.prNumber,
+			a.pendingReviewID, comment,
+		); err != nil {
+			return model.PendingReviewDTO{}, err
+		}
+	}
+
+	a.pendingComments = append(a.pendingComments, comment)
+	logger.L.Info("AddDraftComment", "review_id", a.pendingReviewID, "path", comment.Path, "line", comment.Line)
+
+	comments := make([]model.DraftCommentDTO, len(a.pendingComments))
+	copy(comments, a.pendingComments)
+	return model.PendingReviewDTO{
+		ReviewID:   a.pendingReviewID,
+		Comments:   comments,
+		HasPending: true,
+	}, nil
+}
+
+// PostImmediateComment posts a standalone inline comment immediately (not as a
+// draft review comment). The comment is immediately visible on GitHub.
+// Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+func (a *App) PostImmediateComment(comment model.DraftCommentDTO) (model.CommentDTO, error) {
+	if a.ghClient == nil {
+		return model.CommentDTO{}, fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return model.CommentDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+
+	commitSHA := a.prCache.HeadSHA
+	prComment := &github.PullRequestComment{
+		Path:     &comment.Path,
+		Body:     &comment.Body,
+		CommitID: &commitSHA,
+		Line:     &comment.Line,
+		Side:     &comment.Side,
+	}
+	if comment.StartLine > 0 {
+		prComment.StartLine = &comment.StartLine
+		prComment.StartSide = &comment.StartSide
+	}
+
+	created, _, err := a.ghClient.PullRequests.CreateComment(
+		a.ctx, a.prOwner, a.prRepo, a.prNumber, prComment,
+	)
+	if err != nil {
+		return model.CommentDTO{}, fmt.Errorf("github: post immediate comment: %w", err)
+	}
+
+	logger.L.Info("PostImmediateComment", "path", comment.Path, "line", comment.Line, "id", created.GetID())
+	return model.CommentDTO{
+		ID:           created.GetID(),
+		Body:         created.GetBody(),
+		AuthorLogin:  created.GetUser().GetLogin(),
+		AuthorAvatar: created.GetUser().GetAvatarURL(),
+		CreatedAt:    created.GetCreatedAt().UTC().Format("2006-01-02T15:04:05Z"),
+	}, nil
+}
+
+// SubmitReview submits the pending review with a verdict.
+// If no pending review exists, a new one is created and immediately submitted.
+// Side effect: clears pendingReviewID and pendingComments on success.
+// Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+func (a *App) SubmitReview(req model.ReviewSubmitDTO) (model.ReviewSubmitResult, error) {
+	if a.ghClient == nil {
+		return model.ReviewSubmitResult{}, fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return model.ReviewSubmitResult{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+
+	if a.pendingReviewID == 0 {
+		// No pending review — create one now so we have an ID to submit.
+		id, err := githubclient.CreatePendingReview(a.ctx, a.ghClient, a.prOwner, a.prRepo, a.prNumber)
+		if err != nil {
+			return model.ReviewSubmitResult{}, err
+		}
+		a.pendingReviewID = id
+	}
+
+	result, err := githubclient.SubmitReview(
+		a.ctx, a.ghClient,
+		a.prOwner, a.prRepo, a.prNumber,
+		a.pendingReviewID, req,
+	)
+	if err != nil {
+		return model.ReviewSubmitResult{}, err
+	}
+
+	a.pendingReviewID = 0
+	a.pendingComments = nil
+	logger.L.Info("SubmitReview complete", "review_id", result.ReviewID, "verdict", req.Verdict)
+	return result, nil
+}
+
+// DiscardPendingReview deletes the pending review on GitHub and clears local state.
+// No-ops silently if no pending review exists.
+// Error prefix: "auth:" — no client; "github:" — API error.
+func (a *App) DiscardPendingReview() error {
+	if a.ghClient == nil {
+		return fmt.Errorf("auth: not authenticated")
+	}
+	if a.pendingReviewID == 0 {
+		return nil
+	}
+	if err := githubclient.DeletePendingReview(
+		a.ctx, a.ghClient,
+		a.prOwner, a.prRepo, a.prNumber,
+		a.pendingReviewID,
+	); err != nil {
+		return err
+	}
+	a.pendingReviewID = 0
+	a.pendingComments = nil
+	logger.L.Info("DiscardPendingReview complete")
+	return nil
+}
+
+// draftCommentToGitHub converts a DraftCommentDTO to a go-github DraftReviewComment.
+func draftCommentToGitHub(c model.DraftCommentDTO) *github.DraftReviewComment {
+	dc := &github.DraftReviewComment{
+		Path: &c.Path,
+		Body: &c.Body,
+		Line: &c.Line,
+		Side: &c.Side,
+	}
+	if c.StartLine > 0 {
+		dc.StartLine = &c.StartLine
+		dc.StartSide = &c.StartSide
+	}
+	return dc
 }

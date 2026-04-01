@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import CommentSummaryList from '@/components/CommentSummaryList.vue'
 import CommentDetailPanel from '@/components/CommentDetailPanel.vue'
+import ViewToggle from '@/components/ViewToggle.vue'
+import DiffReviewView from '@/components/DiffReviewView.vue'
 import { useReview } from '@/composables/useReview'
 import type { ReviewLoadInput } from '@/types/review'
 
@@ -16,6 +18,13 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close-review'): void
 }>()
+
+const prView = ref<'conversation' | 'files'>('conversation')
+
+const VIEW_OPTIONS = [
+  { value: 'conversation', label: 'Conversation' },
+  { value: 'files', label: 'Files changed' },
+]
 
 const {
   prSummary,
@@ -108,8 +117,15 @@ onMounted(() => {
         <span>{{ prSummary.comment_count }} total</span>
       </div>
 
-      <!-- Show-resolved toggle -->
-      <div class="flex items-center gap-2 shrink-0">
+      <!-- View toggle -->
+      <ViewToggle
+        v-model="prView"
+        :options="VIEW_OPTIONS"
+        class="shrink-0"
+      />
+
+      <!-- Show-resolved toggle (only in conversation view) -->
+      <div v-if="prView === 'conversation'" class="flex items-center gap-2 shrink-0">
         <span class="text-xs text-muted-foreground select-none">Show resolved</span>
         <Switch
           :model-value="showResolved"
@@ -140,62 +156,71 @@ onMounted(() => {
       </Button>
     </div>
 
-    <!-- ── Main split view ─────────────────────────────────────────────────── -->
-    <div v-else class="flex flex-1 min-h-0 overflow-hidden">
-      <!-- Left: comment summary list -->
-      <div class="w-72 shrink-0 border-r border-border overflow-y-auto">
-        <CommentSummaryList
-          :threads="queue"
-          :current-index="currentIndex"
-          :show-resolved="showResolved"
-          @select="handleSelect"
-        />
-      </div>
+    <!-- ── Content area ────────────────────────────────────────────────────── -->
+    <template v-else>
+      <!-- Conversation view -->
+      <div v-show="prView === 'conversation'" class="flex flex-1 min-h-0 overflow-hidden">
+        <!-- Left: comment summary list -->
+        <div class="w-72 shrink-0 border-r border-border overflow-y-auto">
+          <CommentSummaryList
+            :threads="queue"
+            :current-index="currentIndex"
+            :show-resolved="showResolved"
+            @select="handleSelect"
+          />
+        </div>
 
-      <!-- Right: detail + navigation -->
-      <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <CommentDetailPanel
-          :thread="currentThread"
-          :is-at-end="isAtEnd && queue.length > 0"
-          class="flex-1 overflow-hidden"
-          @resolve="resolveThread"
-          @unresolve="unresolveThread"
-          @reply-sent="handleReplySent"
-          @suggestion-committed="handleSuggestionCommitted"
-        />
+        <!-- Right: detail + navigation -->
+        <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <CommentDetailPanel
+            :thread="currentThread"
+            :is-at-end="isAtEnd && queue.length > 0"
+            class="flex-1 overflow-hidden"
+            @resolve="resolveThread"
+            @unresolve="unresolveThread"
+            @reply-sent="handleReplySent"
+            @suggestion-committed="handleSuggestionCommitted"
+          />
 
-        <!-- Bottom nav bar -->
-        <div
-          v-if="queue.length > 0"
-          class="flex items-center justify-between px-4 py-2 border-t border-border shrink-0"
-        >
-          <Button
-            variant="outline"
-            size="sm"
-            :disabled="!canGoBack"
-            aria-label="Previous comment"
-            @click="goPrev()"
+          <!-- Bottom nav bar -->
+          <div
+            v-if="queue.length > 0"
+            class="flex items-center justify-between px-4 py-2 border-t border-border shrink-0"
           >
-            <ChevronLeft class="h-4 w-4 mr-1" />
-            Prev
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="!canGoBack"
+              aria-label="Previous comment"
+              @click="goPrev()"
+            >
+              <ChevronLeft class="h-4 w-4 mr-1" />
+              Prev
+            </Button>
 
-          <span class="text-xs text-muted-foreground">
-            {{ currentIndex + 1 }} / {{ queue.length }}
-          </span>
+            <span class="text-xs text-muted-foreground">
+              {{ currentIndex + 1 }} / {{ queue.length }}
+            </span>
 
-          <Button
-            variant="outline"
-            size="sm"
-            :disabled="!canGoForward"
-            aria-label="Next comment"
-            @click="goNext()"
-          >
-            Next
-            <ChevronRight class="h-4 w-4 ml-1" />
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="!canGoForward"
+              aria-label="Next comment"
+              @click="goNext()"
+            >
+              Next
+              <ChevronRight class="h-4 w-4 ml-1" />
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
+
+      <!-- Files changed view -->
+      <DiffReviewView
+        v-show="prView === 'files'"
+        class="flex-1 min-h-0 overflow-hidden"
+      />
+    </template>
   </div>
 </template>
