@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -25,6 +25,15 @@ const VIEW_OPTIONS = [
   { value: 'conversation', label: 'Conversation' },
   { value: 'files', label: 'Files changed' },
 ]
+
+// ── DiffReviewView bridge ──────────────────────────────────────────────────
+const diffReviewRef = ref<InstanceType<typeof DiffReviewView> | null>(null)
+const diffCanGoPrev = computed(() => diffReviewRef.value?.canGoPrev ?? false)
+const diffCanGoNext = computed(() => diffReviewRef.value?.canGoNext ?? false)
+const diffShowOtherThreads = computed(() => diffReviewRef.value?.showOtherThreads ?? false)
+function diffPrevFile(): void { diffReviewRef.value?.prevFile() }
+function diffNextFile(): void { diffReviewRef.value?.nextFile() }
+function diffToggleOtherThreads(): void { diffReviewRef.value?.toggleOtherThreads() }
 
 const {
   prSummary,
@@ -80,7 +89,7 @@ onMounted(() => {
         <ArrowLeft class="h-4 w-4" />
       </Button>
 
-      <div class="flex-1 min-w-0">
+      <div class="min-w-0">
         <div class="flex items-center gap-2 min-w-0">
           <span class="text-sm font-semibold truncate">
             {{ prSummary?.title ?? prItem.title }}
@@ -110,13 +119,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Comment counts -->
-      <div v-if="prSummary" class="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-        <span>{{ prSummary.unresolved_count }} unresolved</span>
-        <span class="text-border">·</span>
-        <span>{{ prSummary.comment_count }} total</span>
-      </div>
-
       <!-- View toggle -->
       <ViewToggle
         v-model="prView"
@@ -124,15 +126,55 @@ onMounted(() => {
         class="shrink-0"
       />
 
-      <!-- Show-resolved toggle (only in conversation view) -->
+      <!-- Sub-toggle: shown immediately after the view toggle -->
       <div v-if="prView === 'conversation'" class="flex items-center gap-2 shrink-0">
-        <span class="text-xs text-muted-foreground select-none">Show resolved</span>
         <Switch
           :model-value="showResolved"
           aria-label="Show resolved threads"
           @update:model-value="toggleShowResolved()"
         />
+        <span class="text-xs text-muted-foreground select-none">Show resolved</span>
       </div>
+      <div v-else class="flex items-center gap-2 shrink-0">
+        <Switch
+          :model-value="diffShowOtherThreads"
+          aria-label="Show reviewer comments"
+          @update:model-value="diffToggleOtherThreads()"
+        />
+        <span class="text-xs text-muted-foreground select-none">Reviewer comments</span>
+      </div>
+
+      <!-- Spacer -->
+      <div class="flex-1" />
+
+      <!-- Comment counts (conversation only) -->
+      <div v-if="prSummary && prView === 'conversation'" class="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+        <span>{{ prSummary.unresolved_count }} unresolved</span>
+        <span class="text-border">·</span>
+        <span>{{ prSummary.comment_count }} total</span>
+      </div>
+
+      <!-- File nav (files view only) -->
+      <template v-if="prView === 'files'">
+        <Button
+          variant="ghost"
+          size="icon"
+          :disabled="!diffCanGoPrev"
+          aria-label="Previous file"
+          @click="diffPrevFile"
+        >
+          <ChevronLeft class="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          :disabled="!diffCanGoNext"
+          aria-label="Next file"
+          @click="diffNextFile"
+        >
+          <ChevronRight class="h-4 w-4" />
+        </Button>
+      </template>
     </header>
 
     <!-- ── Loading state ───────────────────────────────────────────────────── -->
@@ -218,6 +260,7 @@ onMounted(() => {
 
       <!-- Files changed view -->
       <DiffReviewView
+        ref="diffReviewRef"
         v-show="prView === 'files'"
         class="flex-1 min-h-0 overflow-hidden"
       />

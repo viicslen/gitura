@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { ChevronLeft, ChevronRight, Eye, EyeOff, Send, Trash2 } from 'lucide-vue-next'
+import { Send, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
@@ -120,6 +120,9 @@ function handleKeydown(event: KeyboardEvent): void {
   if (event.key === ']') nextFile()
   else if (event.key === '[') prevFile()
 }
+
+// ── Exposed interface for parent ──────────────────────────────────────────
+defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggleOtherThreads })
 </script>
 
 <template>
@@ -130,42 +133,9 @@ function handleKeydown(event: KeyboardEvent): void {
   >
     <!-- ── Top toolbar ────────────────────────────────────────────────────── -->
     <div class="flex items-center gap-2 px-3 py-1.5 border-b border-border shrink-0">
-      <!-- File nav -->
-      <Button
-        variant="ghost"
-        size="icon"
-        :disabled="!canGoPrev"
-        aria-label="Previous file"
-        @click="prevFile"
-      >
-        <ChevronLeft class="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        :disabled="!canGoNext"
-        aria-label="Next file"
-        @click="nextFile"
-      >
-        <ChevronRight class="h-4 w-4" />
-      </Button>
-
       <span class="text-xs text-muted-foreground truncate flex-1 min-w-0">
         {{ currentFile?.filename ?? 'Select a file' }}
       </span>
-
-      <!-- Other reviewer threads toggle -->
-      <Button
-        variant="ghost"
-        size="sm"
-        class="gap-1.5"
-        :aria-label="showOtherThreads ? 'Hide reviewer comments' : 'Show reviewer comments'"
-        @click="toggleOtherThreads"
-      >
-        <Eye v-if="!showOtherThreads" class="h-3.5 w-3.5" />
-        <EyeOff v-else class="h-3.5 w-3.5" />
-        <span class="hidden sm:inline text-xs">Reviewer comments</span>
-      </Button>
 
       <!-- Pending review badge + actions -->
       <template v-if="pendingReview?.has_pending">
