@@ -65,7 +65,7 @@ jobs:
           install-mode: goinstall
         env:
           CGO_ENABLED: 1
-          GOFLAGS: -tags=dev
+          GOFLAGS: -tags=dev,webkit2_41
 
   frontend:
     name: Frontend Check
