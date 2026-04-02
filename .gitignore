@@ -6,7 +6,6 @@ frontend/node_modules
 *.exe
 *.test
 *.out
-vendor/
 
 # Wails auto-generated bindings (committed as-is after wails dev)
 # wailsjs/

@@ -1,12 +1,3 @@
-# NOTE: This flake contains placeholder hashes (sha256-AAAA…) that MUST be
-# replaced before `nix build` will succeed.  Run `nix build` once for each
-# derivation that contains a placeholder; Nix will print the correct hash in
-# the error output ("got: sha256-…").  Substitute that value and repeat until
-# all derivations build cleanly.
-#
-# Resolution order:
-#   1. packages.<system>.frontendDeps  – outputHash in the bun deps derivation
-#   2. packages.<system>.default       – vendorHash in buildGoModule
 {
   description = "gitura — GitHub PR review desktop application";
 
@@ -22,27 +13,10 @@
 
         version = "0.1.0"; # x-release-please-version
 
-        # Fetch bun frontend dependencies as a fixed-output derivation.
-        # After updating dependencies, recompute with:
-        #   nix build .#packages.<system>.frontendDeps 2>&1 | grep "got:"
-        frontendDeps = pkgs.stdenv.mkDerivation {
-          name = "gitura-frontend-deps-${version}";
-          src = ./frontend;
-
-          nativeBuildInputs = [ pkgs.bun ];
-
-          dontBuild = true;
-
-          installPhase = ''
-            export HOME=$(mktemp -d)
-            bun install --frozen-lockfile
-            cp -r node_modules $out
-          '';
-
-          outputHashMode = "recursive";
-          outputHashAlgo = "sha256";
-          # Recompute by running: nix build and noting the "got:" hash in the error.
-          outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+        # Fetch frontend npm dependencies using the per-package integrity hashes
+        # recorded in frontend/package-lock.json (no aggregate hash required).
+        frontendDeps = pkgs.importNpmLock {
+          npmRoot = ./frontend;
         };
 
         # Build the Vue/Vite frontend and expose the dist directory.
@@ -50,12 +24,15 @@
           name = "gitura-frontend-${version}";
           src = ./frontend;
 
-          nativeBuildInputs = [ pkgs.bun ];
+          nativeBuildInputs = [
+            pkgs.nodejs
+            pkgs.npmHooks.npmConfigHook
+          ];
+
+          inherit (frontendDeps) npmDeps;
 
           buildPhase = ''
-            export HOME=$(mktemp -d)
-            ln -sf ${frontendDeps} node_modules
-            bun run build
+            npm run build
           '';
 
           installPhase = ''
@@ -88,8 +65,8 @@
 
             src = ./.;
 
-            # Recompute by running: nix build and noting the "got:" hash in the error.
-            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            # vendor/ is committed in the source tree; no separate fetch needed.
+            vendorHash = null;
 
             inherit nativeBuildInputs buildInputs;
 
