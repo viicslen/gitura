@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import DiffLine from './DiffLine.vue'
+import InlineCommentForm from './InlineCommentForm.vue'
 import type { model } from '@/wailsjs/go/models'
 
 const props = defineProps<{
@@ -9,11 +10,51 @@ const props = defineProps<{
   path: string
   /** Whether comment affordance (+) buttons are shown. */
   commentable?: boolean
+  /** Index of this hunk within the file's hunk list (used to anchor the compose box). */
+  hunkIndex: number
 }>()
 
+interface CommentTarget {
+  path: string
+  line: number
+  side: 'RIGHT' | 'LEFT'
+  startLine?: number
+  hunkIndex: number
+}
+
 const emit = defineEmits<{
-  (e: 'open-comment', payload: { path: string; line: number; side: 'RIGHT' | 'LEFT'; startLine?: number }): void
+  (e: 'comment-submit', body: string, mode: 'draft' | 'immediate', target: CommentTarget): void
 }>()
+
+/** Row index after which the inline form should be rendered. null = closed. */
+const activeCommentRowIdx = ref<number | null>(null)
+const activeCommentStartRowIdx = ref<number | null>(null)
+const activeCommentTarget = ref<CommentTarget | null>(null)
+
+function openCommentAt(rowIdx: number, target: CommentTarget, startRowIdx?: number): void {
+  activeCommentRowIdx.value = rowIdx
+  activeCommentStartRowIdx.value = startRowIdx ?? rowIdx
+  activeCommentTarget.value = target
+}
+
+function isCommentSelected(idx: number): boolean {
+  if (activeCommentRowIdx.value === null || activeCommentStartRowIdx.value === null) return false
+  const lo = Math.min(activeCommentStartRowIdx.value, activeCommentRowIdx.value)
+  const hi = Math.max(activeCommentStartRowIdx.value, activeCommentRowIdx.value)
+  return idx >= lo && idx <= hi
+}
+
+function handleCommentSubmit(body: string, mode: 'draft' | 'immediate'): void {
+  if (!activeCommentTarget.value) return
+  emit('comment-submit', body, mode, activeCommentTarget.value)
+  activeCommentRowIdx.value = null
+  activeCommentTarget.value = null
+}
+
+function handleCommentCancel(): void {
+  activeCommentRowIdx.value = null
+  activeCommentTarget.value = null
+}
 
 const expanded = ref(false)
 
@@ -67,12 +108,13 @@ function handleDragEnd(idx: number): void {
 
   const startLine = min !== max ? (startRow?.rightLineNumber ?? startRow?.newLine?.new_no ?? undefined) : undefined
 
-  emit('open-comment', {
+  openCommentAt(max, {
     path: props.path,
     line: endLine,
     side: 'RIGHT',
     startLine: startLine !== endLine ? startLine : undefined,
-  })
+    hunkIndex: props.hunkIndex,
+  }, min)
 
   resetDrag()
 }
@@ -135,8 +177,8 @@ const rows = computed<SideBySideRow[]>(() => {
   return result
 })
 
-function handleOpenComment(payload: { line: number; side: 'RIGHT' | 'LEFT' }): void {
-  emit('open-comment', { path: props.path, ...payload })
+function handleOpenComment(payload: { line: number; side: 'RIGHT' | 'LEFT'; rowIndex: number }): void {
+  openCommentAt(payload.rowIndex, { path: props.path, hunkIndex: props.hunkIndex, line: payload.line, side: payload.side })
 }
 </script>
 
@@ -175,20 +217,33 @@ function handleOpenComment(payload: { line: number; side: 'RIGHT' | 'LEFT' }): v
         <col />
       </colgroup>
       <tbody>
-        <DiffLine
-          v-for="(row, idx) in rows"
-          :key="idx"
-          :old-line="row.oldLine"
-          :new-line="row.newLine"
-          :right-line-number="row.rightLineNumber"
-          :commentable="commentable"
-          :row-index="idx"
-          :in-drag-range="isInDragRange(idx)"
-          @open-comment="handleOpenComment"
-          @drag-start="handleDragStart"
-          @drag-enter="handleDragEnter"
-          @drag-end="handleDragEnd"
-        />
+        <template v-for="(row, idx) in rows" :key="idx">
+          <DiffLine
+            :old-line="row.oldLine"
+            :new-line="row.newLine"
+            :right-line-number="row.rightLineNumber"
+            :commentable="commentable"
+            :row-index="idx"
+            :in-drag-range="isInDragRange(idx)"
+            :in-comment-range="isCommentSelected(idx)"
+            @open-comment="handleOpenComment"
+            @drag-start="handleDragStart"
+            @drag-enter="handleDragEnter"
+            @drag-end="handleDragEnd"
+          />
+          <!-- Inline comment form rendered as a row immediately after the target line -->
+          <tr v-if="activeCommentRowIdx === idx" :key="`form-${idx}`">
+            <td colspan="4" class="p-0 border-b border-border">
+              <div class="px-4 py-3 bg-background">
+                <InlineCommentForm
+                  :target="activeCommentTarget!"
+                  @submit="handleCommentSubmit"
+                  @cancel="handleCommentCancel"
+                />
+              </div>
+            </td>
+          </tr>
+        </template>
       </tbody>
     </table>
   </div>

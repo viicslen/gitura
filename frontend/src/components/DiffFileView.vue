@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import DiffHunk from './DiffHunk.vue'
-import InlineCommentForm from './InlineCommentForm.vue'
 import type { model } from '@/wailsjs/go/models'
 
 const props = defineProps<{
@@ -24,22 +22,16 @@ interface CommentTarget {
   line: number
   side: 'RIGHT' | 'LEFT'
   startLine?: number
+  hunkIndex: number
 }
 
-const activeCommentTarget = ref<CommentTarget | null>(null)
-
-function handleOpenComment(payload: CommentTarget): void {
-  activeCommentTarget.value = payload
-}
-
-function handleCommentSubmit(body: string, mode: 'draft' | 'immediate'): void {
-  if (!activeCommentTarget.value) return
+function handleCommentSubmit(body: string, mode: 'draft' | 'immediate', target: CommentTarget): void {
   const comment: model.DraftCommentDTO = {
-    path: activeCommentTarget.value.path,
-    line: activeCommentTarget.value.line,
-    side: activeCommentTarget.value.side,
-    start_line: activeCommentTarget.value.startLine,
-    start_side: activeCommentTarget.value.startLine ? activeCommentTarget.value.side : undefined,
+    path: target.path,
+    line: target.line,
+    side: target.side,
+    start_line: target.startLine,
+    start_side: target.startLine ? target.side : undefined,
     body,
   }
   if (mode === 'draft') {
@@ -47,11 +39,6 @@ function handleCommentSubmit(body: string, mode: 'draft' | 'immediate'): void {
   } else {
     emit('immediate-comment', comment)
   }
-  activeCommentTarget.value = null
-}
-
-function handleCommentCancel(): void {
-  activeCommentTarget.value = null
 }
 
 function statusLabel(status: string): string {
@@ -115,22 +102,9 @@ function threadsForLine(line: number): model.CommentThreadDTO[] {
           :hunk="hunk"
           :path="file.filename"
           :commentable="commentable"
-          @open-comment="handleOpenComment"
+          :hunk-index="hi"
+          @comment-submit="handleCommentSubmit"
         />
-
-        <!-- Inline comment form anchored after the hunk containing the target line -->
-        <template v-if="activeCommentTarget && activeCommentTarget.path === file.filename">
-          <div
-            v-if="hunk.lines.some((l) => l.new_no === activeCommentTarget!.line || l.old_no === activeCommentTarget!.line)"
-            class="border-b border-border px-4 py-3 bg-background"
-          >
-            <InlineCommentForm
-              :target="activeCommentTarget"
-              @submit="handleCommentSubmit"
-              @cancel="handleCommentCancel"
-            />
-          </div>
-        </template>
 
         <!-- Other reviewer threads inline -->
         <template v-if="showOtherThreads">

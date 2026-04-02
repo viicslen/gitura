@@ -14,10 +14,12 @@ const props = defineProps<{
   rowIndex?: number
   /** Whether this row is within an active drag selection. */
   inDragRange?: boolean
+  /** Whether this row is part of the active comment selection (form is open). */
+  inCommentRange?: boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'open-comment', payload: { line: number; side: 'RIGHT' | 'LEFT' }): void
+  (e: 'open-comment', payload: { line: number; side: 'RIGHT' | 'LEFT'; rowIndex: number }): void
   (e: 'drag-start', rowIndex: number): void
   (e: 'drag-enter', rowIndex: number): void
   (e: 'drag-end', rowIndex: number): void
@@ -83,7 +85,10 @@ function handleMouseup(): void {
 <template>
   <tr
     class="group"
-    :class="inDragRange ? 'ring-1 ring-inset ring-primary/40 bg-primary/5' : ''"
+    :class="[
+      inDragRange ? 'ring-1 ring-inset ring-primary/40 bg-primary/5' : '',
+      inCommentRange ? 'bg-primary/10 ring-1 ring-inset ring-primary/50' : '',
+    ]"
     @mousedown="handleMousedown"
     @mouseenter="handleMouseenter"
     @mouseup="handleMouseup"
@@ -127,9 +132,9 @@ function handleMouseup(): void {
                hover:scale-110 transition-transform cursor-pointer border-0 p-0"
         :aria-label="`Add comment at line ${rightLineNumber}`"
         tabindex="0"
-        @click.stop="emit('open-comment', { line: rightLineNumber!, side: 'RIGHT' })"
-        @keydown.enter.prevent="emit('open-comment', { line: rightLineNumber!, side: 'RIGHT' })"
-        @keydown.space.prevent="emit('open-comment', { line: rightLineNumber!, side: 'RIGHT' })"
+        @click.stop="emit('open-comment', { line: rightLineNumber!, side: 'RIGHT', rowIndex: rowIndex! })"
+            @keydown.enter.prevent="emit('open-comment', { line: rightLineNumber!, side: 'RIGHT', rowIndex: rowIndex! })"
+            @keydown.space.prevent="emit('open-comment', { line: rightLineNumber!, side: 'RIGHT', rowIndex: rowIndex! })"
       >
         +
       </button>
