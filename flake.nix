@@ -65,8 +65,8 @@
 
             src = ./.;
 
-            # vendor/ is committed in the source tree; no separate fetch needed.
-            vendorHash = null;
+            # Compute by running: nix build .#packages.<system>.default 2>&1 | grep "got:"
+            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
             inherit nativeBuildInputs buildInputs;
 
