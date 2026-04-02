@@ -708,10 +708,13 @@ func (a *App) GetPendingReview() (model.PendingReviewDTO, error) {
 	}, nil
 }
 
-// SyncPendingReview returns the current in-memory pending review state.
-// Draft comments are stored locally only (no GitHub API calls during draft
-// phase), so no network sync is required.
-// Error prefix: "auth:" — no client; "notfound:" — no PR loaded.
+// SyncPendingReview queries GitHub for any PENDING review on the current PR
+// that belongs to the authenticated user, and restores in-memory state from it.
+// This recovers pending-review state across app restarts. If in-memory state
+// already exists it is returned immediately without a network call.
+// GitHub only returns PENDING reviews to their own author, so any PENDING entry
+// in the list is guaranteed to belong to us.
+// Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
 func (a *App) SyncPendingReview() (model.PendingReviewDTO, error) {
 	if a.ghClient == nil {
 		return model.PendingReviewDTO{}, fmt.Errorf("auth: not authenticated")
@@ -719,7 +722,64 @@ func (a *App) SyncPendingReview() (model.PendingReviewDTO, error) {
 	if a.prCache == nil {
 		return model.PendingReviewDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
 	}
-	return a.GetPendingReview()
+
+	// If we already have local state, return it directly.
+	if len(a.pendingComments) > 0 {
+		return a.GetPendingReview()
+	}
+
+	// List all reviews; PENDING reviews are only visible to their author,
+	// so any PENDING entry belongs to the authenticated user.
+	reviews, _, err := a.ghClient.PullRequests.ListReviews(
+		a.ctx, a.prOwner, a.prRepo, a.prNumber, nil,
+	)
+	if err != nil {
+		return model.PendingReviewDTO{}, fmt.Errorf("github: list reviews: %w", err)
+	}
+
+	var reviewID int64
+	for _, r := range reviews {
+		if r.GetState() == "PENDING" {
+			reviewID = r.GetID()
+			break
+		}
+	}
+	if reviewID == 0 {
+		return model.PendingReviewDTO{HasPending: false}, nil
+	}
+
+	a.pendingReviewID = reviewID
+
+	// Fetch the comments for this review to populate the local cache.
+	rawComments, _, err := a.ghClient.PullRequests.ListReviewComments(
+		a.ctx, a.prOwner, a.prRepo, a.prNumber, reviewID, nil,
+	)
+	if err != nil {
+		// Non-fatal: we have the review ID; comment list will just be empty.
+		logger.L.Warn("SyncPendingReview: failed to fetch review comments", "err", err)
+		a.pendingComments = nil
+	} else {
+		a.pendingComments = make([]model.DraftCommentDTO, 0, len(rawComments))
+		for _, c := range rawComments {
+			a.pendingComments = append(a.pendingComments, model.DraftCommentDTO{
+				Path:      c.GetPath(),
+				Body:      c.GetBody(),
+				Line:      c.GetLine(),
+				Side:      c.GetSide(),
+				StartLine: c.GetStartLine(),
+				StartSide: c.GetStartSide(),
+			})
+		}
+	}
+
+	dtos := make([]model.DraftCommentDTO, len(a.pendingComments))
+	copy(dtos, a.pendingComments)
+	logger.L.Info("SyncPendingReview: restored pending review", "review_id", reviewID, "comments", len(dtos))
+	return model.PendingReviewDTO{
+		ReviewID:   reviewID,
+		Comments:   dtos,
+		HasPending: true,
+	}, nil
 }
 
 // AddDraftComment adds a comment to the local pending review batch.
@@ -787,8 +847,10 @@ func (a *App) PostImmediateComment(comment model.DraftCommentDTO) (model.Comment
 }
 
 // SubmitReview submits all pending draft comments as a single review.
+// If an existing GitHub pending review was synced, it is deleted first so
+// there is no conflict when creating the new submitted review.
 // All locally-buffered comments are sent together with the verdict in one
-// CreateReview call — no separate pending-review state on GitHub is required.
+// CreateReview call.
 // Side effect: clears pendingReviewID and pendingComments on success.
 // Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
 func (a *App) SubmitReview(req model.ReviewSubmitDTO) (model.ReviewSubmitResult, error) {
@@ -797,6 +859,18 @@ func (a *App) SubmitReview(req model.ReviewSubmitDTO) (model.ReviewSubmitResult,
 	}
 	if a.prCache == nil {
 		return model.ReviewSubmitResult{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+
+	// If we synced an existing GitHub pending review, delete it first.
+	// We recreate it as a submitted review with all local comments below.
+	if a.pendingReviewID != 0 {
+		_, _, delErr := a.ghClient.PullRequests.DeletePendingReview(
+			a.ctx, a.prOwner, a.prRepo, a.prNumber, a.pendingReviewID,
+		)
+		if delErr != nil {
+			logger.L.Warn("SubmitReview: failed to delete old pending review (continuing)", "review_id", a.pendingReviewID, "err", delErr)
+		}
+		a.pendingReviewID = 0
 	}
 
 	draftComments := make([]*github.DraftReviewComment, len(a.pendingComments))
@@ -818,7 +892,6 @@ func (a *App) SubmitReview(req model.ReviewSubmitDTO) (model.ReviewSubmitResult,
 		return model.ReviewSubmitResult{}, fmt.Errorf("github: submit review: %w", err)
 	}
 
-	a.pendingReviewID = 0
 	a.pendingComments = nil
 	logger.L.Info("SubmitReview complete", "review_id", review.GetID(), "verdict", req.Verdict)
 	return model.ReviewSubmitResult{
@@ -827,12 +900,23 @@ func (a *App) SubmitReview(req model.ReviewSubmitDTO) (model.ReviewSubmitResult,
 	}, nil
 }
 
-// DiscardPendingReview clears the local pending review state.
-// No GitHub API calls are made; comments are stored locally only.
+// DiscardPendingReview clears the local pending review state and, if a GitHub
+// pending review was synced, deletes it from GitHub too.
+// Error prefix: "auth:" — no client; "github:" — API error.
 func (a *App) DiscardPendingReview() error {
+	if a.pendingReviewID != 0 {
+		if a.ghClient == nil {
+			return fmt.Errorf("auth: not authenticated")
+		}
+		if _, _, err := a.ghClient.PullRequests.DeletePendingReview(
+			a.ctx, a.prOwner, a.prRepo, a.prNumber, a.pendingReviewID,
+		); err != nil {
+			return fmt.Errorf("github: delete pending review: %w", err)
+		}
+	}
 	a.pendingReviewID = 0
 	a.pendingComments = nil
-	logger.L.Info("DiscardPendingReview: cleared local state")
+	logger.L.Info("DiscardPendingReview: cleared state")
 	return nil
 }
 
