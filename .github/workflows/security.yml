@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  actions: read
 
 jobs:
   gosec:
@@ -35,7 +36,7 @@ jobs:
         with:
           sarif_file: results.sarif
 
-  nancy:
+  govulncheck:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
     steps:
@@ -47,10 +48,5 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Generate go.list
-        run: go list -json -m all > go.list
-
-      - name: Run Nancy
-        uses: sonatype-nexus-community/nancy-github-action@main
-        with:
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@v1
