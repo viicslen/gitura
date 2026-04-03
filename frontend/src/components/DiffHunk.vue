@@ -12,6 +12,10 @@ const props = defineProps<{
   commentable?: boolean
   /** Index of this hunk within the file's hunk list (used to anchor the compose box). */
   hunkIndex: number
+  /** File-level status from GitHub API ('added' | 'removed' | 'modified' | 'renamed'). */
+  fileStatus?: string
+  /** hljs language id derived from the file extension (e.g. "typescript"). */
+  language?: string
 }>()
 
 interface CommentTarget {
@@ -177,6 +181,9 @@ const rows = computed<SideBySideRow[]>(() => {
   return result
 })
 
+/** For added/removed files one side is always empty — use a single-column layout. */
+const isSingleSide = computed(() => props.fileStatus === 'added' || props.fileStatus === 'removed')
+
 function handleOpenComment(payload: { line: number; side: 'RIGHT' | 'LEFT'; rowIndex: number }): void {
   openCommentAt(payload.rowIndex, { path: props.path, hunkIndex: props.hunkIndex, line: payload.line, side: payload.side })
 }
@@ -213,8 +220,10 @@ function handleOpenComment(payload: { line: number; side: 'RIGHT' | 'LEFT'; rowI
       <colgroup>
         <col class="w-10" />
         <col />
-        <col class="w-10" />
-        <col />
+        <template v-if="!isSingleSide">
+          <col class="w-10" />
+          <col />
+        </template>
       </colgroup>
       <tbody>
         <template v-for="(row, idx) in rows" :key="idx">
@@ -226,6 +235,8 @@ function handleOpenComment(payload: { line: number; side: 'RIGHT' | 'LEFT'; rowI
             :row-index="idx"
             :in-drag-range="isInDragRange(idx)"
             :in-comment-range="isCommentSelected(idx)"
+            :single-side="isSingleSide"
+            :language="language"
             @open-comment="handleOpenComment"
             @drag-start="handleDragStart"
             @drag-enter="handleDragEnter"
@@ -233,7 +244,7 @@ function handleOpenComment(payload: { line: number; side: 'RIGHT' | 'LEFT'; rowI
           />
           <!-- Inline comment form rendered as a row immediately after the target line -->
           <tr v-if="activeCommentRowIdx === idx" :key="`form-${idx}`">
-            <td colspan="4" class="p-0 border-b border-border">
+            <td :colspan="isSingleSide ? 2 : 4" class="p-0 border-b border-border">
               <div class="px-4 py-3 bg-background">
                 <InlineCommentForm
                   :target="activeCommentTarget!"
