@@ -1,0 +1,137 @@
+name: "Update Nix Hashes"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "release-please--**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-nix-hashes:
+    name: "Update flake.nix vendorHash and outputHash"
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref || github.ref_name, 'release-please--')
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v26
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Check if flake.nix needs update
+        id: check
+        run: |
+          if git diff origin/main...HEAD --name-only | grep -q "flake.nix\|go.mod\|go.sum\|bun.lock\|frontend/package.json"; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "Relevant files changed, will update hashes"
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "No relevant files changed, skipping hash update"
+          fi
+
+      - name: Calculate vendorHash (Go dependencies)
+        id: vendor_hash
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          FAKE_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+          # Reset both hashes to fake so we can compute them fresh
+          sed -i "s|vendorHash = \".*\";|vendorHash = \"${FAKE_HASH}\";|" flake.nix
+          sed -i "s|outputHash = \".*\";|outputHash = \"${FAKE_HASH}\";|" flake.nix
+
+          BUILD_OUTPUT=$(nix build .#packages.x86_64-linux.default --no-link 2>&1 || true)
+          echo "$BUILD_OUTPUT"
+
+          VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "got:\s+\K(sha256-[A-Za-z0-9+/=]+)" | head -1)
+
+          if [ -z "$VENDOR_HASH" ]; then
+            VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "sha256-[A-Za-z0-9+/=]+" | grep -v "${FAKE_HASH}" | head -1)
+          fi
+
+          if [ -z "$VENDOR_HASH" ]; then
+            echo "Failed to extract vendorHash from build output"
+            echo "=== Full build output ==="
+            echo "$BUILD_OUTPUT"
+            exit 1
+          fi
+
+          echo "vendor_hash=${VENDOR_HASH}" >> $GITHUB_OUTPUT
+          echo "Calculated vendorHash: ${VENDOR_HASH}"
+
+      - name: Calculate outputHash (Bun frontend dependencies)
+        id: output_hash
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          FAKE_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+          VENDOR_HASH="${{ steps.vendor_hash.outputs.vendor_hash }}"
+
+          # Set correct vendorHash so only the outputHash triggers an error
+          sed -i "s|vendorHash = \".*\";|vendorHash = \"${VENDOR_HASH}\";|" flake.nix
+          sed -i "s|outputHash = \".*\";|outputHash = \"${FAKE_HASH}\";|" flake.nix
+
+          BUILD_OUTPUT=$(nix build .#packages.x86_64-linux.default --no-link 2>&1 || true)
+          echo "$BUILD_OUTPUT"
+
+          OUTPUT_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "got:\s+\K(sha256-[A-Za-z0-9+/=]+)" | head -1)
+
+          if [ -z "$OUTPUT_HASH" ]; then
+            OUTPUT_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "sha256-[A-Za-z0-9+/=]+" | grep -v "${FAKE_HASH}" | head -1)
+          fi
+
+          if [ -z "$OUTPUT_HASH" ]; then
+            echo "Failed to extract outputHash from build output"
+            echo "=== Full build output ==="
+            echo "$BUILD_OUTPUT"
+            exit 1
+          fi
+
+          echo "output_hash=${OUTPUT_HASH}" >> $GITHUB_OUTPUT
+          echo "Calculated outputHash: ${OUTPUT_HASH}"
+
+      - name: Update hashes in flake.nix
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          VENDOR_HASH="${{ steps.vendor_hash.outputs.vendor_hash }}"
+          OUTPUT_HASH="${{ steps.output_hash.outputs.output_hash }}"
+
+          sed -i "s|vendorHash = \".*\";|vendorHash = \"${VENDOR_HASH}\";|" flake.nix
+          sed -i "s|outputHash = \".*\";|outputHash = \"${OUTPUT_HASH}\";|" flake.nix
+
+          echo "Updated vendorHash to ${VENDOR_HASH}"
+          echo "Updated outputHash to ${OUTPUT_HASH}"
+
+      - name: Verify changes
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          echo "=== Updated flake.nix ==="
+          cat flake.nix
+          echo "=== Git diff ==="
+          git --no-pager diff flake.nix
+
+      - name: Commit and push changes
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          if git diff --quiet -- flake.nix; then
+            echo "No hash changes detected; skipping commit"
+            exit 0
+          fi
+
+          VERSION=$(grep -oP 'version = "\K[^"]+' flake.nix | head -1)
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add flake.nix
+          git commit -m "chore(nix): update hashes for version ${VERSION}"
+          git push origin ${{ github.head_ref || github.ref_name }}
