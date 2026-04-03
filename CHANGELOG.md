@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/viicslen/gitura/compare/v0.2.0...v0.2.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **nix:** move CGO_ENABLED into env to fix nixpkgs conflict ([a8eb452](https://github.com/viicslen/gitura/commit/a8eb452751571317dc3c5958fdff410ef214bb71))
+
 ## [0.2.0](https://github.com/viicslen/gitura/compare/v0.1.0...v0.2.0) (2026-04-03)
 
 
