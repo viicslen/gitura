@@ -88,7 +88,7 @@
               cp -r ${frontend} frontend/dist
             '';
 
-            CGO_ENABLED = "1";
+            env.CGO_ENABLED = "1";
 
             # webkit2_41 build tag selects webkit2gtk-4.1 (matches wails.json).
             tags = [ "webkit2_41" ];
