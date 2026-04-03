@@ -94,4 +94,51 @@ UI primitives — no ad-hoc inline styles.
 - 001-pr-review-ui: Added Wails+Vue+shadcn-vue stack, go-github client, device flow auth
 
 <!-- MANUAL ADDITIONS START -->
+## App State Storage
+
+There are three distinct categories of app state, each with a designated storage mechanism:
+
+### 1. Credentials
+Sensitive secrets (e.g. OAuth tokens, API keys) MUST be stored in the **system keyring** via `go-keyring`. Never write credentials to disk in plaintext.
+
+### 2. User-Editable Configuration
+User preferences and settings MUST be stored in a **TOML config file** at `ConfigDir()/settings.toml` (see `internal/settings/settings.go`). The config directory is resolved via `os.UserConfigDir()` (Go stdlib):
+  - Linux: `$XDG_CONFIG_HOME/gitura/` (default `~/.config/gitura/`)
+  - macOS: `~/Library/Application Support/gitura/`
+  - Windows: `%AppData%\gitura\`
+
+This file is human-readable and may be edited directly by the user.
+
+### 3. Non-User-Editable App State
+App-managed state not intended for direct user editing (e.g. caches, internal flags, derived data) MUST be stored in a **SQLite database** using **sqlc** for type-safe query generation. Store the database file under `os.UserStateDir()/gitura/` (stdlib, Go 1.21+), which resolves to:
+  - Linux: `$XDG_STATE_HOME/gitura/` (default `~/.local/state/gitura/`)
+  - macOS: `~/Library/Application Support/gitura/`
+  - Windows: `%AppData%\gitura\`
+
+## Handling Blockers
+
+When a blocker is encountered during implementation, **do not use workarounds**. Stop and ask the user how to proceed.
+
+Workarounds are prohibited, including but not limited to:
+
+- Using `any` type in TypeScript instead of defining proper types
+- Adding `// @ts-ignore`, `// @ts-expect-error`, or `eslint-disable` comments to suppress errors
+- Using non-null assertions (`!`) to silence TypeScript nullability errors
+- Casting through `as unknown as T` to bypass type safety
+- Using `interface{}` or `any` in Go instead of concrete types
+- Ignoring errors with `_` in Go (e.g., `result, _ := ...`)
+- Trying to work around a missing or incompatible dependency instead of adding/upgrading it
+- Hardcoding values that should be retrieved from config, API, or environment
+- Duplicating logic to avoid a refactor or a missing abstraction
+
+If you hit a blocker, state clearly what the blocker is and ask the user for a decision before proceeding.
+
+## Documentation Maintenance
+
+After every non-fix code change (new features, refactors, structural changes):
+
+- **README.md**: Evaluate if user-facing content needs updating (features, usage, setup, screenshots).
+- **AGENTS.md**: Evaluate if developer-facing content needs updating (project structure, technologies, commands, code style).
+
+Do not update docs for bug fixes unless the fix changes behavior that was previously documented.
 <!-- MANUAL ADDITIONS END -->

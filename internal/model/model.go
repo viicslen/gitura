@@ -91,8 +91,8 @@ type PollResult struct {
 
 // IgnoredCommenterDTO represents a persisted ignored-commenter entry.
 type IgnoredCommenterDTO struct {
-	Login   string    `json:"login"`
-	AddedAt time.Time `json:"added_at"`
+	Login   string    `json:"login" toml:"login"`
+	AddedAt time.Time `json:"added_at" toml:"added_at"`
 }
 
 // SuggestionCommitResult holds the outcome of committing a suggestion.

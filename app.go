@@ -73,12 +73,12 @@ func (a *App) loadIgnoredCommenters() error {
 	if a.ignoredCommenters != nil {
 		return nil
 	}
-	commenters, err := settings.Load()
+	cfg, err := settings.Load()
 	if err != nil {
 		a.ignoredCommenters = []model.IgnoredCommenterDTO{}
 		return err
 	}
-	a.ignoredCommenters = commenters
+	a.ignoredCommenters = cfg.IgnoredCommenters
 	logger.L.Debug("ignored commenters loaded", "count", len(a.ignoredCommenters))
 	return nil
 }
@@ -574,7 +574,7 @@ func (a *App) AddIgnoredCommenter(login string) error {
 		Login:   login,
 		AddedAt: time.Now().UTC(),
 	})
-	if err := settings.Save(a.ignoredCommenters); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters}); err != nil {
 		// Roll back in-memory change.
 		a.ignoredCommenters = a.ignoredCommenters[:len(a.ignoredCommenters)-1]
 		return fmt.Errorf("settings: save: %w", err)
@@ -603,7 +603,7 @@ func (a *App) RemoveIgnoredCommenter(login string) error {
 	updated := make([]model.IgnoredCommenterDTO, 0, len(a.ignoredCommenters)-1)
 	updated = append(updated, a.ignoredCommenters[:idx]...)
 	updated = append(updated, a.ignoredCommenters[idx+1:]...)
-	if err := settings.Save(updated); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: updated}); err != nil {
 		return fmt.Errorf("settings: save: %w", err)
 	}
 	a.ignoredCommenters = updated
