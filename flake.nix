@@ -13,10 +13,26 @@
 
         version = "0.1.0"; # x-release-please-version
 
-        # Fetch frontend npm dependencies using the per-package integrity hashes
-        # recorded in frontend/package-lock.json (no aggregate hash required).
-        frontendDeps = pkgs.importNpmLock {
-          npmRoot = ./frontend;
+        # Fetch bun frontend dependencies as a fixed-output derivation.
+        # After updating dependencies, recompute with:
+        #   nix build .#packages.<system>.frontendDeps 2>&1 | grep "got:"
+        frontendDeps = pkgs.stdenv.mkDerivation {
+          name = "gitura-frontend-deps-${version}";
+          src = ./frontend;
+
+          nativeBuildInputs = [ pkgs.bun ];
+
+          dontBuild = true;
+
+          installPhase = ''
+            export HOME=$(mktemp -d)
+            bun install --frozen-lockfile
+            cp -r node_modules $out
+          '';
+
+          outputHashMode = "recursive";
+          outputHashAlgo = "sha256";
+          outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
         };
 
         # Build the Vue/Vite frontend and expose the dist directory.
@@ -24,15 +40,12 @@
           name = "gitura-frontend-${version}";
           src = ./frontend;
 
-          nativeBuildInputs = [
-            pkgs.nodejs
-            pkgs.npmHooks.npmConfigHook
-          ];
-
-          inherit (frontendDeps) npmDeps;
+          nativeBuildInputs = [ pkgs.bun ];
 
           buildPhase = ''
-            npm run build
+            cp -r ${frontendDeps}/node_modules ./node_modules
+            chmod -R +w ./node_modules
+            bun run build
           '';
 
           installPhase = ''
