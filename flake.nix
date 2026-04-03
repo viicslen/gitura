@@ -32,7 +32,7 @@
 
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
-          outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+          outputHash = "sha256-eAgjAVsQGyDT77v2ZBrEaWCTf+b8Rm3dqEtQz+zfYns=";
         };
 
         # Build the Vue/Vite frontend and expose the dist directory.
@@ -79,7 +79,7 @@
             src = ./.;
 
             # Compute by running: nix build .#packages.<system>.default 2>&1 | grep "got:"
-            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            vendorHash = "sha256-eAgjAVsQGyDT77v2ZBrEaWCTf+b8Rm3dqEtQz+zfYns=";
 
             inherit nativeBuildInputs buildInputs;
 
