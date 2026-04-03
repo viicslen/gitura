@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
-import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight, Terminal } from 'lucide-vue-next'
+import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import CommentSummaryList from '@/components/CommentSummaryList.vue'
 import CommentDetailPanel from '@/components/CommentDetailPanel.vue'
 import RunPanel from '@/components/RunPanel.vue'
@@ -13,7 +14,8 @@ import { useReview } from '@/composables/useReview'
 import { useRuns } from '@/composables/useRuns'
 import type { ReviewLoadInput } from '@/types/review'
 import type { model } from '../wailsjs/go/models'
-import { GetCommands, GetDefaultCommandID } from '../wailsjs/go/main/App'
+import { GetCommands, GetDefaultCommandID, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker } from '../wailsjs/go/main/App'
+import { toast } from 'vue-sonner'
 
 const props = defineProps<{
   prItem: ReviewLoadInput
@@ -103,9 +105,44 @@ function handleRan(): void {
   runPanelOpen.value = true
 }
 
+// ── Per-PR local path ─────────────────────────────────────────────────────
+const localPath = ref('')
+
+async function loadLocalPath(): Promise<void> {
+  try {
+    localPath.value = await GetPRLocalPath()
+  } catch {
+    // Non-fatal: path simply stays empty
+  }
+}
+
+async function saveLocalPath(path: string): Promise<void> {
+  localPath.value = path
+  try {
+    await SetPRLocalPath(path)
+  } catch {
+    // Non-fatal: value was set in-memory but not persisted
+  }
+}
+
+async function browseForPath(): Promise<void> {
+  try {
+    const selected = await OpenFolderPicker(
+      'Select local repository folder',
+      localPath.value || '',
+    )
+    if (selected) {
+      await saveLocalPath(selected)
+    }
+  } catch (err) {
+    toast.error('Could not open folder picker: ' + String(err))
+  }
+}
+
 onMounted(() => {
   loadPR()
   void loadCommands()
+  void loadLocalPath()
 })
 </script>
 
@@ -237,6 +274,26 @@ onMounted(() => {
           />
         </span>
       </Button>
+
+      <!-- Local repo path (only shown when commands are configured) -->
+      <div v-if="commands.length > 0" class="flex items-center gap-1 shrink-0">
+        <Input
+          :value="localPath"
+          placeholder="Local repo path…"
+          class="h-7 text-xs w-44 font-mono"
+          aria-label="Local repository path"
+          @change="(e: Event) => saveLocalPath((e.target as HTMLInputElement).value)"
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+          aria-label="Browse for local repository folder"
+          @click="browseForPath()"
+        >
+          <FolderOpen class="h-3.5 w-3.5" />
+        </Button>
+      </div>
     </header>
 
     <!-- ── Loading state ───────────────────────────────────────────────────── -->

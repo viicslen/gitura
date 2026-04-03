@@ -19,6 +19,10 @@ import (
 // instead of being piped via stdin.
 const placeholderToken = "{{instructions}}"
 
+// repoPathToken is the literal string the user places in a command template
+// to indicate where the local repository path should be injected.
+const repoPathToken = "{{repo_path}}"
+
 // RunCommand executes cmd against input and returns the result.
 //
 // Input delivery strategy:
@@ -26,12 +30,16 @@ const placeholderToken = "{{instructions}}"
 //     with input as a single shell argument; stdin is left empty.
 //   - Otherwise, input is written to the process's stdin pipe.
 //
+// If localPath is non-empty, it is used as the working directory for the
+// subprocess and is also substituted for any "{{repo_path}}" token in the
+// command string before argv-splitting.
+//
 // The command string is POSIX-shell-split (respects quoted tokens) to produce
 // the argv slice; no shell interpreter is invoked, preventing injection.
 //
 // If ctx is cancelled before the process finishes, the process is killed and
 // the returned RunResult has Cancelled=true.
-func RunCommand(ctx context.Context, cmd model.CommandDTO, input string) model.RunResult {
+func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPath string) model.RunResult {
 	startedAt := time.Now().UTC()
 
 	result := model.RunResult{
@@ -45,6 +53,9 @@ func RunCommand(ctx context.Context, cmd model.CommandDTO, input string) model.R
 
 	// Build argv by substituting the placeholder or leaving it unchanged.
 	rawCmd := cmd.Command
+	if localPath != "" {
+		rawCmd = strings.ReplaceAll(rawCmd, repoPathToken, shellEscape(localPath))
+	}
 	if usePlaceholder {
 		rawCmd = strings.ReplaceAll(rawCmd, placeholderToken, shellEscape(input))
 	}
@@ -63,6 +74,10 @@ func RunCommand(ctx context.Context, cmd model.CommandDTO, input string) model.R
 	var stdoutBuf, stderrBuf bytes.Buffer
 	c.Stdout = &stdoutBuf
 	c.Stderr = &stderrBuf
+
+	if localPath != "" {
+		c.Dir = localPath
+	}
 
 	if !usePlaceholder {
 		c.Stdin = strings.NewReader(input)

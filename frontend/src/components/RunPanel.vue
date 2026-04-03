@@ -6,6 +6,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { useRuns } from '@/composables/useRuns'
 import type { Run } from '@/composables/useRuns'
+import { AnsiUp } from 'ansi_up'
+
+const ansiUp = new AnsiUp()
+
+function ansiToHtml(text: string): string {
+  return ansiUp.ansi_to_html(text)
+}
 
 const props = defineProps<{
   open: boolean
@@ -184,13 +191,17 @@ const hasRuns = computed(() => runs.value.length > 0)
               <!-- stdout -->
               <div v-if="run.stdout" class="space-y-1">
                 <p class="text-xs text-muted-foreground font-medium uppercase tracking-wide">Output</p>
-                <pre class="text-xs font-mono bg-muted rounded px-2 py-1.5 overflow-x-auto max-h-32 overflow-y-auto whitespace-pre-wrap">{{ run.stdout }}</pre>
+                <pre class="text-xs font-mono bg-muted rounded px-2 py-1.5 overflow-x-auto max-h-32 overflow-y-auto whitespace-pre-wrap" v-html="ansiToHtml(run.stdout)" />
               </div>
 
               <!-- stderr -->
               <div v-if="run.stderr" class="space-y-1">
                 <p class="text-xs text-muted-foreground font-medium uppercase tracking-wide">Stderr</p>
-                <pre class="text-xs font-mono bg-destructive/10 text-destructive rounded px-2 py-1.5 overflow-x-auto max-h-24 overflow-y-auto whitespace-pre-wrap">{{ run.stderr }}</pre>
+                <pre
+                  class="text-xs font-mono rounded px-2 py-1.5 overflow-x-auto max-h-24 overflow-y-auto whitespace-pre-wrap"
+                  :class="run.exit_code !== 0 ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'"
+                  v-html="ansiToHtml(run.stderr)"
+                />
               </div>
 
               <!-- Running state (no output yet) -->

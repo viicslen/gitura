@@ -54,6 +54,10 @@ export function GetPRFiles() {
   return window['go']['main']['App']['GetPRFiles']();
 }
 
+export function GetPRLocalPath() {
+  return window['go']['main']['App']['GetPRLocalPath']();
+}
+
 export function GetPendingReview() {
   return window['go']['main']['App']['GetPendingReview']();
 }
@@ -72,6 +76,10 @@ export function LoadPullRequest(arg1, arg2, arg3) {
 
 export function Logout() {
   return window['go']['main']['App']['Logout']();
+}
+
+export function OpenFolderPicker(arg1, arg2) {
+  return window['go']['main']['App']['OpenFolderPicker'](arg1, arg2);
 }
 
 export function PollDeviceFlow() {
@@ -104,6 +112,10 @@ export function RunCommands(arg1, arg2) {
 
 export function SetDefaultCommandID(arg1) {
   return window['go']['main']['App']['SetDefaultCommandID'](arg1);
+}
+
+export function SetPRLocalPath(arg1) {
+  return window['go']['main']['App']['SetPRLocalPath'](arg1);
 }
 
 export function StartDeviceFlow() {

@@ -110,10 +110,10 @@ User preferences and settings MUST be stored in a **TOML config file** at `Confi
 This file is human-readable and may be edited directly by the user.
 
 ### 3. Non-User-Editable App State
-App-managed state not intended for direct user editing (e.g. caches, internal flags, derived data) MUST be stored in a **SQLite database** using **sqlc** for type-safe query generation. Store the database file under `os.UserStateDir()/gitura/` (stdlib, Go 1.21+), which resolves to:
-  - Linux: `$XDG_STATE_HOME/gitura/` (default `~/.local/state/gitura/`)
-  - macOS: `~/Library/Application Support/gitura/`
-  - Windows: `%AppData%\gitura\`
+App-managed state not intended for direct user editing (e.g. caches, internal flags, derived data) MUST be stored in a **SQLite database** using **sqlc** for type-safe query generation. Store the database file under `os.UserCacheDir()/gitura/` (note: `os.UserStateDir` is not available in this Go build), which resolves to:
+  - Linux: `$XDG_CACHE_HOME/gitura/` (default `~/.cache/gitura/`)
+  - macOS: `~/Library/Caches/gitura/`
+  - Windows: `%LocalAppData%\gitura\`
 
 ## Handling Blockers
 

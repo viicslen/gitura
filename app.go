@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"gitura/internal/auth"
+	"gitura/internal/db"
 	githubclient "gitura/internal/github"
 	"gitura/internal/keyring"
 	"gitura/internal/logger"
@@ -62,6 +64,10 @@ type App struct {
 	runCancelsMu sync.Mutex
 	runCancels   map[string]context.CancelFunc
 
+	// queries is the sqlc-generated DB query interface for app-managed state.
+	// Opened during startup; nil if the DB could not be initialised.
+	queries *db.Queries
+
 	// Device-flow state, held in memory only during the OAuth flow.
 	deviceCode string
 	authToken  string
@@ -79,6 +85,21 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	logger.L.Info("app started", "client_id", githubClientID)
+
+	// Open the SQLite state database.
+	// os.UserStateDir is not available in this build; use UserCacheDir instead.
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		logger.L.Warn("could not resolve cache dir; per-PR state will be unavailable", "err", err)
+	} else {
+		sqlDB, err := db.Open(cacheDir)
+		if err != nil {
+			logger.L.Warn("could not open state DB; per-PR state will be unavailable", "err", err)
+		} else {
+			a.queries = db.New(sqlDB)
+		}
+	}
+
 	// Pre-warm config so the first LoadPullRequest call is fast.
 	if err := a.loadConfig(); err != nil {
 		logger.L.Warn("failed to pre-load config", "err", err)
@@ -1109,6 +1130,19 @@ func (a *App) RunCommands(commandIDs []string, input string) ([]model.RunResult,
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
 
+	// Look up the per-PR local path from the state DB (best-effort).
+	localPath := ""
+	if a.queries != nil {
+		state, err := a.queries.GetPRState(a.ctx, db.GetPRStateParams{
+			Owner:  a.prOwner,
+			Repo:   a.prRepo,
+			Number: int64(a.prNumber),
+		})
+		if err == nil {
+			localPath = state.LocalPath
+		}
+	}
+
 	// Build a lookup map for fast ID → command resolution.
 	cmdMap := make(map[string]model.CommandDTO, len(a.commands))
 	for _, c := range a.commands {
@@ -1147,14 +1181,14 @@ func (a *App) RunCommands(commandIDs []string, input string) ([]model.RunResult,
 		a.emit("command:run:pending", pending)
 
 		wg.Add(1)
-		go func(c model.CommandDTO, rID string, ctx context.Context) {
+		go func(c model.CommandDTO, rID string, ctx context.Context, lp string) {
 			defer wg.Done()
 			defer func() {
 				a.runCancelsMu.Lock()
 				delete(a.runCancels, rID)
 				a.runCancelsMu.Unlock()
 			}()
-			result := runner.RunCommand(ctx, c, input)
+			result := runner.RunCommand(ctx, c, input, lp)
 			result.RunID = rID
 			result.Running = false
 			a.emit("command:run:complete", result)
@@ -1164,7 +1198,7 @@ func (a *App) RunCommands(commandIDs []string, input string) ([]model.RunResult,
 				"exit_code", result.ExitCode,
 				"cancelled", result.Cancelled,
 			)
-		}(cmd, runID, runCtx)
+		}(cmd, runID, runCtx, localPath)
 	}
 
 	return pendingResults, nil
@@ -1183,4 +1217,54 @@ func (a *App) CancelRun(runID string) error {
 	}
 	cancel()
 	return nil
+}
+
+// GetPRLocalPath returns the local filesystem path associated with the current PR,
+// or an empty string if none has been set.
+//
+// Error prefix: "db:" — database query failure.
+func (a *App) GetPRLocalPath() (string, error) {
+	if a.queries == nil {
+		return "", nil
+	}
+	state, err := a.queries.GetPRState(a.ctx, db.GetPRStateParams{
+		Owner:  a.prOwner,
+		Repo:   a.prRepo,
+		Number: int64(a.prNumber),
+	})
+	if err != nil {
+		// sql.ErrNoRows is expected when no path has been set yet.
+		return "", nil
+	}
+	return state.LocalPath, nil
+}
+
+// SetPRLocalPath persists a local filesystem path for the current PR.
+// Pass an empty string to clear the stored path.
+//
+// Error prefix: "db:" — database write failure.
+func (a *App) SetPRLocalPath(localPath string) error {
+	if a.queries == nil {
+		return fmt.Errorf("db: state database is not available")
+	}
+	return a.queries.UpsertPRLocalPath(a.ctx, db.UpsertPRLocalPathParams{
+		Owner:     a.prOwner,
+		Repo:      a.prRepo,
+		Number:    int64(a.prNumber),
+		LocalPath: localPath,
+	})
+}
+
+// OpenFolderPicker opens a native OS folder picker dialog and returns the
+// selected directory path, or an empty string if the user cancels.
+func (a *App) OpenFolderPicker(title string, defaultDir string) (string, error) {
+	opts := runtime.OpenDialogOptions{
+		Title:            title,
+		DefaultDirectory: defaultDir,
+	}
+	selected, err := runtime.OpenDirectoryDialog(a.ctx, opts)
+	if err != nil {
+		return "", err
+	}
+	return selected, nil
 }

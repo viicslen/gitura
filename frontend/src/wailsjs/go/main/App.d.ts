@@ -28,6 +28,8 @@ export function GetIgnoredCommenters():Promise<Array<model.IgnoredCommenterDTO>>
 
 export function GetPRFiles():Promise<Array<model.PRFileDTO>>;
 
+export function GetPRLocalPath():Promise<string>;
+
 export function GetPendingReview():Promise<model.PendingReviewDTO>;
 
 export function GetThread(arg1:number):Promise<model.CommentThreadDTO>;
@@ -37,6 +39,8 @@ export function ListOpenPRs(arg1:model.PRListFilters):Promise<model.PRListResult
 export function LoadPullRequest(arg1:string,arg2:string,arg3:number):Promise<model.PullRequestSummary>;
 
 export function Logout():Promise<void>;
+
+export function OpenFolderPicker(arg1:string,arg2:string):Promise<string>;
 
 export function PollDeviceFlow():Promise<model.PollResult>;
 
@@ -53,6 +57,8 @@ export function ResolveThread(arg1:number):Promise<void>;
 export function RunCommands(arg1:Array<string>,arg2:string):Promise<Array<model.RunResult>>;
 
 export function SetDefaultCommandID(arg1:string):Promise<void>;
+
+export function SetPRLocalPath(arg1:string):Promise<void>;
 
 export function StartDeviceFlow():Promise<model.DeviceFlowInfo>;
 
