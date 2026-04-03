@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/viicslen/gitura/compare/v0.2.1...v0.3.0) (2026-04-03)
+
+
+### Features
+
+* add syntax highlighting and single-side view for added/removed files ([115674b](https://github.com/viicslen/gitura/commit/115674bf5c46bbb0a7f62c95731b5e1448308c28))
+
 ## [0.2.1](https://github.com/viicslen/gitura/compare/v0.2.0...v0.2.1) (2026-04-03)
 
 
