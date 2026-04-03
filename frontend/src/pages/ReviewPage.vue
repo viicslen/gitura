@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
-import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight, Terminal } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import CommentSummaryList from '@/components/CommentSummaryList.vue'
 import CommentDetailPanel from '@/components/CommentDetailPanel.vue'
+import RunPanel from '@/components/RunPanel.vue'
 import ViewToggle from '@/components/ViewToggle.vue'
 import DiffReviewView from '@/components/DiffReviewView.vue'
 import { useReview } from '@/composables/useReview'
+import { useRuns } from '@/composables/useRuns'
 import type { ReviewLoadInput } from '@/types/review'
+import type { model } from '../wailsjs/go/models'
+import { GetCommands, GetDefaultCommandID } from '../wailsjs/go/main/App'
 
 const props = defineProps<{
   prItem: ReviewLoadInput
@@ -25,6 +29,29 @@ const VIEW_OPTIONS = [
   { value: 'conversation', label: 'Conversation' },
   { value: 'files', label: 'Files changed' },
 ]
+
+// ── Commands ────────────────────────────────────────────────────────────────
+const commands = ref<model.CommandDTO[]>([])
+const defaultCommandId = ref('')
+
+async function loadCommands(): Promise<void> {
+  try {
+    commands.value = await GetCommands()
+  } catch {
+    // Non-fatal: commands panel will just be empty
+  }
+  try {
+    defaultCommandId.value = await GetDefaultCommandID()
+  } catch {
+    // Non-fatal
+  }
+}
+
+// ── Run panel ──────────────────────────────────────────────────────────────
+const { runs } = useRuns()
+const runPanelOpen = ref(false)
+
+const pendingRunCount = computed(() => runs.value.filter((r) => r.running).length)
 
 // ── DiffReviewView bridge ──────────────────────────────────────────────────
 const diffReviewRef = ref<InstanceType<typeof DiffReviewView> | null>(null)
@@ -68,20 +95,17 @@ function handleKeydown(event: KeyboardEvent): void {
   else if (event.key === 'ArrowLeft') goPrev()
 }
 
-function handleReplySent(): void {
-  // Reply is appended to the thread in the Go cache and returned via the event.
-  // The CommentDetailPanel binds directly to thread.comments, which is updated
-  // reactively when ReplyComposer emits reply-sent to CommentDetailPanel which
-  // emits it here. Nothing additional needed at this level.
-}
+function handleReplySent(): void {}
+function handleSuggestionCommitted(): void {}
 
-function handleSuggestionCommitted(): void {
-  // SuggestionBlock manages its own success state.
-  // Nothing additional needed at the page level.
+function handleRan(): void {
+  // Auto-open the run panel when a run starts
+  runPanelOpen.value = true
 }
 
 onMounted(() => {
   loadPR()
+  void loadCommands()
 })
 </script>
 
@@ -194,6 +218,25 @@ onMounted(() => {
       >
         <ChevronRight class="h-4 w-4" />
       </Button>
+
+      <!-- Run history toggle (only shown when commands are configured) -->
+      <Button
+        v-if="commands.length > 0"
+        variant="ghost"
+        size="icon"
+        :aria-label="runPanelOpen ? 'Close run history' : 'Open run history'"
+        :class="runPanelOpen ? 'text-foreground' : 'text-muted-foreground'"
+        @click="runPanelOpen = !runPanelOpen"
+      >
+        <span class="relative">
+          <Terminal class="h-4 w-4" />
+          <span
+            v-if="pendingRunCount > 0"
+            class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary"
+            aria-hidden="true"
+          />
+        </span>
+      </Button>
     </header>
 
     <!-- ── Loading state ───────────────────────────────────────────────────── -->
@@ -227,20 +270,31 @@ onMounted(() => {
             :threads="queue"
             :current-index="currentIndex"
             :show-resolved="showResolved"
+            :commands="commands"
+            :default-command-id="defaultCommandId"
             @select="handleSelect"
+            @ran="handleRan"
           />
         </div>
 
         <!-- Right: detail + navigation -->
-        <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
           <CommentDetailPanel
             :thread="currentThread"
             :is-at-end="isAtEnd && queue.length > 0"
+            :commands="commands"
+            :default-command-id="defaultCommandId"
             class="flex-1 overflow-hidden"
             @resolve="resolveThread"
             @unresolve="unresolveThread"
             @reply-sent="handleReplySent"
             @suggestion-committed="handleSuggestionCommitted"
+            @ran="handleRan"
+          />
+          <!-- Run history panel (pinned to bottom of right panel) -->
+          <RunPanel
+            :open="runPanelOpen"
+            @close="runPanelOpen = false"
           />
         </div>
       </div>

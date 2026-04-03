@@ -7,10 +7,13 @@ const props = defineProps<{
   threads: model.CommentThreadDTO[]
   currentIndex: number
   showResolved: boolean
+  commands: model.CommandDTO[]
+  defaultCommandId: string
 }>()
 
 const emit = defineEmits<{
   (e: 'select', index: number): void
+  (e: 'ran'): void
 }>()
 
 const visibleThreads = computed(() =>
@@ -56,54 +59,58 @@ function handleKeydown(event: KeyboardEvent, index: number): void {
       No comments to show.
     </div>
 
-    <button
+    <div
       v-for="(thread, index) in visibleThreads"
       :id="`thread-item-${index}`"
       :key="thread.root_id"
-      role="option"
-      :aria-selected="index === currentIndex"
-      class="w-full text-left px-3 py-2.5 border-b border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors cursor-pointer"
-      :class="[
-        index === currentIndex
-          ? 'bg-accent text-accent-foreground'
-          : 'hover:bg-muted/50',
-      ]"
-      @click="emit('select', index)"
-      @keydown="handleKeydown($event, index)"
+      class="border-b border-border"
     >
-      <div class="flex items-start gap-2 min-w-0">
-        <!-- Avatar -->
-        <img
-          v-if="rootComment(thread)?.author_avatar"
-          :src="rootComment(thread)!.author_avatar"
-          :alt="rootComment(thread)!.author_login"
-          class="w-5 h-5 rounded-full shrink-0 mt-0.5"
-        />
-        <div class="min-w-0 flex-1">
-          <!-- Author row: name on left, Resolved badge on right -->
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="font-medium text-sm truncate max-w-[120px]">
-              {{ rootComment(thread)?.author_login ?? 'Unknown' }}
-            </span>
-            <span class="flex-1" />
-            <Badge
-              v-if="thread.resolved && showResolved"
-              variant="outline"
-              class="text-xs shrink-0 text-muted-foreground border-muted-foreground/40"
-            >
-              Resolved
-            </Badge>
+      <button
+        role="option"
+        :aria-selected="index === currentIndex"
+        class="w-full text-left px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors cursor-pointer"
+        :class="[
+          index === currentIndex
+            ? 'bg-accent text-accent-foreground'
+            : 'hover:bg-muted/50',
+        ]"
+        @click="emit('select', index)"
+        @keydown="handleKeydown($event, index)"
+      >
+        <div class="flex items-start gap-2 min-w-0">
+          <!-- Avatar -->
+          <img
+            v-if="rootComment(thread)?.author_avatar"
+            :src="rootComment(thread)!.author_avatar"
+            :alt="rootComment(thread)!.author_login"
+            class="w-5 h-5 rounded-full shrink-0 mt-0.5"
+          />
+          <div class="min-w-0 flex-1 pr-2">
+            <!-- Author row: name on left, Resolved badge on right -->
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="font-medium text-sm truncate max-w-[120px]">
+                {{ rootComment(thread)?.author_login ?? 'Unknown' }}
+              </span>
+              <span class="flex-1" />
+              <Badge
+                v-if="thread.resolved && showResolved"
+                variant="outline"
+                class="text-xs shrink-0 text-muted-foreground border-muted-foreground/40"
+              >
+                Resolved
+              </Badge>
+            </div>
+            <!-- File path -->
+            <div class="text-xs text-muted-foreground truncate min-w-0">
+              {{ thread.path }}<span v-if="thread.line" class="text-muted-foreground/70">:{{ thread.line }}</span>
+            </div>
+            <!-- Excerpt -->
+            <p class="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+              {{ excerpt(rootComment(thread)?.body ?? '') }}
+            </p>
           </div>
-          <!-- File path -->
-          <div class="text-xs text-muted-foreground truncate min-w-0">
-            {{ thread.path }}<span v-if="thread.line" class="text-muted-foreground/70">:{{ thread.line }}</span>
-          </div>
-          <!-- Excerpt -->
-          <p class="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-            {{ excerpt(rootComment(thread)?.body ?? '') }}
-          </p>
         </div>
-      </div>
-    </button>
+      </button>
+    </div>
   </div>
 </template>

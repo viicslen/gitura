@@ -16,6 +16,22 @@ export namespace model {
 	        this.avatar_url = source["avatar_url"];
 	    }
 	}
+	export class CommandDTO {
+	    id: string;
+	    name: string;
+	    command: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CommandDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.command = source["command"];
+	    }
+	}
 	export class CommentDTO {
 	    id: number;
 	    in_reply_to_id: number;
@@ -496,6 +512,38 @@ export namespace model {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.review_id = source["review_id"];
 	        this.html_url = source["html_url"];
+	    }
+	}
+	export class RunResult {
+	    run_id: string;
+	    command_id: string;
+	    command_name: string;
+	    input: string;
+	    stdout: string;
+	    stderr: string;
+	    exit_code: number;
+	    started_at: string;
+	    finished_at: string;
+	    running: boolean;
+	    cancelled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
+	        this.command_id = source["command_id"];
+	        this.command_name = source["command_name"];
+	        this.input = source["input"];
+	        this.stdout = source["stdout"];
+	        this.stderr = source["stderr"];
+	        this.exit_code = source["exit_code"];
+	        this.started_at = source["started_at"];
+	        this.finished_at = source["finished_at"];
+	        this.running = source["running"];
+	        this.cancelled = source["cancelled"];
 	    }
 	}
 	export class SuggestionCommitResult {

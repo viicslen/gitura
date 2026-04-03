@@ -3,8 +3,10 @@ import { computed } from 'vue'
 import type { model } from '../wailsjs/go/models'
 import DiffHunkView from './DiffHunkView.vue'
 import MarkdownBody from './MarkdownBody.vue'
+import CommentBody from './CommentBody.vue'
 import ReplyComposer from './ReplyComposer.vue'
 import SuggestionBlock from './SuggestionBlock.vue'
+import SplitRunButton from './SplitRunButton.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -14,6 +16,8 @@ import { langFromPath } from '@/lib/lang'
 const props = defineProps<{
   thread: model.CommentThreadDTO | null
   isAtEnd: boolean
+  commands: model.CommandDTO[]
+  defaultCommandId: string
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +25,7 @@ const emit = defineEmits<{
   (e: 'unresolve', rootId: number): void
   (e: 'reply-sent', comment: model.CommentDTO): void
   (e: 'suggestion-committed', result: model.SuggestionCommitResult): void
+  (e: 'ran'): void
 }>()
 
 function formatTimestamp(iso: string): string {
@@ -53,10 +58,10 @@ function toggleResolved(): void {
   } else {
     emit('resolve', props.thread.root_id)
   }
-}
-</script>
+}</script>
 
 <template>
+  <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
   <!-- No thread selected -->
   <div
     v-if="!thread"
@@ -93,8 +98,26 @@ function toggleResolved(): void {
         </div>
 
         <!-- Body -->
-        <div class="rounded-md bg-muted/40 px-3 py-2">
-          <MarkdownBody :content="rootComment.body" />
+        <div class="relative rounded-md bg-muted/40 px-3 py-2 group/body">
+          <CommentBody
+            :content="rootComment.body"
+            :commands="commands"
+            :default-command-id="defaultCommandId"
+            @ran="emit('ran')"
+          />
+          <!-- Run button overlay on the comment body -->
+          <div
+            v-if="commands.length > 0"
+            class="absolute top-2 right-2 opacity-0 group-hover/body:opacity-100 transition-opacity"
+          >
+            <SplitRunButton
+              :commands="commands"
+              :default-command-id="defaultCommandId"
+              :input="rootComment.body"
+              size="sm"
+              @ran="emit('ran')"
+            />
+          </div>
         </div>
 
         <!-- Diff hunk -->
@@ -149,6 +172,14 @@ function toggleResolved(): void {
               <Circle v-else class="h-4 w-4" />
               {{ thread.resolved ? 'Unresolve' : 'Resolve' }}
             </Button>
+            <SplitRunButton
+              v-if="commands.length > 0 && rootComment"
+              :commands="commands"
+              :default-command-id="defaultCommandId"
+              :input="rootComment.body"
+              label="Run comment"
+              @ran="emit('ran')"
+            />
           </template>
         </ReplyComposer>
       </div>
@@ -162,4 +193,5 @@ function toggleResolved(): void {
       </div>
     </div>
   </ScrollArea>
+  </div>
 </template>

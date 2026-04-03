@@ -22,6 +22,10 @@ const (
 // Config holds all user-editable settings for gitura.
 type Config struct {
 	IgnoredCommenters []model.IgnoredCommenterDTO `toml:"ignored_commenters"`
+	Commands          []model.CommandDTO          `toml:"commands"`
+	// DefaultCommandID is the ID of the command to use as the primary action
+	// in split-run buttons. Empty string means no default is set.
+	DefaultCommandID string `toml:"default_command_id"`
 }
 
 // ConfigDir returns the OS-appropriate configuration directory for gitura,
@@ -58,6 +62,9 @@ func Load() (Config, error) {
 	if cfg.IgnoredCommenters == nil {
 		cfg.IgnoredCommenters = []model.IgnoredCommenterDTO{}
 	}
+	if cfg.Commands == nil {
+		cfg.Commands = []model.CommandDTO{}
+	}
 	return cfg, nil
 }
 
@@ -75,6 +82,9 @@ func Save(cfg Config) error {
 
 	if cfg.IgnoredCommenters == nil {
 		cfg.IgnoredCommenters = []model.IgnoredCommenterDTO{}
+	}
+	if cfg.Commands == nil {
+		cfg.Commands = []model.CommandDTO{}
 	}
 
 	var buf bytes.Buffer

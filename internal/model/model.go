@@ -234,3 +234,31 @@ type ReviewSubmitResult struct {
 	ReviewID int64  `json:"review_id"`
 	HTMLURL  string `json:"html_url"`
 }
+
+// CommandDTO is a named CLI invocation template configured by the user.
+// Command may contain the literal string "{{instructions}}" as a placeholder;
+// if present, the input text is substituted as a shell argument rather than
+// piped via stdin.
+type CommandDTO struct {
+	ID      string `json:"id" toml:"id"`
+	Name    string `json:"name" toml:"name"`
+	Command string `json:"command" toml:"command"`
+}
+
+// RunResult holds the outcome of a single command execution.
+// Running is true while the goroutine has not yet completed; the frontend
+// should treat it as a live/pending entry until a completion event arrives.
+// Cancelled is true when the run was stopped by the user before it finished.
+type RunResult struct {
+	RunID       string `json:"run_id"`
+	CommandID   string `json:"command_id"`
+	CommandName string `json:"command_name"`
+	Input       string `json:"input"`
+	Stdout      string `json:"stdout"`
+	Stderr      string `json:"stderr"`
+	ExitCode    int    `json:"exit_code"`
+	StartedAt   string `json:"started_at"`  // RFC3339
+	FinishedAt  string `json:"finished_at"` // RFC3339; empty while running
+	Running     bool   `json:"running"`
+	Cancelled   bool   `json:"cancelled"`
+}

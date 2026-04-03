@@ -6,9 +6,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/go-github/v67/github"
+	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"gitura/internal/auth"
@@ -16,6 +18,7 @@ import (
 	"gitura/internal/keyring"
 	"gitura/internal/logger"
 	"gitura/internal/model"
+	"gitura/internal/runner"
 	"gitura/internal/settings"
 )
 
@@ -43,8 +46,21 @@ type App struct {
 	pendingComments []model.DraftCommentDTO
 
 	// ignoredCommenters is the persisted list of commenters to filter from review threads.
-	// Lazily loaded on first use via loadIgnoredCommenters.
+	// Lazily loaded on first use via loadConfig.
 	ignoredCommenters []model.IgnoredCommenterDTO
+
+	// commands is the persisted list of named CLI commands.
+	// Lazily loaded alongside ignoredCommenters via loadConfig.
+	commands []model.CommandDTO
+
+	// defaultCommandID is the ID of the command to use as the primary action.
+	// Empty string means no default is set.
+	defaultCommandID string
+
+	// runCancels maps run IDs to their context cancel functions, allowing
+	// in-flight commands to be stopped via CancelRun.
+	runCancelsMu sync.Mutex
+	runCancels   map[string]context.CancelFunc
 
 	// Device-flow state, held in memory only during the OAuth flow.
 	deviceCode string
@@ -53,7 +69,9 @@ type App struct {
 
 // NewApp creates a new App instance.
 func NewApp() *App {
-	return &App{}
+	return &App{
+		runCancels: make(map[string]context.CancelFunc),
+	}
 }
 
 // startup is called by Wails when the application starts.
@@ -61,25 +79,31 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	logger.L.Info("app started", "client_id", githubClientID)
-	// Pre-warm ignored commenters so the first LoadPullRequest call is fast.
-	if err := a.loadIgnoredCommenters(); err != nil {
-		logger.L.Warn("failed to pre-load ignored commenters", "err", err)
+	// Pre-warm config so the first LoadPullRequest call is fast.
+	if err := a.loadConfig(); err != nil {
+		logger.L.Warn("failed to pre-load config", "err", err)
 	}
 }
 
-// loadIgnoredCommenters loads the ignored-commenters list from disk if not yet loaded.
+// loadConfig loads the full settings config from disk if not yet loaded.
 // It is safe to call multiple times; subsequent calls are no-ops.
-func (a *App) loadIgnoredCommenters() error {
+func (a *App) loadConfig() error {
 	if a.ignoredCommenters != nil {
 		return nil
 	}
 	cfg, err := settings.Load()
 	if err != nil {
 		a.ignoredCommenters = []model.IgnoredCommenterDTO{}
+		a.commands = []model.CommandDTO{}
 		return err
 	}
 	a.ignoredCommenters = cfg.IgnoredCommenters
-	logger.L.Debug("ignored commenters loaded", "count", len(a.ignoredCommenters))
+	a.commands = cfg.Commands
+	a.defaultCommandID = cfg.DefaultCommandID
+	logger.L.Debug("config loaded",
+		"ignored_commenters", len(a.ignoredCommenters),
+		"commands", len(a.commands),
+	)
 	return nil
 }
 
@@ -261,7 +285,7 @@ func (a *App) LoadPullRequest(owner, repo string, number int) (model.PullRequest
 	if a.ghClient == nil {
 		return model.PullRequestSummary{}, fmt.Errorf("auth: not authenticated")
 	}
-	if err := a.loadIgnoredCommenters(); err != nil {
+	if err := a.loadConfig(); err != nil {
 		logger.L.Warn("LoadPullRequest: failed to load ignored commenters", "err", err)
 	}
 
@@ -546,7 +570,7 @@ done:
 // The list is lazily loaded from disk on the first call.
 // Error prefix: none — returns empty slice on load failure.
 func (a *App) GetIgnoredCommenters() ([]model.IgnoredCommenterDTO, error) {
-	if err := a.loadIgnoredCommenters(); err != nil {
+	if err := a.loadConfig(); err != nil {
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
 	result := make([]model.IgnoredCommenterDTO, len(a.ignoredCommenters))
@@ -562,7 +586,7 @@ func (a *App) AddIgnoredCommenter(login string) error {
 	if login == "" {
 		return fmt.Errorf("validation: login required")
 	}
-	if err := a.loadIgnoredCommenters(); err != nil {
+	if err := a.loadConfig(); err != nil {
 		return fmt.Errorf("settings: load: %w", err)
 	}
 	for _, ic := range a.ignoredCommenters {
@@ -574,7 +598,7 @@ func (a *App) AddIgnoredCommenter(login string) error {
 		Login:   login,
 		AddedAt: time.Now().UTC(),
 	})
-	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters}); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters, Commands: a.commands, DefaultCommandID: a.defaultCommandID}); err != nil {
 		// Roll back in-memory change.
 		a.ignoredCommenters = a.ignoredCommenters[:len(a.ignoredCommenters)-1]
 		return fmt.Errorf("settings: save: %w", err)
@@ -587,7 +611,7 @@ func (a *App) AddIgnoredCommenter(login string) error {
 // Silently no-ops if the login is not present.
 // Error prefix: "settings:" — save failure.
 func (a *App) RemoveIgnoredCommenter(login string) error {
-	if err := a.loadIgnoredCommenters(); err != nil {
+	if err := a.loadConfig(); err != nil {
 		return fmt.Errorf("settings: load: %w", err)
 	}
 	idx := -1
@@ -603,7 +627,7 @@ func (a *App) RemoveIgnoredCommenter(login string) error {
 	updated := make([]model.IgnoredCommenterDTO, 0, len(a.ignoredCommenters)-1)
 	updated = append(updated, a.ignoredCommenters[:idx]...)
 	updated = append(updated, a.ignoredCommenters[idx+1:]...)
-	if err := settings.Save(settings.Config{IgnoredCommenters: updated}); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: updated, Commands: a.commands, DefaultCommandID: a.defaultCommandID}); err != nil {
 		return fmt.Errorf("settings: save: %w", err)
 	}
 	a.ignoredCommenters = updated
@@ -933,4 +957,230 @@ func draftCommentToGitHub(c model.DraftCommentDTO) *github.DraftReviewComment {
 		dc.StartSide = &c.StartSide
 	}
 	return dc
+}
+
+// GetCommands returns the current list of configured commands.
+// Error prefix: "settings:" — load failure.
+func (a *App) GetCommands() ([]model.CommandDTO, error) {
+	if err := a.loadConfig(); err != nil {
+		return nil, fmt.Errorf("settings: load: %w", err)
+	}
+	result := make([]model.CommandDTO, len(a.commands))
+	copy(result, a.commands)
+	return result, nil
+}
+
+// AddCommand adds a new command configuration.
+// A UUID is generated for the command's ID. Silently no-ops if a command with
+// the same name already exists.
+// Error prefixes: "validation:" — missing name or command; "settings:" — save failure.
+func (a *App) AddCommand(cmd model.CommandDTO) ([]model.CommandDTO, error) {
+	cmd.Name = strings.TrimSpace(cmd.Name)
+	cmd.Command = strings.TrimSpace(cmd.Command)
+	if cmd.Name == "" {
+		return nil, fmt.Errorf("validation: name required")
+	}
+	if cmd.Command == "" {
+		return nil, fmt.Errorf("validation: command required")
+	}
+	if err := a.loadConfig(); err != nil {
+		return nil, fmt.Errorf("settings: load: %w", err)
+	}
+	for _, existing := range a.commands {
+		if existing.Name == cmd.Name {
+			result := make([]model.CommandDTO, len(a.commands))
+			copy(result, a.commands)
+			return result, nil // already present — no-op
+		}
+	}
+	cmd.ID = uuid.NewString()
+	a.commands = append(a.commands, cmd)
+	if err := settings.Save(settings.Config{
+		IgnoredCommenters: a.ignoredCommenters,
+		Commands:          a.commands,
+		DefaultCommandID:  a.defaultCommandID,
+	}); err != nil {
+		a.commands = a.commands[:len(a.commands)-1]
+		return nil, fmt.Errorf("settings: save: %w", err)
+	}
+	logger.L.Info("AddCommand", "name", cmd.Name, "id", cmd.ID)
+	result := make([]model.CommandDTO, len(a.commands))
+	copy(result, a.commands)
+	return result, nil
+}
+
+// RemoveCommand removes the command with the given ID.
+// Silently no-ops if the ID is not found.
+// Error prefix: "settings:" — save failure.
+func (a *App) RemoveCommand(id string) ([]model.CommandDTO, error) {
+	if err := a.loadConfig(); err != nil {
+		return nil, fmt.Errorf("settings: load: %w", err)
+	}
+	idx := -1
+	for i, cmd := range a.commands {
+		if cmd.ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		result := make([]model.CommandDTO, len(a.commands))
+		copy(result, a.commands)
+		return result, nil
+	}
+	updated := make([]model.CommandDTO, 0, len(a.commands)-1)
+	updated = append(updated, a.commands[:idx]...)
+	updated = append(updated, a.commands[idx+1:]...)
+	// Clear the default if the removed command was the default.
+	if a.defaultCommandID == id {
+		a.defaultCommandID = ""
+	}
+	if err := settings.Save(settings.Config{
+		IgnoredCommenters: a.ignoredCommenters,
+		Commands:          updated,
+		DefaultCommandID:  a.defaultCommandID,
+	}); err != nil {
+		return nil, fmt.Errorf("settings: save: %w", err)
+	}
+	a.commands = updated
+	logger.L.Info("RemoveCommand", "id", id)
+	result := make([]model.CommandDTO, len(a.commands))
+	copy(result, a.commands)
+	return result, nil
+}
+
+// GetDefaultCommandID returns the ID of the user's default command, or an
+// empty string if none is set.
+//
+// Error prefix: "settings:" — load failure.
+func (a *App) GetDefaultCommandID() (string, error) {
+	if err := a.loadConfig(); err != nil {
+		return "", fmt.Errorf("settings: load: %w", err)
+	}
+	return a.defaultCommandID, nil
+}
+
+// SetDefaultCommandID persists the given command ID as the default. Pass an
+// empty string to clear the default.
+//
+// Error prefix: "validation:" — unknown ID; "settings:" — save failure.
+func (a *App) SetDefaultCommandID(id string) error {
+	if err := a.loadConfig(); err != nil {
+		return fmt.Errorf("settings: load: %w", err)
+	}
+	if id != "" {
+		found := false
+		for _, c := range a.commands {
+			if c.ID == id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("validation: unknown command ID %q", id)
+		}
+	}
+	a.defaultCommandID = id
+	if err := settings.Save(settings.Config{
+		IgnoredCommenters: a.ignoredCommenters,
+		Commands:          a.commands,
+		DefaultCommandID:  a.defaultCommandID,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// RunCommands launches one or more commands in parallel against
+// the same input text. For each command a pending RunResult with
+// Running=true is emitted immediately via the "command:run:pending" event.
+// When each process finishes, the completed result is emitted via the
+// "command:run:complete" event.
+//
+// Returns the pending RunResult stubs (one per command) so the frontend can
+// seed its run list synchronously before events arrive.
+//
+// Error prefix: "validation:" — empty commandIDs; "settings:" — load failure.
+func (a *App) RunCommands(commandIDs []string, input string) ([]model.RunResult, error) {
+	if len(commandIDs) == 0 {
+		return nil, fmt.Errorf("validation: at least one commandID required")
+	}
+	if err := a.loadConfig(); err != nil {
+		return nil, fmt.Errorf("settings: load: %w", err)
+	}
+
+	// Build a lookup map for fast ID → command resolution.
+	cmdMap := make(map[string]model.CommandDTO, len(a.commands))
+	for _, c := range a.commands {
+		cmdMap[c.ID] = c
+	}
+
+	pendingResults := make([]model.RunResult, 0, len(commandIDs))
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	var wg sync.WaitGroup
+	for _, cid := range commandIDs {
+		cmd, ok := cmdMap[cid]
+		if !ok {
+			logger.L.Warn("RunCommands: unknown command ID", "id", cid)
+			continue
+		}
+
+		runID := uuid.NewString()
+
+		// Create a cancellable context for this run and register the cancel func.
+		runCtx, cancel := context.WithCancel(context.Background())
+		a.runCancelsMu.Lock()
+		a.runCancels[runID] = cancel
+		a.runCancelsMu.Unlock()
+
+		// Emit pending immediately so the frontend can show a spinner.
+		pending := model.RunResult{
+			RunID:       runID,
+			CommandID:   cmd.ID,
+			CommandName: cmd.Name,
+			Input:       input,
+			StartedAt:   now,
+			Running:     true,
+		}
+		pendingResults = append(pendingResults, pending)
+		a.emit("command:run:pending", pending)
+
+		wg.Add(1)
+		go func(c model.CommandDTO, rID string, ctx context.Context) {
+			defer wg.Done()
+			defer func() {
+				a.runCancelsMu.Lock()
+				delete(a.runCancels, rID)
+				a.runCancelsMu.Unlock()
+			}()
+			result := runner.RunCommand(ctx, c, input)
+			result.RunID = rID
+			result.Running = false
+			a.emit("command:run:complete", result)
+			logger.L.Info("run complete",
+				"run_id", rID,
+				"command", c.Name,
+				"exit_code", result.ExitCode,
+				"cancelled", result.Cancelled,
+			)
+		}(cmd, runID, runCtx)
+	}
+
+	return pendingResults, nil
+}
+
+// CancelRun stops an in-flight command by its run ID.
+// If the run has already finished or the ID is unknown, this is a no-op.
+//
+// Error prefix: "not_found:" — unknown or already-finished run ID.
+func (a *App) CancelRun(runID string) error {
+	a.runCancelsMu.Lock()
+	cancel, ok := a.runCancels[runID]
+	a.runCancelsMu.Unlock()
+	if !ok {
+		return fmt.Errorf("not_found: run %q is not in-flight", runID)
+	}
+	cancel()
+	return nil
 }
