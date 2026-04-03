@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { CheckCircle, Circle } from 'lucide-vue-next'
+import { langFromPath } from '@/lib/lang'
 
 const props = defineProps<{
   thread: model.CommentThreadDTO | null
@@ -36,20 +37,6 @@ function formatTimestamp(iso: string): string {
 
 const rootComment = computed(() => props.thread?.comments?.[0] ?? null)
 const replies = computed(() => props.thread?.comments?.slice(1) ?? [])
-
-const EXT_LANG: Record<string, string> = {
-  ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
-  vue: 'xml', py: 'python', rb: 'ruby', go: 'go', rs: 'rust',
-  java: 'java', cs: 'csharp', cpp: 'cpp', c: 'c', h: 'c',
-  php: 'php', html: 'html', css: 'css', scss: 'scss',
-  json: 'json', yaml: 'yaml', yml: 'yaml', sh: 'bash', bash: 'bash',
-  md: 'markdown', sql: 'sql', xml: 'xml', swift: 'swift',
-  kt: 'kotlin', kts: 'kotlin', toml: 'ini',
-}
-function langFromPath(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase() ?? ''
-  return EXT_LANG[ext] ?? 'plaintext'
-}
 
 function handleReplySent(comment: model.CommentDTO): void {
   emit('reply-sent', comment)

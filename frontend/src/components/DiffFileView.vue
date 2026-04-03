@@ -2,6 +2,7 @@
 import { Badge } from '@/components/ui/badge'
 import DiffHunk from './DiffHunk.vue'
 import type { model } from '@/wailsjs/go/models'
+import { langFromPath } from '@/lib/lang'
 
 const props = defineProps<{
   file: model.PRFileDTO
@@ -103,6 +104,8 @@ function threadsForLine(line: number): model.CommentThreadDTO[] {
           :path="file.filename"
           :commentable="commentable"
           :hunk-index="hi"
+          :file-status="file.status"
+          :language="langFromPath(file.filename)"
           @comment-submit="handleCommentSubmit"
         />
 
