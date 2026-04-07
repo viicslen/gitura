@@ -16,13 +16,28 @@ function ansiToHtml(text: string): string {
 
 const props = defineProps<{
   open: boolean
+  /** Root ID of the currently-viewed thread; when set, enables the "This thread" scope. */
+  currentThreadRootId?: number
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const { runs, clearHistory, cancelRun } = useRuns()
+const { runs, runsForThread, clearHistory, cancelRun } = useRuns()
+
+// Scope toggle: 'all' shows every run; 'thread' shows only runs for the current thread.
+type Scope = 'all' | 'thread'
+const scope = ref<Scope>('all')
+
+// When the thread changes, keep the scope stable (user choice persists).
+// When scope is 'thread' but there's no current thread, fall back to 'all' display.
+const displayedRuns = computed<readonly Run[]>(() => {
+  if (scope.value === 'thread' && props.currentThreadRootId) {
+    return runsForThread(props.currentThreadRootId).value
+  }
+  return runs.value
+})
 
 // Which run is expanded (showing stdout/stderr)
 const expandedRunID = ref<string | null>(null)
@@ -48,6 +63,7 @@ function formatDuration(run: Run): string {
 }
 
 const hasRuns = computed(() => runs.value.length > 0)
+const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
 </script>
 
 <template>
@@ -72,6 +88,24 @@ const hasRuns = computed(() => runs.value.length > 0)
         <Badge v-if="runs.length > 0" variant="secondary" class="text-xs px-1.5 py-0">
           {{ runs.length }}
         </Badge>
+
+        <!-- Scope toggle (only shown when a thread is active) -->
+        <div
+          v-if="currentThreadRootId"
+          class="flex items-center rounded-md border border-border text-xs overflow-hidden ml-1"
+        >
+          <button
+            class="px-2 py-0.5 transition-colors"
+            :class="scope === 'all' ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'"
+            @click="scope = 'all'"
+          >All</button>
+          <button
+            class="px-2 py-0.5 transition-colors border-l border-border"
+            :class="scope === 'thread' ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'"
+            @click="scope = 'thread'"
+          >This thread</button>
+        </div>
+
         <div class="flex-1" />
         <Button
           v-if="hasRuns"
@@ -99,16 +133,19 @@ const hasRuns = computed(() => runs.value.length > 0)
       <ScrollArea class="flex-1 min-h-0">
         <!-- Empty state -->
         <div
-          v-if="!hasRuns"
+          v-if="!hasDisplayedRuns"
           class="flex flex-col items-center justify-center h-full py-8 text-muted-foreground"
         >
           <Terminal class="h-6 w-6 opacity-30 mb-2" aria-hidden="true" />
-          <p class="text-xs">No runs yet. Run a command from a comment to see results here.</p>
+          <p class="text-xs">
+            <template v-if="scope === 'thread'">No runs for this thread yet.</template>
+            <template v-else>No runs yet. Run a command from a comment to see results here.</template>
+          </p>
         </div>
 
         <div v-else class="divide-y divide-border">
           <div
-            v-for="run in runs"
+            v-for="run in displayedRuns"
             :key="run.run_id"
             class="group"
           >

@@ -446,10 +446,7 @@ func (a *App) ReplyToComment(threadRootID int64, body string) (model.CommentDTO,
 		return model.CommentDTO{}, fmt.Errorf("notfound:thread %d", threadRootID)
 	}
 
-	comment, _, err := a.ghClient.PullRequests.CreateComment(a.ctx, a.prOwner, a.prRepo, a.prNumber, &github.PullRequestComment{
-		Body:      &body,
-		InReplyTo: &threadRootID,
-	})
+	comment, _, err := a.ghClient.PullRequests.CreateCommentInReplyTo(a.ctx, a.prOwner, a.prRepo, a.prNumber, body, threadRootID)
 	if err != nil {
 		return model.CommentDTO{}, fmt.Errorf("github: create comment: %w", err)
 	}
@@ -1122,7 +1119,7 @@ func (a *App) SetDefaultCommandID(id string) error {
 // seed its run list synchronously before events arrive.
 //
 // Error prefix: "validation:" — empty commandIDs; "settings:" — load failure.
-func (a *App) RunCommands(commandIDs []string, input string) ([]model.RunResult, error) {
+func (a *App) RunCommands(commandIDs []string, input string, runCtx model.RunContext) ([]model.RunResult, error) {
 	if len(commandIDs) == 0 {
 		return nil, fmt.Errorf("validation: at least one commandID required")
 	}
@@ -1163,25 +1160,27 @@ func (a *App) RunCommands(commandIDs []string, input string) ([]model.RunResult,
 		runID := uuid.NewString()
 
 		// Create a cancellable context for this run and register the cancel func.
-		runCtx, cancel := context.WithCancel(context.Background())
+		cancelCtx, cancel := context.WithCancel(context.Background())
 		a.runCancelsMu.Lock()
 		a.runCancels[runID] = cancel
 		a.runCancelsMu.Unlock()
 
 		// Emit pending immediately so the frontend can show a spinner.
 		pending := model.RunResult{
-			RunID:       runID,
-			CommandID:   cmd.ID,
-			CommandName: cmd.Name,
-			Input:       input,
-			StartedAt:   now,
-			Running:     true,
+			RunID:        runID,
+			CommandID:    cmd.ID,
+			CommandName:  cmd.Name,
+			Input:        input,
+			StartedAt:    now,
+			Running:      true,
+			ThreadRootID: runCtx.ThreadRootID,
+			CommentID:    runCtx.CommentID,
 		}
 		pendingResults = append(pendingResults, pending)
 		a.emit("command:run:pending", pending)
 
 		wg.Add(1)
-		go func(c model.CommandDTO, rID string, ctx context.Context, lp string) {
+		go func(c model.CommandDTO, rID string, ctx context.Context, lp string, rc model.RunContext) {
 			defer wg.Done()
 			defer func() {
 				a.runCancelsMu.Lock()
@@ -1191,6 +1190,8 @@ func (a *App) RunCommands(commandIDs []string, input string) ([]model.RunResult,
 			result := runner.RunCommand(ctx, c, input, lp)
 			result.RunID = rID
 			result.Running = false
+			result.ThreadRootID = rc.ThreadRootID
+			result.CommentID = rc.CommentID
 			a.emit("command:run:complete", result)
 			logger.L.Info("run complete",
 				"run_id", rID,
@@ -1198,7 +1199,7 @@ func (a *App) RunCommands(commandIDs []string, input string) ([]model.RunResult,
 				"exit_code", result.ExitCode,
 				"cancelled", result.Cancelled,
 			)
-		}(cmd, runID, runCtx, localPath)
+		}(cmd, runID, cancelCtx, localPath, runCtx)
 	}
 
 	return pendingResults, nil

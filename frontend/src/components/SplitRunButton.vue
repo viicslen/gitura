@@ -32,6 +32,10 @@ const props = defineProps<{
   label?: string
   /** Button size variant */
   size?: 'sm' | 'default'
+  /** Thread root ID to associate this run with (0 = unlinked) */
+  threadRootId?: number
+  /** Comment ID to associate this run with (0 = unlinked) */
+  commentId?: number
 }>()
 
 const emit = defineEmits<{
@@ -50,7 +54,10 @@ const primaryCommand = computed((): model.CommandDTO | null => {
 async function runCommand(cmd: model.CommandDTO): Promise<void> {
   running.value = true
   try {
-    await RunCommands([cmd.id], props.input)
+    await RunCommands([cmd.id], props.input, {
+      thread_root_id: props.threadRootId ?? 0,
+      comment_id: props.commentId ?? 0,
+    })
     emit('ran')
   } finally {
     running.value = false

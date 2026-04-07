@@ -54,7 +54,7 @@ export function ReplyToComment(arg1:number,arg2:string):Promise<model.CommentDTO
 
 export function ResolveThread(arg1:number):Promise<void>;
 
-export function RunCommands(arg1:Array<string>,arg2:string):Promise<Array<model.RunResult>>;
+export function RunCommands(arg1:Array<string>,arg2:string,arg3:model.RunContext):Promise<Array<model.RunResult>>;
 
 export function SetDefaultCommandID(arg1:string):Promise<void>;
 

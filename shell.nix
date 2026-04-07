@@ -5,7 +5,7 @@ pkgs.mkShell {
 
   buildInputs = with pkgs; [
     # Go toolchain
-    go_1_24
+    go_1_25
 
     # Wails CLI (v2)
     wails

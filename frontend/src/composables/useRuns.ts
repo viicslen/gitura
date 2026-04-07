@@ -6,7 +6,8 @@
  *   - "command:run:pending"  → adds a running entry
  *   - "command:run:complete" → merges the completed result into the existing entry
  */
-import { ref, readonly } from 'vue'
+import { ref, readonly, computed } from 'vue'
+import type { ComputedRef } from 'vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { CancelRun } from '../wailsjs/go/main/App'
 import type { model } from '../wailsjs/go/models'
@@ -41,6 +42,10 @@ subscribe()
 export function useRuns() {
   return {
     runs: readonly(runs),
+    /** Returns a computed ref of runs associated with the given thread root ID. */
+    runsForThread(rootId: number): ComputedRef<Run[]> {
+      return computed(() => runs.value.filter((r) => r.thread_root_id === rootId))
+    },
     clearHistory(): void {
       runs.value = []
     },

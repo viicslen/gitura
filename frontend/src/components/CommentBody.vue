@@ -19,6 +19,8 @@ const props = defineProps<{
   content: string
   commands: model.CommandDTO[]
   defaultCommandId: string
+  threadRootId?: number
+  commentId?: number
 }>()
 
 const emit = defineEmits<{
@@ -37,8 +39,11 @@ const primaryCommand = computed((): model.CommandDTO | null => {
  * Callback passed to MarkdownBody for run buttons on rendered code blocks.
  * Runs the primary command with the given text as input.
  */
-function handleRunCode(commandId: string, text: string): void {
-  void RunCommands([commandId], text).then(() => emit('ran'))
+function handleRunCode(commandId: string, text: string, threadRootId: number, commentId: number): void {
+  void RunCommands([commandId], text, {
+    thread_root_id: threadRootId,
+    comment_id: commentId,
+  }).then(() => emit('ran'))
 }
 
 const runCodeCallback = computed(() =>
@@ -56,6 +61,8 @@ const runCodeCallback = computed(() =>
         :run-commands="commands.length > 0 ? commands : undefined"
         :default-command-id="defaultCommandId"
         :on-run-code="runCodeCallback"
+        :thread-root-id="threadRootId"
+        :comment-id="commentId"
       />
       <!-- Code block with optional agent runner -->
       <CodeBlockWithRunner
@@ -65,6 +72,8 @@ const runCodeCallback = computed(() =>
         :is-run="seg.isRun"
         :commands="commands"
         :default-command-id="defaultCommandId"
+        :thread-root-id="threadRootId"
+        :comment-id="commentId"
         @ran="emit('ran')"
       />
     </template>

@@ -15,7 +15,11 @@ const props = defineProps<{
   /** When provided, run split-buttons are injected on each code block */
   runCommands?: RunCommandEntry[]
   defaultCommandId?: string
-  onRunCode?: (commandId: string, text: string) => void
+  onRunCode?: (commandId: string, text: string, threadRootId: number, commentId: number) => void
+  /** Thread root ID to associate runs with */
+  threadRootId?: number
+  /** Comment ID to associate runs with */
+  commentId?: number
 }>()
 
 // Configure marked once at module level with hljs renderer
@@ -92,7 +96,7 @@ async function attachCopyButtons(): Promise<void> {
       runBtn.addEventListener('click', () => {
         if (!primaryCmd) return
         const text = pre.querySelector('code')?.innerText ?? pre.innerText
-        onRunCode(primaryCmd.id, text)
+        onRunCode(primaryCmd.id, text, props.threadRootId ?? 0, props.commentId ?? 0)
       })
       splitWrap.appendChild(runBtn)
 
@@ -119,7 +123,7 @@ async function attachCopyButtons(): Promise<void> {
             e.stopPropagation()
             dropdown.classList.remove('open')
             const text = pre.querySelector('code')?.innerText ?? pre.innerText
-            onRunCode(cmd.id, text)
+            onRunCode(cmd.id, text, props.threadRootId ?? 0, props.commentId ?? 0)
           })
           dropdown.appendChild(item)
         })

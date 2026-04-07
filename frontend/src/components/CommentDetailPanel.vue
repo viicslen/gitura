@@ -103,6 +103,8 @@ function toggleResolved(): void {
             :content="rootComment.body"
             :commands="commands"
             :default-command-id="defaultCommandId"
+            :thread-root-id="thread.root_id"
+            :comment-id="rootComment.id"
             @ran="emit('ran')"
           />
           <!-- Run button overlay on the comment body -->
@@ -114,6 +116,8 @@ function toggleResolved(): void {
               :commands="commands"
               :default-command-id="defaultCommandId"
               :input="rootComment.body"
+              :thread-root-id="thread.root_id"
+              :comment-id="rootComment.id"
               size="sm"
               @ran="emit('ran')"
             />
@@ -177,6 +181,8 @@ function toggleResolved(): void {
               :commands="commands"
               :default-command-id="defaultCommandId"
               :input="rootComment.body"
+              :thread-root-id="thread.root_id"
+              :comment-id="rootComment.id"
               label="Run comment"
               @ran="emit('ran')"
             />

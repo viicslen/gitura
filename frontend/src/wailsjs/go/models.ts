@@ -514,6 +514,20 @@ export namespace model {
 	        this.html_url = source["html_url"];
 	    }
 	}
+	export class RunContext {
+	    thread_root_id?: number;
+	    comment_id?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunContext(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.thread_root_id = source["thread_root_id"];
+	        this.comment_id = source["comment_id"];
+	    }
+	}
 	export class RunResult {
 	    run_id: string;
 	    command_id: string;
@@ -526,6 +540,8 @@ export namespace model {
 	    finished_at: string;
 	    running: boolean;
 	    cancelled: boolean;
+	    thread_root_id?: number;
+	    comment_id?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunResult(source);
@@ -544,6 +560,8 @@ export namespace model {
 	        this.finished_at = source["finished_at"];
 	        this.running = source["running"];
 	        this.cancelled = source["cancelled"];
+	        this.thread_root_id = source["thread_root_id"];
+	        this.comment_id = source["comment_id"];
 	    }
 	}
 	export class SuggestionCommitResult {

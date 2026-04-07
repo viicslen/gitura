@@ -93,6 +93,8 @@ function handleSelect(index: number): void {
 }
 
 function handleKeydown(event: KeyboardEvent): void {
+  const tag = (event.target as HTMLElement).tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return
   if (event.key === 'ArrowRight') goNext()
   else if (event.key === 'ArrowLeft') goPrev()
 }
@@ -351,6 +353,7 @@ onMounted(() => {
           <!-- Run history panel (pinned to bottom of right panel) -->
           <RunPanel
             :open="runPanelOpen"
+            :current-thread-root-id="currentThread?.root_id"
             @close="runPanelOpen = false"
           />
         </div>

@@ -9,6 +9,8 @@ const props = defineProps<{
   isRun: boolean
   commands: model.CommandDTO[]
   defaultCommandId: string
+  threadRootId?: number
+  commentId?: number
 }>()
 
 const emit = defineEmits<{
@@ -34,6 +36,8 @@ const { } = useRuns()
         :commands="commands"
         :default-command-id="defaultCommandId"
         :input="content"
+        :thread-root-id="threadRootId"
+        :comment-id="commentId"
         size="sm"
         @ran="emit('ran')"
       />

@@ -22,20 +22,24 @@
         Settings
       </button>
       <div class="ml-auto flex items-center gap-3">
-        <img
-          v-if="authState.avatar_url"
-          :src="authState.avatar_url"
-          :alt="authState.login"
-          class="h-6 w-6 rounded-full"
-        />
-        <span class="text-sm text-muted-foreground">{{ authState.login }}</span>
         <ThemeToggle />
-        <button
-          class="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          @click="handleLogout"
-        >
-          Sign out
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger class="flex items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <img
+              v-if="authState.avatar_url"
+              :src="authState.avatar_url"
+              :alt="authState.login"
+              class="h-6 w-6 rounded-full"
+            />
+            <span class="text-sm text-muted-foreground">{{ authState.login }}</span>
+            <ChevronDown class="h-3 w-3 text-muted-foreground" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem @click="handleLogout">
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </nav>
 
@@ -68,12 +72,19 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { ChevronDown } from 'lucide-vue-next'
 import AuthPage from '@/pages/AuthPage.vue'
 import PRPage from '@/pages/PRPage.vue'
 import SettingsPage from '@/pages/SettingsPage.vue'
 import ReviewPage from '@/pages/ReviewPage.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/composables/useAuth'
 import type { ReviewLoadInput } from '@/types/review'
 
