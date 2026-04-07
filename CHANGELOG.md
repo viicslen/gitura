@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/viicslen/gitura/compare/v0.3.0...v0.4.0) (2026-04-07)
+
+
+### Features
+
+* add option to run commands based on the PR comments and code blocks ([6bd93d6](https://github.com/viicslen/gitura/commit/6bd93d6eb71999962f7e0ccbbf42bcdf8f83b87c))
+* add per pr local path ([f70d25b](https://github.com/viicslen/gitura/commit/f70d25b6c280bda080511e661472ef31e6388481))
+* improve command running ([eea62ba](https://github.com/viicslen/gitura/commit/eea62baf256503c0cdc5df85fa2aee73d9a8d611))
+
 ## [0.3.0](https://github.com/viicslen/gitura/compare/v0.2.1...v0.3.0) (2026-04-03)
 
 
