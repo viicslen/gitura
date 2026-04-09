@@ -35,6 +35,7 @@ const emit = defineEmits<{
     title: string
     state?: string
     is_draft?: boolean
+    html_url?: string
   }): void
 }>()
 
@@ -173,6 +174,7 @@ watch(
       title: summary?.title ?? props.prItem.title,
       state: summary?.state ?? props.prItem.state,
       is_draft: summary?.is_draft ?? props.prItem.is_draft,
+      html_url: summary?.html_url ?? props.prItem.html_url,
     })
   },
   { immediate: true },

@@ -9,4 +9,5 @@ export interface ReviewLoadInput {
   title: string
   state?: string
   is_draft?: boolean
+  html_url?: string
 }

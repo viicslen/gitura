@@ -488,6 +488,7 @@ function openPR(pr: model.PRListItem): void {
     number: pr.number,
     title: pr.title,
     is_draft: pr.is_draft,
+    html_url: pr.html_url,
   })
 }
 

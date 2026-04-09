@@ -21,6 +21,14 @@
             <span class="text-sm font-semibold truncate max-w-[42vw]">
               {{ reviewNavMeta.title }}
             </span>
+            <button
+              type="button"
+              class="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Open pull request in browser"
+              @click="openPRInBrowser"
+            >
+              <ExternalLink class="h-3.5 w-3.5" />
+            </button>
           </div>
           <div class="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
             <span class="truncate max-w-[42vw]">{{ reviewNavMeta.owner }}/{{ reviewNavMeta.repo }}</span>
@@ -103,7 +111,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ChevronDown, ChevronRight } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-vue-next'
 import AuthPage from '@/pages/AuthPage.vue'
 import PRPage from '@/pages/PRPage.vue'
 import ReviewPage from '@/pages/ReviewPage.vue'
@@ -121,6 +129,7 @@ import {
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
 import type { ReviewLoadInput } from '@/types/review'
+import { BrowserOpenURL } from '../wailsjs/runtime/runtime'
 
 interface ReviewNavMeta {
   owner: string
@@ -129,6 +138,7 @@ interface ReviewNavMeta {
   title: string
   state?: string
   is_draft?: boolean
+  html_url?: string
 }
 
 const { authState, refreshAuthState, logout } = useAuth()
@@ -152,6 +162,7 @@ function handleOpenReview(item: ReviewLoadInput) {
     repo: item.repo,
     number: item.number,
     title: item.title,
+    html_url: item.html_url,
   }
   currentPage.value = 'review'
 }
@@ -164,5 +175,11 @@ function handleCloseReview() {
 
 function handleUpdatePRMeta(meta: ReviewNavMeta) {
   reviewNavMeta.value = meta
+}
+
+function openPRInBrowser() {
+  const url = reviewNavMeta.value?.html_url
+  if (!url) return
+  BrowserOpenURL(url)
 }
 </script>
