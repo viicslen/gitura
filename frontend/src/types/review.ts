@@ -7,4 +7,6 @@ export interface ReviewLoadInput {
   repo: string
   number: number
   title: string
+  state?: string
+  is_draft?: boolean
 }

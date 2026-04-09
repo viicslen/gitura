@@ -487,6 +487,7 @@ function openPR(pr: model.PRListItem): void {
     repo: pr.repo,
     number: pr.number,
     title: pr.title,
+    is_draft: pr.is_draft,
   })
 }
 

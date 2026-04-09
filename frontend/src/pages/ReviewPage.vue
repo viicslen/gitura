@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
-import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen } from 'lucide-vue-next'
+import { onMounted, ref, computed, watch } from 'vue'
+import { RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import CommentSummaryList from '@/components/CommentSummaryList.vue'
 import CommentDetailPanel from '@/components/CommentDetailPanel.vue'
 import RunPanel from '@/components/RunPanel.vue'
@@ -23,6 +28,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close-review'): void
+  (e: 'update-pr-meta', meta: {
+    owner: string
+    repo: string
+    number: number
+    title: string
+    state?: string
+    is_draft?: boolean
+  }): void
 }>()
 
 const prView = ref<'conversation' | 'files'>('conversation')
@@ -149,46 +162,27 @@ onMounted(() => {
   void loadCommands()
   void loadLocalPath()
 })
+
+watch(
+  prSummary,
+  (summary) => {
+    emit('update-pr-meta', {
+      owner: props.prItem.owner,
+      repo: props.prItem.repo,
+      number: props.prItem.number,
+      title: summary?.title ?? props.prItem.title,
+      state: summary?.state ?? props.prItem.state,
+      is_draft: summary?.is_draft ?? props.prItem.is_draft,
+    })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
   <div class="flex flex-col h-full" @keydown="handleKeydown" tabindex="-1">
     <!-- ── Top bar ─────────────────────────────────────────────────────────── -->
     <header class="flex items-center gap-3 px-4 py-2.5 border-b border-border shrink-0">
-      <Button variant="ghost" size="icon" aria-label="Back to PR list" @click="emit('close-review')">
-        <ArrowLeft class="h-4 w-4" />
-      </Button>
-
-      <div class="min-w-0">
-        <div class="flex items-center gap-2 min-w-0">
-          <span class="text-sm font-semibold truncate">
-            {{ prSummary?.title ?? prItem.title }}
-          </span>
-          <span class="text-xs text-muted-foreground shrink-0">
-            #{{ prItem.number }}
-          </span>
-          <Badge v-if="prSummary?.is_draft" variant="secondary" class="text-xs shrink-0">
-            Draft
-          </Badge>
-          <Badge
-            v-else-if="prSummary?.state === 'merged'"
-            class="text-xs shrink-0 bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30"
-          >
-            Merged
-          </Badge>
-          <Badge
-            v-else-if="prSummary?.state === 'closed'"
-            variant="destructive"
-            class="text-xs shrink-0"
-          >
-            Closed
-          </Badge>
-        </div>
-        <div class="text-xs text-muted-foreground mt-0.5">
-          {{ prItem.owner }}/{{ prItem.repo }}
-        </div>
-      </div>
-
       <!-- View toggle -->
       <ViewToggle
         v-model="prView"
@@ -281,24 +275,38 @@ onMounted(() => {
       </Button>
 
       <!-- Local repo path (only shown when commands are configured) -->
-      <div v-if="commands.length > 0" class="flex items-center gap-1 shrink-0">
-        <Input
-          :value="localPath"
-          placeholder="Local repo path…"
-          class="h-7 text-xs w-44 font-mono"
-          aria-label="Local repository path"
-          @change="(e: Event) => saveLocalPath((e.target as HTMLInputElement).value)"
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          class="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
-          aria-label="Browse for local repository folder"
-          @click="browseForPath()"
-        >
-          <FolderOpen class="h-3.5 w-3.5" />
-        </Button>
-      </div>
+      <DropdownMenu v-if="commands.length > 0">
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Open local repository path menu"
+          >
+            <FolderOpen class="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="w-80 p-2">
+          <div class="flex items-center gap-2">
+            <Input
+              :value="localPath"
+              placeholder="Local repo path..."
+              class="h-8 text-xs font-mono"
+              aria-label="Local repository path"
+              @change="(e: Event) => saveLocalPath((e.target as HTMLInputElement).value)"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-8 shrink-0"
+              aria-label="Browse for local repository folder"
+              @click="browseForPath()"
+            >
+              Browse
+            </Button>
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
 
     <!-- ── Loading state ───────────────────────────────────────────────────── -->

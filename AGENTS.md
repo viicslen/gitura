@@ -61,6 +61,11 @@ tests/
 # Development (hot-reload)
 wails dev
 
+# Frontend package scripts (run from ./frontend)
+bun install
+bun run dev
+bun run build
+
 # Run Go tests
 go test ./...
 
@@ -76,6 +81,12 @@ wails build
 # Regenerate Wails JS bindings
 wails generate module
 ```
+
+## Package Manager
+
+- Frontend commands MUST use **Bun** (`bun run ...`) for this repo.
+- Reason: the frontend workspace is Bun-managed (`frontend/bun.lock` present).
+- Do not use `npm run ...` in normal workflows.
 
 ## Code Style
 
