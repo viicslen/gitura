@@ -235,29 +235,9 @@ watch(
         <span>{{ diffFileCount }} total</span>
       </div>
 
-      <!-- Prev/Next (both views) -->
-      <Button
-        variant="ghost"
-        size="icon"
-        :disabled="prView === 'conversation' ? !canGoBack : !diffCanGoPrev"
-        :aria-label="prView === 'conversation' ? 'Previous comment' : 'Previous file'"
-        @click="prView === 'conversation' ? goPrev() : diffPrevFile()"
-      >
-        <ChevronLeft class="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        :disabled="prView === 'conversation' ? !canGoForward : !diffCanGoNext"
-        :aria-label="prView === 'conversation' ? 'Next comment' : 'Next file'"
-        @click="prView === 'conversation' ? goNext() : diffNextFile()"
-      >
-        <ChevronRight class="h-4 w-4" />
-      </Button>
-
       <!-- Run history toggle (only shown when commands are configured) -->
       <Button
-        v-if="commands.length > 0"
+        v-if="prView === 'conversation' && commands.length > 0"
         variant="ghost"
         size="icon"
         :aria-label="runPanelOpen ? 'Close run history' : 'Open run history'"
@@ -275,7 +255,7 @@ watch(
       </Button>
 
       <!-- Local repo path (only shown when commands are configured) -->
-      <DropdownMenu v-if="commands.length > 0">
+      <DropdownMenu v-if="prView === 'conversation' && commands.length > 0">
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"
@@ -307,6 +287,26 @@ watch(
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <!-- Prev/Next (both views) -->
+      <Button
+        variant="ghost"
+        size="icon"
+        :disabled="prView === 'conversation' ? !canGoBack : !diffCanGoPrev"
+        :aria-label="prView === 'conversation' ? 'Previous comment' : 'Previous file'"
+        @click="prView === 'conversation' ? goPrev() : diffPrevFile()"
+      >
+        <ChevronLeft class="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        :disabled="prView === 'conversation' ? !canGoForward : !diffCanGoNext"
+        :aria-label="prView === 'conversation' ? 'Next comment' : 'Next file'"
+        @click="prView === 'conversation' ? goNext() : diffNextFile()"
+      >
+        <ChevronRight class="h-4 w-4" />
+      </Button>
     </header>
 
     <!-- ── Loading state ───────────────────────────────────────────────────── -->
