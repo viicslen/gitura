@@ -28,7 +28,7 @@ export function GetIgnoredCommenters():Promise<Array<model.IgnoredCommenterDTO>>
 
 export function GetPRFiles():Promise<Array<model.PRFileDTO>>;
 
-export function GetPRLocalPath():Promise<string>;
+export function GetPRLocalPath(arg1:string,arg2:string,arg3:number):Promise<string>;
 
 export function GetPendingReview():Promise<model.PendingReviewDTO>;
 
@@ -58,7 +58,7 @@ export function RunCommands(arg1:Array<string>,arg2:string,arg3:model.RunContext
 
 export function SetDefaultCommandID(arg1:string):Promise<void>;
 
-export function SetPRLocalPath(arg1:string):Promise<void>;
+export function SetPRLocalPath(arg1:string,arg2:string,arg3:number,arg4:string):Promise<void>;
 
 export function StartDeviceFlow():Promise<model.DeviceFlowInfo>;
 

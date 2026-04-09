@@ -14,13 +14,6 @@
       >
         Pull Requests
       </button>
-      <button
-        class="text-sm text-muted-foreground hover:text-foreground transition-colors"
-        :class="{ 'text-foreground font-medium': currentPage === 'settings' }"
-        @click="currentPage = 'settings'"
-      >
-        Settings
-      </button>
       <div class="ml-auto flex items-center gap-3">
         <ThemeToggle />
         <DropdownMenu>
@@ -35,6 +28,10 @@
             <ChevronDown class="h-3 w-3 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem @click="currentPage = 'settings'">
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem @click="handleLogout">
               Sign out
             </DropdownMenuItem>
@@ -83,6 +80,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/composables/useAuth'

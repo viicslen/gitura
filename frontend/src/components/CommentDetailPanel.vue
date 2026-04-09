@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { CheckCircle, Circle } from 'lucide-vue-next'
 import { langFromPath } from '@/lib/lang'
+import { useAvatarFallback } from '@/composables/useAvatarFallback'
 
 const props = defineProps<{
   thread: model.CommentThreadDTO | null
@@ -42,6 +43,7 @@ function formatTimestamp(iso: string): string {
 
 const rootComment = computed(() => props.thread?.comments?.[0] ?? null)
 const replies = computed(() => props.thread?.comments?.slice(1) ?? [])
+const { avatarSrc, handleAvatarError, avatarInitial } = useAvatarFallback()
 
 function handleReplySent(comment: model.CommentDTO): void {
   emit('reply-sent', comment)
@@ -58,6 +60,14 @@ function toggleResolved(): void {
   } else {
     emit('resolve', props.thread.root_id)
   }
+}
+
+function rootAvatarKey(): string {
+  return `thread-root:${props.thread?.root_id ?? 0}`
+}
+
+function replyAvatarKey(replyId: number): string {
+  return `thread-reply:${props.thread?.root_id ?? 0}:${replyId}`
 }</script>
 
 <template>
@@ -85,11 +95,20 @@ function toggleResolved(): void {
       <div v-if="rootComment" class="space-y-2">
         <div class="flex items-center gap-2">
           <img
-            v-if="rootComment.author_avatar"
-            :src="rootComment.author_avatar"
+            v-if="rootComment.author_avatar && avatarSrc(rootAvatarKey(), rootComment.author_avatar)"
+            :src="avatarSrc(rootAvatarKey(), rootComment.author_avatar)"
             :alt="rootComment.author_login"
             class="w-6 h-6 rounded-full"
+            @error="handleAvatarError(rootAvatarKey(), rootComment.author_avatar)"
           />
+          <span
+            v-else
+            class="w-6 h-6 rounded-full bg-muted text-xs font-semibold text-muted-foreground inline-flex items-center justify-center"
+            :title="rootComment.author_login"
+            aria-hidden="true"
+          >
+            {{ avatarInitial(rootComment.author_login) }}
+          </span>
           <span class="text-sm font-medium">{{ rootComment.author_login }}</span>
           <span class="text-xs text-muted-foreground">{{ formatTimestamp(rootComment.created_at) }}</span>
           <Badge v-if="rootComment.is_suggestion" variant="outline" class="text-xs">
@@ -145,11 +164,20 @@ function toggleResolved(): void {
         <div v-for="reply in replies" :key="reply.id" class="space-y-1">
           <div class="flex items-center gap-2">
             <img
-              v-if="reply.author_avatar"
-              :src="reply.author_avatar"
+              v-if="reply.author_avatar && avatarSrc(replyAvatarKey(reply.id), reply.author_avatar)"
+              :src="avatarSrc(replyAvatarKey(reply.id), reply.author_avatar)"
               :alt="reply.author_login"
               class="w-5 h-5 rounded-full"
+              @error="handleAvatarError(replyAvatarKey(reply.id), reply.author_avatar)"
             />
+            <span
+              v-else
+              class="w-5 h-5 rounded-full bg-muted text-[10px] font-semibold text-muted-foreground inline-flex items-center justify-center"
+              :title="reply.author_login"
+              aria-hidden="true"
+            >
+              {{ avatarInitial(reply.author_login) }}
+            </span>
             <span class="text-sm font-medium">{{ reply.author_login }}</span>
             <span class="text-xs text-muted-foreground">{{ formatTimestamp(reply.created_at) }}</span>
           </div>

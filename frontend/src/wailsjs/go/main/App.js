@@ -54,8 +54,8 @@ export function GetPRFiles() {
   return window['go']['main']['App']['GetPRFiles']();
 }
 
-export function GetPRLocalPath() {
-  return window['go']['main']['App']['GetPRLocalPath']();
+export function GetPRLocalPath(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetPRLocalPath'](arg1, arg2, arg3);
 }
 
 export function GetPendingReview() {
@@ -114,8 +114,8 @@ export function SetDefaultCommandID(arg1) {
   return window['go']['main']['App']['SetDefaultCommandID'](arg1);
 }
 
-export function SetPRLocalPath(arg1) {
-  return window['go']['main']['App']['SetPRLocalPath'](arg1);
+export function SetPRLocalPath(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SetPRLocalPath'](arg1, arg2, arg3, arg4);
 }
 
 export function StartDeviceFlow() {

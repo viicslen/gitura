@@ -86,6 +86,7 @@ const {
   goPrev,
   resolveThread,
   unresolveThread,
+  addReplyToThread,
 } = useReview(props.prItem)
 
 function handleSelect(index: number): void {
@@ -99,7 +100,9 @@ function handleKeydown(event: KeyboardEvent): void {
   else if (event.key === 'ArrowLeft') goPrev()
 }
 
-function handleReplySent(): void {}
+function handleReplySent(comment: model.CommentDTO): void {
+  void addReplyToThread(comment)
+}
 function handleSuggestionCommitted(): void {}
 
 function handleRan(): void {
@@ -112,7 +115,7 @@ const localPath = ref('')
 
 async function loadLocalPath(): Promise<void> {
   try {
-    localPath.value = await GetPRLocalPath()
+    localPath.value = await GetPRLocalPath(props.prItem.owner, props.prItem.repo, props.prItem.number)
   } catch {
     // Non-fatal: path simply stays empty
   }
@@ -121,7 +124,7 @@ async function loadLocalPath(): Promise<void> {
 async function saveLocalPath(path: string): Promise<void> {
   localPath.value = path
   try {
-    await SetPRLocalPath(path)
+    await SetPRLocalPath(props.prItem.owner, props.prItem.repo, props.prItem.number, path)
   } catch {
     // Non-fatal: value was set in-memory but not persisted
   }

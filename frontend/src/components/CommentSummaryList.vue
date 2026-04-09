@@ -4,6 +4,7 @@ import type { model } from '../wailsjs/go/models'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, CheckCircle2, XCircle, MinusCircle } from 'lucide-vue-next'
 import { useRuns } from '@/composables/useRuns'
+import { useAvatarFallback } from '@/composables/useAvatarFallback'
 
 const props = defineProps<{
   threads: model.CommentThreadDTO[]
@@ -14,6 +15,7 @@ const props = defineProps<{
 }>()
 
 const { runsForThread } = useRuns()
+const { avatarSrc, handleAvatarError, avatarInitial } = useAvatarFallback()
 
 const emit = defineEmits<{
   (e: 'select', index: number): void
@@ -57,6 +59,10 @@ function handleKeydown(event: KeyboardEvent, index: number): void {
     emit('select', index)
   }
 }
+
+function threadAvatarKey(thread: model.CommentThreadDTO): string {
+  return `thread:${thread.root_id}`
+}
 </script>
 
 <template>
@@ -92,11 +98,20 @@ function handleKeydown(event: KeyboardEvent, index: number): void {
         <!-- Avatar + run status indicator -->
         <div class="flex flex-col items-center shrink-0 gap-0.5 mt-0.5">
           <img
-            v-if="rootComment(thread)?.author_avatar"
-            :src="rootComment(thread)!.author_avatar"
+            v-if="rootComment(thread)?.author_avatar && avatarSrc(threadAvatarKey(thread), rootComment(thread)!.author_avatar)"
+            :src="avatarSrc(threadAvatarKey(thread), rootComment(thread)!.author_avatar)"
             :alt="rootComment(thread)!.author_login"
             class="w-5 h-5 rounded-full"
+            @error="handleAvatarError(threadAvatarKey(thread), rootComment(thread)!.author_avatar)"
           />
+          <span
+            v-else
+            class="w-5 h-5 rounded-full bg-background/95 border border-border text-[10px] font-semibold text-foreground inline-flex items-center justify-center shadow-sm"
+            :title="rootComment(thread)?.author_login ?? 'Unknown'"
+            aria-hidden="true"
+          >
+            {{ avatarInitial(rootComment(thread)?.author_login ?? '') }}
+          </span>
           <Loader2
             v-if="lastRunStatus(thread) === 'running'"
             class="w-3 h-3 text-muted-foreground animate-spin"

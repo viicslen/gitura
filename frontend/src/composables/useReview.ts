@@ -116,6 +116,26 @@ export function useReview(prItem: ReviewLoadInput) {
     }
   }
 
+  /**
+   * addReplyToThread inserts a newly-created reply into the matching thread
+   * so the UI updates immediately without reloading.
+   */
+  async function addReplyToThread(comment: model.CommentDTO): Promise<void> {
+    const thread = threads.value.find((t) => t.root_id === comment.in_reply_to_id)
+    if (thread) {
+      thread.comments.push(comment)
+      return
+    }
+
+    // Fallback: if the thread is not currently present in local state,
+    // refresh from backend cache to avoid dropping the reply in UI.
+    try {
+      threads.value = await App.GetCommentThreads(showResolved.value)
+    } catch (err) {
+      error.value = String(err)
+    }
+  }
+
   return {
     threads,
     prSummary,
@@ -135,5 +155,6 @@ export function useReview(prItem: ReviewLoadInput) {
     goPrev,
     resolveThread,
     unresolveThread,
+    addReplyToThread,
   }
 }
