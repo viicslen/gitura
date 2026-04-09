@@ -28,7 +28,7 @@
             <ChevronDown class="h-3 w-3 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem @click="currentPage = 'settings'">
+            <DropdownMenuItem @click="settingsDialogOpen = true">
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -56,7 +56,6 @@
             @open-review="handleOpenReview"
           />
         </KeepAlive>
-        <SettingsPage v-if="currentPage === 'settings'" />
         <ReviewPage
           v-if="currentPage === 'review' && selectedPRItem"
           :pr-item="selectedPRItem"
@@ -64,6 +63,12 @@
         />
       </template>
     </main>
+
+    <Dialog :open="settingsDialogOpen" @update:open="settingsDialogOpen = $event">
+      <DialogContent class="max-w-2xl max-h-[85vh] overflow-y-auto overflow-x-hidden p-0 border border-border">
+        <SettingsPage />
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -83,12 +88,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
 import type { ReviewLoadInput } from '@/types/review'
 
 const { authState, refreshAuthState, logout } = useAuth()
-const currentPage = ref<'pr' | 'settings' | 'review'>('pr')
+const currentPage = ref<'pr' | 'review'>('pr')
 const selectedPRItem = ref<ReviewLoadInput | null>(null)
+const settingsDialogOpen = ref(false)
 
 onMounted(async () => {
   await refreshAuthState()

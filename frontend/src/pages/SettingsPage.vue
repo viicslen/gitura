@@ -11,13 +11,6 @@ import {
   SetDefaultCommandID,
 } from '../wailsjs/go/main/App'
 import type { model } from '../wailsjs/go/models'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -157,16 +150,14 @@ async function handleRemoveCommand(id: string) {
 </script>
 
 <template>
-  <div class="p-6 max-w-lg">
-    <Card>
-      <CardHeader>
-        <CardTitle>Settings</CardTitle>
-        <CardDescription>
-          Manage application preferences.
-        </CardDescription>
-      </CardHeader>
+  <div class="p-6 max-w-lg overflow-x-hidden space-y-6">
+    <header>
+      <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
+      <p class="text-sm text-muted-foreground">
+        Manage application preferences.
+      </p>
+    </header>
 
-      <CardContent class="space-y-6">
         <!-- Ignored Commenters section -->
         <section aria-labelledby="ignored-commenters-heading">
           <h2
@@ -359,7 +350,5 @@ async function handleRemoveCommand(id: string) {
             </li>
           </ul>
         </section>
-      </CardContent>
-    </Card>
   </div>
 </template>
