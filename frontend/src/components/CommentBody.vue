@@ -18,7 +18,7 @@ import { RunCommands } from '../wailsjs/go/main/App'
 const props = defineProps<{
   content: string
   commands: model.CommandDTO[]
-  defaultCommandId: string
+  defaultCommandName: string
   threadRootId?: number
   commentId?: number
 }>()
@@ -32,15 +32,15 @@ const segments = computed(() => parseCodeBlocks(props.content))
 /** Returns the primary command (default or first). */
 const primaryCommand = computed((): model.CommandDTO | null => {
   if (props.commands.length === 0) return null
-  return props.commands.find((c) => c.id === props.defaultCommandId) ?? props.commands[0]
+  return props.commands.find((c) => c.name === props.defaultCommandName) ?? props.commands[0]
 })
 
 /**
  * Callback passed to MarkdownBody for run buttons on rendered code blocks.
  * Runs the primary command with the given text as input.
  */
-function handleRunCode(commandId: string, text: string, threadRootId: number, commentId: number): void {
-  void RunCommands([commandId], text, {
+function handleRunCode(commandName: string, text: string, threadRootId: number, commentId: number): void {
+  void RunCommands([commandName], text, {
     thread_root_id: threadRootId,
     comment_id: commentId,
   }).then(() => emit('ran'))
@@ -59,7 +59,7 @@ const runCodeCallback = computed(() =>
         v-if="seg.type === 'text'"
         :content="seg.content"
         :run-commands="commands.length > 0 ? commands : undefined"
-        :default-command-id="defaultCommandId"
+        :default-command-name="defaultCommandName"
         :on-run-code="runCodeCallback"
         :thread-root-id="threadRootId"
         :comment-id="commentId"
@@ -71,7 +71,7 @@ const runCodeCallback = computed(() =>
         :content="seg.content"
         :is-run="seg.isRun"
         :commands="commands"
-        :default-command-id="defaultCommandId"
+        :default-command-name="defaultCommandName"
         :thread-root-id="threadRootId"
         :comment-id="commentId"
         @ran="emit('ran')"

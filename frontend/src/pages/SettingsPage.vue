@@ -7,8 +7,8 @@ import {
   GetCommands,
   AddCommand,
   RemoveCommand,
-  GetDefaultCommandID,
-  SetDefaultCommandID,
+  GetDefaultCommandName,
+  SetDefaultCommandName,
 } from '../wailsjs/go/main/App'
 import type { model } from '../wailsjs/go/models'
 import { Button } from '@/components/ui/button'
@@ -26,13 +26,6 @@ const adding = ref(false)
 
 const removingLogin = ref<string | null>(null)
 
-function formatDate(raw: unknown): string {
-  if (!raw) return ''
-  const d = new Date(String(raw))
-  if (isNaN(d.getTime())) return ''
-  return d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
 onMounted(async () => {
   try {
     commenters.value = await GetIgnoredCommenters()
@@ -45,7 +38,7 @@ onMounted(async () => {
     loadCmdError.value = e instanceof Error ? e.message : String(e)
   }
   try {
-    defaultCommandID.value = await GetDefaultCommandID()
+    defaultCommandName.value = await GetDefaultCommandName()
   } catch {
     // non-fatal
   }
@@ -86,25 +79,25 @@ async function handleRemove(login: string) {
 // ── Commands ───────────────────────────────────────────────────────────────
 const commands = ref<model.CommandDTO[]>([])
 const loadCmdError = ref('')
-const defaultCommandID = ref('')
+const defaultCommandName = ref('')
 
 const newCmdName = ref('')
 const newCmdCommand = ref('')
 const addCmdError = ref('')
 const addingCmd = ref(false)
 
-const removingCmdID = ref<string | null>(null)
-const settingDefaultID = ref<string | null>(null)
+const removingCmdName = ref<string | null>(null)
+const settingDefaultName = ref<string | null>(null)
 
-async function handleSetDefault(id: string): Promise<void> {
-  settingDefaultID.value = id
+async function handleSetDefault(name: string): Promise<void> {
+  settingDefaultName.value = name
   try {
-    await SetDefaultCommandID(id)
-    defaultCommandID.value = id
+    await SetDefaultCommandName(name)
+    defaultCommandName.value = name
   } catch {
     // ignore
   } finally {
-    settingDefaultID.value = null
+    settingDefaultName.value = null
   }
 }
 
@@ -122,7 +115,7 @@ async function handleAddCommand() {
   addingCmd.value = true
   addCmdError.value = ''
   try {
-    commands.value = await AddCommand({ id: '', name, command })
+    commands.value = await AddCommand({ name, command })
     newCmdName.value = ''
     newCmdCommand.value = ''
   } catch (e: unknown) {
@@ -133,18 +126,18 @@ async function handleAddCommand() {
   }
 }
 
-async function handleRemoveCommand(id: string) {
-  removingCmdID.value = id
+async function handleRemoveCommand(name: string) {
+  removingCmdName.value = name
   try {
-    commands.value = await RemoveCommand(id)
+    commands.value = await RemoveCommand(name)
     // If the removed command was the default, clear local state
-    if (defaultCommandID.value === id) {
-      defaultCommandID.value = ''
+    if (defaultCommandName.value === name) {
+      defaultCommandName.value = ''
     }
   } catch {
     // ignore
   } finally {
-    removingCmdID.value = null
+    removingCmdName.value = null
   }
 }
 </script>
@@ -217,12 +210,6 @@ async function handleRemoveCommand(id: string) {
               class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 group"
             >
               <span class="text-sm font-mono flex-1">{{ item.login }}</span>
-              <span
-                v-if="item.added_at"
-                class="text-xs text-muted-foreground shrink-0"
-              >
-                {{ formatDate(item.added_at) }}
-              </span>
               <Button
                 variant="ghost"
                 size="icon"
@@ -308,14 +295,14 @@ async function handleRemoveCommand(id: string) {
           >
             <li
               v-for="cmd in commands"
-              :key="cmd.id"
+              :key="cmd.name"
               class="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 group"
             >
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1.5">
                   <p class="text-sm font-medium">{{ cmd.name }}</p>
                   <span
-                    v-if="cmd.id === defaultCommandID"
+                    v-if="cmd.name === defaultCommandName"
                     class="text-xs text-muted-foreground"
                     title="Default command"
                   >
@@ -326,14 +313,14 @@ async function handleRemoveCommand(id: string) {
               </div>
               <!-- Set default button -->
               <Button
-                v-if="cmd.id !== defaultCommandID"
+                v-if="cmd.name !== defaultCommandName"
                 variant="ghost"
                 size="icon"
                 class="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                :disabled="settingDefaultID === cmd.id"
+                :disabled="settingDefaultName === cmd.name"
                 :aria-label="`Set ${cmd.name} as default command`"
                 title="Set as default"
-                @click="handleSetDefault(cmd.id)"
+                @click="handleSetDefault(cmd.name)"
               >
                 <Star class="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
@@ -341,9 +328,9 @@ async function handleRemoveCommand(id: string) {
                 variant="ghost"
                 size="icon"
                 class="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                :disabled="removingCmdID === cmd.id"
+                :disabled="removingCmdName === cmd.name"
                 :aria-label="`Remove command ${cmd.name}`"
-                @click="handleRemoveCommand(cmd.id)"
+                @click="handleRemoveCommand(cmd.name)"
               >
                 <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
               </Button>

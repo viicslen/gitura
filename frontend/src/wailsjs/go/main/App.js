@@ -38,8 +38,8 @@ export function GetCommentThreads(arg1) {
   return window['go']['main']['App']['GetCommentThreads'](arg1);
 }
 
-export function GetDefaultCommandID() {
-  return window['go']['main']['App']['GetDefaultCommandID']();
+export function GetDefaultCommandName() {
+  return window['go']['main']['App']['GetDefaultCommandName']();
 }
 
 export function GetFileDiff(arg1) {
@@ -110,8 +110,8 @@ export function RunCommands(arg1, arg2, arg3) {
   return window['go']['main']['App']['RunCommands'](arg1, arg2, arg3);
 }
 
-export function SetDefaultCommandID(arg1) {
-  return window['go']['main']['App']['SetDefaultCommandID'](arg1);
+export function SetDefaultCommandName(arg1) {
+  return window['go']['main']['App']['SetDefaultCommandName'](arg1);
 }
 
 export function SetPRLocalPath(arg1, arg2, arg3, arg4) {

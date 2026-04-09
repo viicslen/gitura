@@ -11,7 +11,7 @@ const props = defineProps<{
   currentIndex: number
   showResolved: boolean
   commands: model.CommandDTO[]
-  defaultCommandId: string
+  defaultCommandName: string
 }>()
 
 const { runsForThread } = useRuns()

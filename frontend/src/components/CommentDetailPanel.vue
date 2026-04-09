@@ -18,7 +18,7 @@ const props = defineProps<{
   thread: model.CommentThreadDTO | null
   isAtEnd: boolean
   commands: model.CommandDTO[]
-  defaultCommandId: string
+  defaultCommandName: string
 }>()
 
 const emit = defineEmits<{
@@ -121,7 +121,7 @@ function replyAvatarKey(replyId: number): string {
           <CommentBody
             :content="rootComment.body"
             :commands="commands"
-            :default-command-id="defaultCommandId"
+            :default-command-name="defaultCommandName"
             :thread-root-id="thread.root_id"
             :comment-id="rootComment.id"
             @ran="emit('ran')"
@@ -133,7 +133,7 @@ function replyAvatarKey(replyId: number): string {
           >
             <SplitRunButton
               :commands="commands"
-              :default-command-id="defaultCommandId"
+              :default-command-name="defaultCommandName"
               :input="rootComment.body"
               :thread-root-id="thread.root_id"
               :comment-id="rootComment.id"
@@ -207,7 +207,7 @@ function replyAvatarKey(replyId: number): string {
             <SplitRunButton
               v-if="commands.length > 0 && rootComment"
               :commands="commands"
-              :default-command-id="defaultCommandId"
+              :default-command-name="defaultCommandName"
               :input="rootComment.body"
               :thread-root-id="thread.root_id"
               :comment-id="rootComment.id"

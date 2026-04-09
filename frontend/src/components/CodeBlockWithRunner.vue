@@ -8,7 +8,7 @@ const props = defineProps<{
   content: string
   isRun: boolean
   commands: model.CommandDTO[]
-  defaultCommandId: string
+  defaultCommandName: string
   threadRootId?: number
   commentId?: number
 }>()
@@ -34,7 +34,7 @@ const { } = useRuns()
     >
       <SplitRunButton
         :commands="commands"
-        :default-command-id="defaultCommandId"
+        :default-command-name="defaultCommandName"
         :input="content"
         :thread-root-id="threadRootId"
         :comment-id="commentId"

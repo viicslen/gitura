@@ -55,9 +55,9 @@ type App struct {
 	// Lazily loaded alongside ignoredCommenters via loadConfig.
 	commands []model.CommandDTO
 
-	// defaultCommandID is the ID of the command to use as the primary action.
+	// defaultCommandName is the command name to use as the primary action.
 	// Empty string means no default is set.
-	defaultCommandID string
+	defaultCommandName string
 
 	// runCancels maps run IDs to their context cancel functions, allowing
 	// in-flight commands to be stopped via CancelRun.
@@ -120,7 +120,7 @@ func (a *App) loadConfig() error {
 	}
 	a.ignoredCommenters = cfg.IgnoredCommenters
 	a.commands = cfg.Commands
-	a.defaultCommandID = cfg.DefaultCommandID
+	a.defaultCommandName = cfg.DefaultCommandName
 	logger.L.Debug("config loaded",
 		"ignored_commenters", len(a.ignoredCommenters),
 		"commands", len(a.commands),
@@ -613,10 +613,9 @@ func (a *App) AddIgnoredCommenter(login string) error {
 		}
 	}
 	a.ignoredCommenters = append(a.ignoredCommenters, model.IgnoredCommenterDTO{
-		Login:   login,
-		AddedAt: time.Now().UTC(),
+		Login: login,
 	})
-	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters, Commands: a.commands, DefaultCommandID: a.defaultCommandID}); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters, Commands: a.commands, DefaultCommandName: a.defaultCommandName}); err != nil {
 		// Roll back in-memory change.
 		a.ignoredCommenters = a.ignoredCommenters[:len(a.ignoredCommenters)-1]
 		return fmt.Errorf("settings: save: %w", err)
@@ -645,7 +644,7 @@ func (a *App) RemoveIgnoredCommenter(login string) error {
 	updated := make([]model.IgnoredCommenterDTO, 0, len(a.ignoredCommenters)-1)
 	updated = append(updated, a.ignoredCommenters[:idx]...)
 	updated = append(updated, a.ignoredCommenters[idx+1:]...)
-	if err := settings.Save(settings.Config{IgnoredCommenters: updated, Commands: a.commands, DefaultCommandID: a.defaultCommandID}); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: updated, Commands: a.commands, DefaultCommandName: a.defaultCommandName}); err != nil {
 		return fmt.Errorf("settings: save: %w", err)
 	}
 	a.ignoredCommenters = updated
@@ -989,8 +988,7 @@ func (a *App) GetCommands() ([]model.CommandDTO, error) {
 }
 
 // AddCommand adds a new command configuration.
-// A UUID is generated for the command's ID. Silently no-ops if a command with
-// the same name already exists.
+// Silently no-ops if a command with the same name already exists.
 // Error prefixes: "validation:" — missing name or command; "settings:" — save failure.
 func (a *App) AddCommand(cmd model.CommandDTO) ([]model.CommandDTO, error) {
 	cmd.Name = strings.TrimSpace(cmd.Name)
@@ -1011,32 +1009,31 @@ func (a *App) AddCommand(cmd model.CommandDTO) ([]model.CommandDTO, error) {
 			return result, nil // already present — no-op
 		}
 	}
-	cmd.ID = uuid.NewString()
 	a.commands = append(a.commands, cmd)
 	if err := settings.Save(settings.Config{
-		IgnoredCommenters: a.ignoredCommenters,
-		Commands:          a.commands,
-		DefaultCommandID:  a.defaultCommandID,
+		IgnoredCommenters:  a.ignoredCommenters,
+		Commands:           a.commands,
+		DefaultCommandName: a.defaultCommandName,
 	}); err != nil {
 		a.commands = a.commands[:len(a.commands)-1]
 		return nil, fmt.Errorf("settings: save: %w", err)
 	}
-	logger.L.Info("AddCommand", "name", cmd.Name, "id", cmd.ID)
+	logger.L.Info("AddCommand", "name", cmd.Name)
 	result := make([]model.CommandDTO, len(a.commands))
 	copy(result, a.commands)
 	return result, nil
 }
 
-// RemoveCommand removes the command with the given ID.
-// Silently no-ops if the ID is not found.
+// RemoveCommand removes the command with the given name.
+// Silently no-ops if the name is not found.
 // Error prefix: "settings:" — save failure.
-func (a *App) RemoveCommand(id string) ([]model.CommandDTO, error) {
+func (a *App) RemoveCommand(name string) ([]model.CommandDTO, error) {
 	if err := a.loadConfig(); err != nil {
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
 	idx := -1
 	for i, cmd := range a.commands {
-		if cmd.ID == id {
+		if cmd.Name == name {
 			idx = i
 			break
 		}
@@ -1050,59 +1047,59 @@ func (a *App) RemoveCommand(id string) ([]model.CommandDTO, error) {
 	updated = append(updated, a.commands[:idx]...)
 	updated = append(updated, a.commands[idx+1:]...)
 	// Clear the default if the removed command was the default.
-	if a.defaultCommandID == id {
-		a.defaultCommandID = ""
+	if a.defaultCommandName == name {
+		a.defaultCommandName = ""
 	}
 	if err := settings.Save(settings.Config{
-		IgnoredCommenters: a.ignoredCommenters,
-		Commands:          updated,
-		DefaultCommandID:  a.defaultCommandID,
+		IgnoredCommenters:  a.ignoredCommenters,
+		Commands:           updated,
+		DefaultCommandName: a.defaultCommandName,
 	}); err != nil {
 		return nil, fmt.Errorf("settings: save: %w", err)
 	}
 	a.commands = updated
-	logger.L.Info("RemoveCommand", "id", id)
+	logger.L.Info("RemoveCommand", "name", name)
 	result := make([]model.CommandDTO, len(a.commands))
 	copy(result, a.commands)
 	return result, nil
 }
 
-// GetDefaultCommandID returns the ID of the user's default command, or an
+// GetDefaultCommandName returns the name of the user's default command, or an
 // empty string if none is set.
 //
 // Error prefix: "settings:" — load failure.
-func (a *App) GetDefaultCommandID() (string, error) {
+func (a *App) GetDefaultCommandName() (string, error) {
 	if err := a.loadConfig(); err != nil {
 		return "", fmt.Errorf("settings: load: %w", err)
 	}
-	return a.defaultCommandID, nil
+	return a.defaultCommandName, nil
 }
 
-// SetDefaultCommandID persists the given command ID as the default. Pass an
+// SetDefaultCommandName persists the given command name as the default. Pass an
 // empty string to clear the default.
 //
-// Error prefix: "validation:" — unknown ID; "settings:" — save failure.
-func (a *App) SetDefaultCommandID(id string) error {
+// Error prefix: "validation:" — unknown command name; "settings:" — save failure.
+func (a *App) SetDefaultCommandName(name string) error {
 	if err := a.loadConfig(); err != nil {
 		return fmt.Errorf("settings: load: %w", err)
 	}
-	if id != "" {
+	if name != "" {
 		found := false
 		for _, c := range a.commands {
-			if c.ID == id {
+			if c.Name == name {
 				found = true
 				break
 			}
 		}
 		if !found {
-			return fmt.Errorf("validation: unknown command ID %q", id)
+			return fmt.Errorf("validation: unknown command name %q", name)
 		}
 	}
-	a.defaultCommandID = id
+	a.defaultCommandName = name
 	if err := settings.Save(settings.Config{
-		IgnoredCommenters: a.ignoredCommenters,
-		Commands:          a.commands,
-		DefaultCommandID:  a.defaultCommandID,
+		IgnoredCommenters:  a.ignoredCommenters,
+		Commands:           a.commands,
+		DefaultCommandName: a.defaultCommandName,
 	}); err != nil {
 		return err
 	}
@@ -1118,10 +1115,10 @@ func (a *App) SetDefaultCommandID(id string) error {
 // Returns the pending RunResult stubs (one per command) so the frontend can
 // seed its run list synchronously before events arrive.
 //
-// Error prefix: "validation:" — empty commandIDs; "settings:" — load failure.
-func (a *App) RunCommands(commandIDs []string, input string, runCtx model.RunContext) ([]model.RunResult, error) {
-	if len(commandIDs) == 0 {
-		return nil, fmt.Errorf("validation: at least one commandID required")
+// Error prefix: "validation:" — empty command names; "settings:" — load failure.
+func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunContext) ([]model.RunResult, error) {
+	if len(commandNames) == 0 {
+		return nil, fmt.Errorf("validation: at least one command name required")
 	}
 	if err := a.loadConfig(); err != nil {
 		return nil, fmt.Errorf("settings: load: %w", err)
@@ -1140,20 +1137,20 @@ func (a *App) RunCommands(commandIDs []string, input string, runCtx model.RunCon
 		}
 	}
 
-	// Build a lookup map for fast ID → command resolution.
+	// Build a lookup map for fast name -> command resolution.
 	cmdMap := make(map[string]model.CommandDTO, len(a.commands))
 	for _, c := range a.commands {
-		cmdMap[c.ID] = c
+		cmdMap[c.Name] = c
 	}
 
-	pendingResults := make([]model.RunResult, 0, len(commandIDs))
+	pendingResults := make([]model.RunResult, 0, len(commandNames))
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	var wg sync.WaitGroup
-	for _, cid := range commandIDs {
-		cmd, ok := cmdMap[cid]
+	for _, name := range commandNames {
+		cmd, ok := cmdMap[name]
 		if !ok {
-			logger.L.Warn("RunCommands: unknown command ID", "id", cid)
+			logger.L.Warn("RunCommands: unknown command name", "name", name)
 			continue
 		}
 
@@ -1168,7 +1165,6 @@ func (a *App) RunCommands(commandIDs []string, input string, runCtx model.RunCon
 		// Emit pending immediately so the frontend can show a spinner.
 		pending := model.RunResult{
 			RunID:        runID,
-			CommandID:    cmd.ID,
 			CommandName:  cmd.Name,
 			Input:        input,
 			StartedAt:    now,

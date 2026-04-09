@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,11 +35,10 @@ func TestSave_RoundTrip_PreservesAllFields(t *testing.T) {
 	tmp := t.TempDir()
 	overrideConfigDir(t, tmp)
 
-	now := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
 	input := Config{
 		IgnoredCommenters: []model.IgnoredCommenterDTO{
-			{Login: "alice", AddedAt: now},
-			{Login: "bob", AddedAt: now.Add(24 * time.Hour)},
+			{Login: "alice"},
+			{Login: "bob"},
 		},
 	}
 
@@ -51,7 +49,6 @@ func TestSave_RoundTrip_PreservesAllFields(t *testing.T) {
 	require.Len(t, got.IgnoredCommenters, 2)
 	assert.Equal(t, "alice", got.IgnoredCommenters[0].Login)
 	assert.Equal(t, "bob", got.IgnoredCommenters[1].Login)
-	assert.True(t, got.IgnoredCommenters[0].AddedAt.Equal(now))
 }
 
 // TestSave_EmptySlice_WritesEmptyConfig verifies that saving a Config with nil
@@ -76,7 +73,7 @@ func TestSave_CreatesDirIfAbsent(t *testing.T) {
 
 	input := Config{
 		IgnoredCommenters: []model.IgnoredCommenterDTO{
-			{Login: "charlie", AddedAt: time.Now()},
+			{Login: "charlie"},
 		},
 	}
 	require.NoError(t, Save(input))
@@ -157,7 +154,7 @@ func TestSave_WriteError_ReturnsError(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 	overrideConfigDir(t, tmp)
 
-	err := Save(Config{IgnoredCommenters: []model.IgnoredCommenterDTO{{Login: "x", AddedAt: time.Now()}}})
+	err := Save(Config{IgnoredCommenters: []model.IgnoredCommenterDTO{{Login: "x"}}})
 	require.Error(t, err)
 }
 
@@ -178,7 +175,7 @@ func TestSave_MkdirAllError_ReturnsError(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(tmp, 0o700) })
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 
-	err := Save(Config{IgnoredCommenters: []model.IgnoredCommenterDTO{{Login: "x", AddedAt: time.Now()}}})
+	err := Save(Config{IgnoredCommenters: []model.IgnoredCommenterDTO{{Login: "x"}}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "settings:")
 }
@@ -194,6 +191,6 @@ func TestSave_RenameError_ReturnsError(t *testing.T) {
 	// Create a directory where the file should be so rename fails.
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "settings.toml"), 0o700))
 
-	err := Save(Config{IgnoredCommenters: []model.IgnoredCommenterDTO{{Login: "x", AddedAt: time.Now()}}})
+	err := Save(Config{IgnoredCommenters: []model.IgnoredCommenterDTO{{Login: "x"}}})
 	require.Error(t, err)
 }

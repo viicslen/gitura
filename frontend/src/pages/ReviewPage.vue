@@ -14,7 +14,7 @@ import { useReview } from '@/composables/useReview'
 import { useRuns } from '@/composables/useRuns'
 import type { ReviewLoadInput } from '@/types/review'
 import type { model } from '../wailsjs/go/models'
-import { GetCommands, GetDefaultCommandID, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker } from '../wailsjs/go/main/App'
+import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker } from '../wailsjs/go/main/App'
 import { toast } from 'vue-sonner'
 
 const props = defineProps<{
@@ -34,7 +34,7 @@ const VIEW_OPTIONS = [
 
 // ── Commands ────────────────────────────────────────────────────────────────
 const commands = ref<model.CommandDTO[]>([])
-const defaultCommandId = ref('')
+const defaultCommandName = ref('')
 
 async function loadCommands(): Promise<void> {
   try {
@@ -43,7 +43,7 @@ async function loadCommands(): Promise<void> {
     // Non-fatal: commands panel will just be empty
   }
   try {
-    defaultCommandId.value = await GetDefaultCommandID()
+    defaultCommandName.value = await GetDefaultCommandName()
   } catch {
     // Non-fatal
   }
@@ -333,7 +333,7 @@ onMounted(() => {
             :current-index="currentIndex"
             :show-resolved="showResolved"
             :commands="commands"
-            :default-command-id="defaultCommandId"
+            :default-command-name="defaultCommandName"
             @select="handleSelect"
             @ran="handleRan"
           />
@@ -345,7 +345,7 @@ onMounted(() => {
             :thread="currentThread"
             :is-at-end="isAtEnd && queue.length > 0"
             :commands="commands"
-            :default-command-id="defaultCommandId"
+            :default-command-name="defaultCommandName"
             class="flex-1 overflow-hidden"
             @resolve="resolveThread"
             @unresolve="unresolveThread"

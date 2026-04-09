@@ -43,7 +43,6 @@ func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPa
 	startedAt := time.Now().UTC()
 
 	result := model.RunResult{
-		CommandID:   cmd.ID,
 		CommandName: cmd.Name,
 		Input:       input,
 		StartedAt:   startedAt.Format(time.RFC3339),

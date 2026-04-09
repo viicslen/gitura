@@ -20,7 +20,7 @@ export function GetCommands():Promise<Array<model.CommandDTO>>;
 
 export function GetCommentThreads(arg1:boolean):Promise<Array<model.CommentThreadDTO>>;
 
-export function GetDefaultCommandID():Promise<string>;
+export function GetDefaultCommandName():Promise<string>;
 
 export function GetFileDiff(arg1:string):Promise<model.ParsedDiffDTO>;
 
@@ -56,7 +56,7 @@ export function ResolveThread(arg1:number):Promise<void>;
 
 export function RunCommands(arg1:Array<string>,arg2:string,arg3:model.RunContext):Promise<Array<model.RunResult>>;
 
-export function SetDefaultCommandID(arg1:string):Promise<void>;
+export function SetDefaultCommandName(arg1:string):Promise<void>;
 
 export function SetPRLocalPath(arg1:string,arg2:string,arg3:number,arg4:string):Promise<void>;
 

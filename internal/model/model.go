@@ -2,8 +2,6 @@
 // All types are used as DTOs between the Go backend and the Wails frontend.
 package model
 
-import "time"
-
 // User represents a GitHub user (commenter or authenticated user).
 type User struct {
 	Login     string `json:"login"`
@@ -91,8 +89,7 @@ type PollResult struct {
 
 // IgnoredCommenterDTO represents a persisted ignored-commenter entry.
 type IgnoredCommenterDTO struct {
-	Login   string    `json:"login" toml:"login"`
-	AddedAt time.Time `json:"added_at" toml:"added_at"`
+	Login string `json:"login" toml:"login"`
 }
 
 // SuggestionCommitResult holds the outcome of committing a suggestion.
@@ -240,7 +237,6 @@ type ReviewSubmitResult struct {
 // if present, the input text is substituted as a shell argument rather than
 // piped via stdin.
 type CommandDTO struct {
-	ID      string `json:"id" toml:"id"`
 	Name    string `json:"name" toml:"name"`
 	Command string `json:"command" toml:"command"`
 }
@@ -262,7 +258,6 @@ type RunContext struct {
 // ThreadRootID and CommentID are copied from the RunContext at launch time.
 type RunResult struct {
 	RunID        string `json:"run_id"`
-	CommandID    string `json:"command_id"`
 	CommandName  string `json:"command_name"`
 	Input        string `json:"input"`
 	Stdout       string `json:"stdout"`

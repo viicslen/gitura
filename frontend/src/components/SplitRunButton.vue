@@ -5,7 +5,7 @@
  * Left part: runs the default command (or the only command) immediately.
  * Right part (chevron): opens a dropdown listing all commands to pick from.
  *
- * If no defaultCommandId is set, falls back to the first command in the list.
+ * If no defaultCommandName is set, falls back to the first command in the list.
  */
 import { computed, ref } from 'vue'
 import { Play, ChevronDown, Loader2 } from 'lucide-vue-next'
@@ -24,8 +24,8 @@ import type { model } from '../wailsjs/go/models'
 const props = defineProps<{
   /** All configured commands */
   commands: model.CommandDTO[]
-  /** ID of the user's designated default command */
-  defaultCommandId: string
+  /** Name of the user's designated default command */
+  defaultCommandName: string
   /** The text to pass as input to the command */
   input: string
   /** Label for the primary button */
@@ -47,14 +47,14 @@ const running = ref(false)
 /** The command that fires when clicking the primary button. */
 const primaryCommand = computed((): model.CommandDTO | null => {
   if (props.commands.length === 0) return null
-  const def = props.commands.find((c) => c.id === props.defaultCommandId)
+  const def = props.commands.find((c) => c.name === props.defaultCommandName)
   return def ?? props.commands[0]
 })
 
 async function runCommand(cmd: model.CommandDTO): Promise<void> {
   running.value = true
   try {
-    await RunCommands([cmd.id], props.input, {
+    await RunCommands([cmd.name], props.input, {
       thread_root_id: props.threadRootId ?? 0,
       comment_id: props.commentId ?? 0,
     })
@@ -107,7 +107,7 @@ const btnSize = computed(() => props.size ?? 'sm')
         <DropdownMenuSeparator />
         <DropdownMenuItem
           v-for="cmd in commands"
-          :key="cmd.id"
+          :key="cmd.name"
           :disabled="running"
           class="flex flex-col items-start gap-0.5 cursor-pointer"
           @click="runCommand(cmd)"

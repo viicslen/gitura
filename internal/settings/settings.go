@@ -23,9 +23,9 @@ const (
 type Config struct {
 	IgnoredCommenters []model.IgnoredCommenterDTO `toml:"ignored_commenters"`
 	Commands          []model.CommandDTO          `toml:"commands"`
-	// DefaultCommandID is the ID of the command to use as the primary action
+	// DefaultCommandName is the command name to use as the primary action
 	// in split-run buttons. Empty string means no default is set.
-	DefaultCommandID string `toml:"default_command_id"`
+	DefaultCommandName string `toml:"default_command_name"`
 }
 
 // ConfigDir returns the OS-appropriate configuration directory for gitura,
@@ -55,10 +55,40 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("settings: read %s: %w", path, err)
 	}
 
-	var cfg Config
-	if _, err := toml.Decode(string(data), &cfg); err != nil {
+	var raw struct {
+		IgnoredCommenters []model.IgnoredCommenterDTO `toml:"ignored_commenters"`
+		Commands          []struct {
+			ID      string `toml:"id"`
+			Name    string `toml:"name"`
+			Command string `toml:"command"`
+		} `toml:"commands"`
+		DefaultCommandName string `toml:"default_command_name"`
+		DefaultCommandID   string `toml:"default_command_id"`
+	}
+	if _, err := toml.Decode(string(data), &raw); err != nil {
 		return Config{}, fmt.Errorf("settings: parse %s: %w", path, err)
 	}
+
+	cfg := Config{
+		IgnoredCommenters:  raw.IgnoredCommenters,
+		Commands:           make([]model.CommandDTO, 0, len(raw.Commands)),
+		DefaultCommandName: raw.DefaultCommandName,
+	}
+	for _, c := range raw.Commands {
+		cfg.Commands = append(cfg.Commands, model.CommandDTO{
+			Name:    c.Name,
+			Command: c.Command,
+		})
+	}
+	if cfg.DefaultCommandName == "" && raw.DefaultCommandID != "" {
+		for _, c := range raw.Commands {
+			if c.ID == raw.DefaultCommandID {
+				cfg.DefaultCommandName = c.Name
+				break
+			}
+		}
+	}
+
 	if cfg.IgnoredCommenters == nil {
 		cfg.IgnoredCommenters = []model.IgnoredCommenterDTO{}
 	}

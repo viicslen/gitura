@@ -5,7 +5,6 @@ import DOMPurify from 'dompurify'
 import hljs from 'highlight.js/lib/common'
 
 interface RunCommandEntry {
-  id: string
   name: string
   command: string
 }
@@ -14,8 +13,8 @@ const props = defineProps<{
   content: string
   /** When provided, run split-buttons are injected on each code block */
   runCommands?: RunCommandEntry[]
-  defaultCommandId?: string
-  onRunCode?: (commandId: string, text: string, threadRootId: number, commentId: number) => void
+  defaultCommandName?: string
+  onRunCode?: (commandName: string, text: string, threadRootId: number, commentId: number) => void
   /** Thread root ID to associate runs with */
   threadRootId?: number
   /** Comment ID to associate runs with */
@@ -50,7 +49,7 @@ async function attachCopyButtons(): Promise<void> {
   if (!container) return
 
   const commands = props.runCommands ?? []
-  const primaryCmd = commands.find((c) => c.id === props.defaultCommandId) ?? commands[0] ?? null
+  const primaryCmd = commands.find((c) => c.name === props.defaultCommandName) ?? commands[0] ?? null
 
   container.querySelectorAll<HTMLElement>('pre').forEach((pre) => {
     // Skip if already wrapped.
@@ -96,7 +95,7 @@ async function attachCopyButtons(): Promise<void> {
       runBtn.addEventListener('click', () => {
         if (!primaryCmd) return
         const text = pre.querySelector('code')?.innerText ?? pre.innerText
-        onRunCode(primaryCmd.id, text, props.threadRootId ?? 0, props.commentId ?? 0)
+        onRunCode(primaryCmd.name, text, props.threadRootId ?? 0, props.commentId ?? 0)
       })
       splitWrap.appendChild(runBtn)
 
@@ -123,7 +122,7 @@ async function attachCopyButtons(): Promise<void> {
             e.stopPropagation()
             dropdown.classList.remove('open')
             const text = pre.querySelector('code')?.innerText ?? pre.innerText
-            onRunCode(cmd.id, text, props.threadRootId ?? 0, props.commentId ?? 0)
+            onRunCode(cmd.name, text, props.threadRootId ?? 0, props.commentId ?? 0)
           })
           dropdown.appendChild(item)
         })
