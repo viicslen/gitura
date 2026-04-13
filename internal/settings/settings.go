@@ -47,28 +47,60 @@ func Load() (Config, error) {
 	}
 
 	path := filepath.Join(dir, fileName)
-	data, err := os.ReadFile(path)
+	data, err := readSettingsFile(path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return Config{IgnoredCommenters: []model.IgnoredCommenterDTO{}}, nil
-		}
-		return Config{}, fmt.Errorf("settings: read %s: %w", path, err)
+		return Config{}, err
+	}
+	if data == nil {
+		return Config{IgnoredCommenters: []model.IgnoredCommenterDTO{}}, nil
 	}
 
-	var raw struct {
-		IgnoredCommenters []model.IgnoredCommenterDTO `toml:"ignored_commenters"`
-		Commands          []struct {
-			ID      string `toml:"id"`
-			Name    string `toml:"name"`
-			Command string `toml:"command"`
-		} `toml:"commands"`
-		DefaultCommandName string `toml:"default_command_name"`
-		DefaultCommandID   string `toml:"default_command_id"`
+	raw, err := decodeConfig(data, path)
+	if err != nil {
+		return Config{}, err
 	}
+
+	cfg := buildConfig(raw)
+	ensureSlices(&cfg)
+
+	return cfg, nil
+}
+
+type legacyCommand struct {
+	ID      string `toml:"id"`
+	Name    string `toml:"name"`
+	Command string `toml:"command"`
+}
+
+type decodedConfig struct {
+	IgnoredCommenters  []model.IgnoredCommenterDTO `toml:"ignored_commenters"`
+	Commands           []legacyCommand             `toml:"commands"`
+	DefaultCommandName string                      `toml:"default_command_name"`
+	DefaultCommandID   string                      `toml:"default_command_id"`
+}
+
+func readSettingsFile(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err == nil {
+		return data, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+
+	return nil, fmt.Errorf("settings: read %s: %w", path, err)
+}
+
+func decodeConfig(data []byte, path string) (decodedConfig, error) {
+	var raw decodedConfig
 	if _, err := toml.Decode(string(data), &raw); err != nil {
-		return Config{}, fmt.Errorf("settings: parse %s: %w", path, err)
+		return decodedConfig{}, fmt.Errorf("settings: parse %s: %w", path, err)
 	}
 
+	return raw, nil
+}
+
+func buildConfig(raw decodedConfig) Config {
 	cfg := Config{
 		IgnoredCommenters:  raw.IgnoredCommenters,
 		Commands:           make([]model.CommandDTO, 0, len(raw.Commands)),
@@ -80,6 +112,13 @@ func Load() (Config, error) {
 			Command: c.Command,
 		})
 	}
+
+	resolveLegacyDefaultCommandName(&cfg, raw)
+
+	return cfg
+}
+
+func resolveLegacyDefaultCommandName(cfg *Config, raw decodedConfig) {
 	if cfg.DefaultCommandName == "" && raw.DefaultCommandID != "" {
 		for _, c := range raw.Commands {
 			if c.ID == raw.DefaultCommandID {
@@ -88,14 +127,15 @@ func Load() (Config, error) {
 			}
 		}
 	}
+}
 
+func ensureSlices(cfg *Config) {
 	if cfg.IgnoredCommenters == nil {
 		cfg.IgnoredCommenters = []model.IgnoredCommenterDTO{}
 	}
 	if cfg.Commands == nil {
 		cfg.Commands = []model.CommandDTO{}
 	}
-	return cfg, nil
 }
 
 // Save atomically writes the config to disk.

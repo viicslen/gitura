@@ -5,6 +5,7 @@ package runner
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -49,22 +50,11 @@ func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPa
 	}
 
 	usePlaceholder := strings.Contains(cmd.Command, placeholderToken)
+	rawCmd := buildRawCommand(cmd.Command, input, localPath, usePlaceholder)
 
-	// Build argv by substituting the placeholder or leaving it unchanged.
-	rawCmd := cmd.Command
-	if localPath != "" {
-		rawCmd = strings.ReplaceAll(rawCmd, repoPathToken, shellEscape(localPath))
-	}
-	if usePlaceholder {
-		rawCmd = strings.ReplaceAll(rawCmd, placeholderToken, shellEscape(input))
-	}
-
-	argv, err := shellSplit(rawCmd)
-	if err != nil || len(argv) == 0 {
-		result.Stderr = fmt.Sprintf("runner: failed to parse command: %v", err)
-		result.ExitCode = -1
-		result.FinishedAt = time.Now().UTC().Format(time.RFC3339)
-		return result
+	argv, err := parseArgv(rawCmd)
+	if err != nil {
+		return parseFailureResult(result, err)
 	}
 
 	//nolint:gosec // argv comes from user-configured command strings — this is intentional.
@@ -73,97 +63,191 @@ func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPa
 	var stdoutBuf, stderrBuf bytes.Buffer
 	c.Stdout = &stdoutBuf
 	c.Stderr = &stderrBuf
-
-	if localPath != "" {
-		c.Dir = localPath
-	}
-
-	if !usePlaceholder {
-		c.Stdin = strings.NewReader(input)
-	}
+	configureCommand(c, input, localPath, usePlaceholder)
 
 	runErr := c.Run()
 	result.Stdout = stdoutBuf.String()
 	result.Stderr = stderrBuf.String()
 	result.FinishedAt = time.Now().UTC().Format(time.RFC3339)
+	applyRunResult(&result, ctx, runErr)
 
+	return result
+}
+
+func buildRawCommand(command string, input string, localPath string, usePlaceholder bool) string {
+	rawCmd := command
+	if localPath != "" {
+		rawCmd = strings.ReplaceAll(rawCmd, repoPathToken, shellEscape(localPath))
+	}
+	if usePlaceholder {
+		rawCmd = strings.ReplaceAll(rawCmd, placeholderToken, shellEscape(input))
+	}
+
+	return rawCmd
+}
+
+var errEmptyCommand = errors.New("empty command")
+
+func parseArgv(rawCmd string) ([]string, error) {
+	argv, err := shellSplit(rawCmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(argv) == 0 {
+		return nil, errEmptyCommand
+	}
+
+	return argv, nil
+}
+
+func parseFailureResult(result model.RunResult, err error) model.RunResult {
+	result.Stderr = fmt.Sprintf("runner: failed to parse command: %v", err)
+	result.ExitCode = -1
+	result.FinishedAt = time.Now().UTC().Format(time.RFC3339)
+
+	return result
+}
+
+func configureCommand(command *exec.Cmd, input string, localPath string, usePlaceholder bool) {
+	if localPath != "" {
+		command.Dir = localPath
+	}
+	if !usePlaceholder {
+		command.Stdin = strings.NewReader(input)
+	}
+}
+
+func applyRunResult(result *model.RunResult, ctx context.Context, runErr error) {
 	if ctx.Err() != nil {
 		result.Cancelled = true
 		result.ExitCode = -1
-		return result
+
+		return
+	}
+	if runErr == nil {
+		return
 	}
 
-	if runErr != nil {
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
-			result.ExitCode = exitErr.ExitCode()
-		} else {
-			result.ExitCode = -1
-			if result.Stderr == "" {
-				result.Stderr = runErr.Error()
-			}
-		}
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) {
+		result.ExitCode = exitErr.ExitCode()
+
+		return
 	}
 
-	return result
+	result.ExitCode = -1
+	if result.Stderr == "" {
+		result.Stderr = runErr.Error()
+	}
+}
+
+type shellSplitState struct {
+	args     []string
+	current  strings.Builder
+	inSingle bool
+	inDouble bool
 }
 
 // shellSplit splits a command string into an argv slice using simple POSIX
 // shell quoting rules (single-quoted, double-quoted, and unquoted tokens).
 // No variable expansion or glob expansion is performed.
 func shellSplit(s string) ([]string, error) {
-	var args []string
-	var current strings.Builder
-	inSingle := false
-	inDouble := false
+	state := shellSplitState{}
 
 	for i := 0; i < len(s); i++ {
-		ch := rune(s[i])
-		switch {
-		case inSingle:
-			if ch == '\'' {
-				inSingle = false
-			} else {
-				current.WriteRune(ch)
-			}
-		case inDouble:
-			if ch == '"' {
-				inDouble = false
-			} else if ch == '\\' && i+1 < len(s) {
-				next := rune(s[i+1])
-				// Only honour backslash-escapes for a limited set inside double-quotes.
-				if next == '"' || next == '\\' || next == '$' || next == '`' {
-					current.WriteRune(next)
-					i++
-				} else {
-					current.WriteRune(ch)
-				}
-			} else {
-				current.WriteRune(ch)
-			}
-		case ch == '\'':
-			inSingle = true
-		case ch == '"':
-			inDouble = true
-		case unicode.IsSpace(ch):
-			if current.Len() > 0 {
-				args = append(args, current.String())
-				current.Reset()
-			}
-		default:
-			current.WriteRune(ch)
+		processShellChar(&state, s, &i)
+	}
+
+	if state.inSingle {
+		return nil, fmt.Errorf("unterminated single quote")
+	}
+	if state.inDouble {
+		return nil, fmt.Errorf("unterminated double quote")
+	}
+	flushCurrentArg(&state)
+
+	return state.args, nil
+}
+
+func processShellChar(state *shellSplitState, s string, i *int) {
+	ch := rune(s[*i])
+
+	if state.inSingle {
+		processSingleQuotedChar(state, ch)
+
+		return
+	}
+	if state.inDouble {
+		processDoubleQuotedChar(state, s, i, ch)
+
+		return
+	}
+
+	processUnquotedChar(state, ch)
+}
+
+func processSingleQuotedChar(state *shellSplitState, ch rune) {
+	if ch == '\'' {
+		state.inSingle = false
+
+		return
+	}
+
+	state.current.WriteRune(ch)
+}
+
+func processDoubleQuotedChar(state *shellSplitState, s string, i *int, ch rune) {
+	if ch == '"' {
+		state.inDouble = false
+
+		return
+	}
+
+	if ch == '\\' {
+		if consumeDoubleQuoteEscape(state, s, i) {
+			return
 		}
 	}
 
-	if inSingle {
-		return nil, fmt.Errorf("unterminated single quote")
+	state.current.WriteRune(ch)
+}
+
+func consumeDoubleQuoteEscape(state *shellSplitState, s string, i *int) bool {
+	if *i+1 >= len(s) {
+		return false
 	}
-	if inDouble {
-		return nil, fmt.Errorf("unterminated double quote")
+
+	next := rune(s[*i+1])
+	if next != '"' && next != '\\' && next != '$' && next != '`' {
+		return false
 	}
-	if current.Len() > 0 {
-		args = append(args, current.String())
+
+	state.current.WriteRune(next)
+	*i++
+
+	return true
+}
+
+func processUnquotedChar(state *shellSplitState, ch rune) {
+	switch {
+	case ch == '\'':
+		state.inSingle = true
+	case ch == '"':
+		state.inDouble = true
+	case unicode.IsSpace(ch):
+		flushCurrentArg(state)
+	default:
+		state.current.WriteRune(ch)
 	}
-	return args, nil
+}
+
+func flushCurrentArg(state *shellSplitState) {
+	if state.current.Len() == 0 {
+		return
+	}
+
+	state.args = append(state.args, state.current.String())
+	state.current.Reset()
 }
 
 // shellEscape wraps s in single quotes, escaping any embedded single quotes

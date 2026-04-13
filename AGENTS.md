@@ -152,4 +152,16 @@ After every non-fix code change (new features, refactors, structural changes):
 - **AGENTS.md**: Evaluate if developer-facing content needs updating (project structure, technologies, commands, code style).
 
 Do not update docs for bug fixes unless the fix changes behavior that was previously documented.
+
+## Post-Change Validation
+
+After any code change, run the same checks used by CI before handing off work.
+
+- **Go tests (CI-equivalent)**: `CGO_ENABLED=1 GOFLAGS='-tags=webkit2_41' go test -race -count=1 -coverprofile=coverage.out ./internal/...`
+- **Go lint (CI-equivalent)**: `CGO_ENABLED=1 GOFLAGS='-tags=dev,webkit2_41' golangci-lint run`
+- **Frontend check (CI-equivalent)**: from `frontend/`, run `bun run build`
+
+If `golangci-lint` is not installed locally, run:
+
+- `CGO_ENABLED=1 GOFLAGS='-tags=dev,webkit2_41' go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run`
 <!-- MANUAL ADDITIONS END -->
