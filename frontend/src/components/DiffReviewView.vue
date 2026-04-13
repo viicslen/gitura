@@ -117,6 +117,28 @@ async function handleDiscardReview(): Promise<void> {
   }
 }
 
+async function reload(): Promise<void> {
+  const selectedPath = currentFilePath.value
+
+  await Promise.all([
+    loadFiles(),
+    loadPendingReview(),
+  ])
+
+  if (selectedPath && files.value.some((file) => file.filename === selectedPath)) {
+    await selectFile(selectedPath)
+  } else if (files.value.length > 0) {
+    await selectFile(files.value[0].filename)
+  }
+
+  if (filesError.value) {
+    throw new Error(filesError.value)
+  }
+  if (diffError.value) {
+    throw new Error(diffError.value)
+  }
+}
+
 // ── Keyboard nav ──────────────────────────────────────────────────────────
 function handleKeydown(event: KeyboardEvent): void {
   if ((event.target as HTMLElement).tagName === 'TEXTAREA') return
@@ -125,7 +147,7 @@ function handleKeydown(event: KeyboardEvent): void {
 }
 
 // ── Exposed interface for parent ──────────────────────────────────────────
-defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggleOtherThreads, files })
+defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggleOtherThreads, files, reload })
 </script>
 
 <template>

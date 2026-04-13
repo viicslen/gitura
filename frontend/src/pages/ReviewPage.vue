@@ -82,6 +82,8 @@ function diffPrevFile(): void { diffReviewRef.value?.prevFile() }
 function diffNextFile(): void { diffReviewRef.value?.nextFile() }
 function diffToggleOtherThreads(): void { diffReviewRef.value?.toggleOtherThreads() }
 
+const refreshing = ref(false)
+
 const {
   prSummary,
   loading,
@@ -122,6 +124,18 @@ function handleSuggestionCommitted(): void {}
 function handleRan(): void {
   // Auto-open the run panel when a run starts
   runPanelOpen.value = true
+}
+
+async function refreshPRView(): Promise<void> {
+  refreshing.value = true
+  try {
+    await loadPR()
+    await diffReviewRef.value?.reload()
+  } catch (err) {
+    toast.error('Could not refresh PR data: ' + String(err))
+  } finally {
+    refreshing.value = false
+  }
 }
 
 // ── Per-PR local path ─────────────────────────────────────────────────────
@@ -291,6 +305,15 @@ watch(
       </DropdownMenu>
 
       <!-- Prev/Next (both views) -->
+      <Button
+        variant="ghost"
+        size="icon"
+        :disabled="loading || refreshing"
+        aria-label="Refresh pull request data"
+        @click="refreshPRView()"
+      >
+        <RefreshCw :class="['h-4 w-4', (loading || refreshing) && 'animate-spin']" />
+      </Button>
       <Button
         variant="ghost"
         size="icon"
