@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/viicslen/gitura/compare/v0.4.0...v0.5.0) (2026-04-14)
+
+
+### Features
+
+* add refresh button to pr page ([90fd59f](https://github.com/viicslen/gitura/commit/90fd59f6a5ec8a2f0fcf0330a6c3d7063b38085a))
+
 ## [0.4.0](https://github.com/viicslen/gitura/compare/v0.3.0...v0.4.0) (2026-04-07)
 
 

@@ -11,7 +11,7 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        version = "0.4.0"; # x-release-please-version
+        version = "0.5.0"; # x-release-please-version
 
         # Fetch bun frontend dependencies as a fixed-output derivation.
         # After updating dependencies, recompute with:
