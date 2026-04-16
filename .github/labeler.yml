@@ -1,0 +1,36 @@
+backend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+
+frontend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'frontend/**'
+
+nix:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '*.nix'
+      - 'shell.nix'
+      - 'flake.nix'
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '*.md'
+      - 'docs/**'
+
+release:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'CHANGELOG.md'
+      - '.release-please-manifest.json'
+      - 'release-please-config.json'
