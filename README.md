@@ -37,7 +37,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Batch reviews** — draft comments, then submit them together as comment, approval, or changes requested
 - **Reply, resolve, unresolve** — posted straight to GitHub with optimistic UI updates
 - **Commit suggestions** — accept a GitHub suggestion block and commit it to the PR branch
-- **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch the output in the run panel
+- **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch its output stream live in the run panel
 - **Ignored commenters** — filter out CI bot noise by username
 - **Dark, light, and system themes**
 

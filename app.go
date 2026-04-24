@@ -1109,8 +1109,9 @@ func (a *App) SetDefaultCommandName(name string) error {
 // RunCommands launches one or more commands in parallel against
 // the same input text. For each command a pending RunResult with
 // Running=true is emitted immediately via the "command:run:pending" event.
-// When each process finishes, the completed result is emitted via the
-// "command:run:complete" event.
+// While each process runs, raw stdout/stderr chunks are emitted via the
+// "command:run:output" event. When each process finishes, the completed
+// result is emitted via the "command:run:complete" event.
 //
 // Returns the pending RunResult stubs (one per command) so the frontend can
 // seed its run list synchronously before events arrive.
@@ -1183,7 +1184,13 @@ func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunC
 				delete(a.runCancels, rID)
 				a.runCancelsMu.Unlock()
 			}()
-			result := runner.RunCommand(ctx, c, input, lp)
+			result := runner.RunCommandWithOutput(ctx, c, input, lp, func(stream string, chunk string) {
+				a.emit("command:run:output", map[string]string{
+					"run_id": rID,
+					"stream": stream,
+					"chunk":  chunk,
+				})
+			})
 			result.RunID = rID
 			result.Running = false
 			result.ThreadRootID = rc.ThreadRootID

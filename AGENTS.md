@@ -164,4 +164,8 @@ After any code change, run the same checks used by CI before handing off work.
 If `golangci-lint` is not installed locally, run:
 
 - `CGO_ENABLED=1 GOFLAGS='-tags=dev,webkit2_41' go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run`
+
+If you are in a Nix-enabled environment and validation/build commands fail due to missing system dependencies (e.g., WebKit/GTK/libsecret), run the commands inside the repo `shell.nix` environment:
+
+- `nix-shell --run "<your command>"`
 <!-- MANUAL ADDITIONS END -->
