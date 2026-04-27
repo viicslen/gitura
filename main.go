@@ -9,6 +9,7 @@ import (
 
 func main() {
 	app := NewApp()
+	assetMiddleware := assetserver.Middleware(avatarProxyMiddleware)
 
 	err := wails.Run(&options.App{
 		Title:            "gitura",
@@ -16,7 +17,7 @@ func main() {
 		Height:           800,
 		MinWidth:         900,
 		MinHeight:        600,
-		AssetServer:      &assetserver.Options{Assets: assets},
+		AssetServer:      &assetserver.Options{Assets: assets, Middleware: assetMiddleware},
 		BackgroundColour: &options.RGBA{R: 9, G: 9, B: 11, A: 1},
 		OnStartup:        app.startup,
 		OnDomReady:       app.domReady,
