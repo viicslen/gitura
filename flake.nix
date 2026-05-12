@@ -43,8 +43,7 @@
           nativeBuildInputs = [ pkgs.bun ];
 
           buildPhase = ''
-            cp -r ${frontendDeps}/node_modules ./node_modules
-            chmod -R +w ./node_modules
+            ln -s ${frontendDeps} node_modules
             bun run build
           '';
 
@@ -79,7 +78,7 @@
             src = ./.;
 
             # Compute by running: nix build .#packages.<system>.default 2>&1 | grep "got:"
-            vendorHash = "sha256-mJsNKq36FcjjR63BKR8mEqbtXTQgkvfnr0f8GlqNGFo=";
+            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
             inherit nativeBuildInputs buildInputs;
 
