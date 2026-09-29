@@ -80,7 +80,7 @@
             src = ./.;
 
             # Compute by running: nix build .#packages.<system>.default 2>&1 | grep "got:"
-            vendorHash = "sha256-k4BE8f6XXGSCMx77nVs0gw1fO5s3Dh/Wgrpem5R2XVE=";
+            vendorHash = "sha256-mJsNKq36FcjjR63BKR8mEqbtXTQgkvfnr0f8GlqNGFo=";
 
             inherit nativeBuildInputs buildInputs;
 
