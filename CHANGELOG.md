@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.1](https://github.com/viicslen/gitura/compare/v0.5.0...v0.5.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **nix:** make the frontend build work in the sandbox ([501ca0e](https://github.com/viicslen/gitura/commit/501ca0e1aeaa69f6b25ecc6a7ba1d62cfef2feff))
+* **runner:** put the gosec suppression in a form gosec reads ([4d547a4](https://github.com/viicslen/gitura/commit/4d547a48d4d93c61a37650b8f1d6b0468354f967))
+* **runner:** substitute command placeholders per argument ([6dd4a04](https://github.com/viicslen/gitura/commit/6dd4a041ecf1f7f4904d5ffe4fb640ef5db2bbdd))
+
 ## [0.5.0](https://github.com/viicslen/gitura/compare/v0.4.0...v0.5.0) (2026-04-14)
 
 
