@@ -80,6 +80,7 @@ type decodedConfig struct {
 }
 
 func readSettingsFile(path string) ([]byte, error) {
+	// #nosec G304 -- path is always ConfigDir()/settings.toml, never user input.
 	data, err := os.ReadFile(path)
 	if err == nil {
 		return data, nil

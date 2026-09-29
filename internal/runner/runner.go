@@ -36,7 +36,9 @@ const repoPathToken = "{{repo_path}}"
 // command string before argv-splitting.
 //
 // The command string is POSIX-shell-split (respects quoted tokens) to produce
-// the argv slice; no shell interpreter is invoked, preventing injection.
+// the argv slice; placeholders are then substituted into individual argv
+// elements, so neither input nor localPath can introduce extra arguments. No
+// shell interpreter is invoked.
 //
 // If ctx is cancelled before the process finishes, the process is killed and
 // the returned RunResult has Cancelled=true.
@@ -50,14 +52,14 @@ func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPa
 	}
 
 	usePlaceholder := strings.Contains(cmd.Command, placeholderToken)
-	rawCmd := buildRawCommand(cmd.Command, input, localPath, usePlaceholder)
 
-	argv, err := parseArgv(rawCmd)
+	argv, err := parseArgv(cmd.Command)
 	if err != nil {
 		return parseFailureResult(result, err)
 	}
+	argv = substitutePlaceholders(argv, input, localPath, usePlaceholder)
 
-	//nolint:gosec // argv comes from user-configured command strings — this is intentional.
+	//nolint:gosec // #nosec G204 -- argv comes from the user's own command config; untrusted input is substituted per-argument, never re-split.
 	c := exec.CommandContext(ctx, argv[0], argv[1:]...)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
@@ -74,16 +76,22 @@ func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPa
 	return result
 }
 
-func buildRawCommand(command string, input string, localPath string, usePlaceholder bool) string {
-	rawCmd := command
-	if localPath != "" {
-		rawCmd = strings.ReplaceAll(rawCmd, repoPathToken, shellEscape(localPath))
-	}
-	if usePlaceholder {
-		rawCmd = strings.ReplaceAll(rawCmd, placeholderToken, shellEscape(input))
+// substitutePlaceholders replaces the placeholder tokens within each argv
+// element. Substituting after the split — rather than into the command string
+// before it — keeps untrusted input confined to the argument it appears in.
+func substitutePlaceholders(argv []string, input string, localPath string, usePlaceholder bool) []string {
+	out := make([]string, len(argv))
+	for i, arg := range argv {
+		if localPath != "" {
+			arg = strings.ReplaceAll(arg, repoPathToken, localPath)
+		}
+		if usePlaceholder {
+			arg = strings.ReplaceAll(arg, placeholderToken, input)
+		}
+		out[i] = arg
 	}
 
-	return rawCmd
+	return out
 }
 
 var errEmptyCommand = errors.New("empty command")
@@ -248,10 +256,4 @@ func flushCurrentArg(state *shellSplitState) {
 
 	state.args = append(state.args, state.current.String())
 	state.current.Reset()
-}
-
-// shellEscape wraps s in single quotes, escaping any embedded single quotes
-// using the standard POSIX trick ('\”).
-func shellEscape(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
