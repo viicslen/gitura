@@ -40,10 +40,12 @@
           name = "gitura-frontend-${version}";
           src = ./frontend;
 
-          nativeBuildInputs = [ pkgs.bun ];
+          nativeBuildInputs = [ pkgs.bun pkgs.nodejs ];
 
           buildPhase = ''
-            ln -s ${frontendDeps} node_modules
+            cp -rT ${frontendDeps} node_modules
+            chmod -R +w node_modules
+            patchShebangs node_modules
             bun run build
           '';
 
@@ -78,7 +80,7 @@
             src = ./.;
 
             # Compute by running: nix build .#packages.<system>.default 2>&1 | grep "got:"
-            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            vendorHash = "sha256-k4BE8f6XXGSCMx77nVs0gw1fO5s3Dh/Wgrpem5R2XVE=";
 
             inherit nativeBuildInputs buildInputs;
 
