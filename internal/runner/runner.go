@@ -59,7 +59,7 @@ func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPa
 	}
 	argv = substitutePlaceholders(argv, input, localPath, usePlaceholder)
 
-	//nolint:gosec // #nosec G204 -- argv comes from the user's own command config; untrusted input is substituted per-argument, never re-split.
+	// #nosec G204 -- argv comes from the user's own command config; untrusted input is substituted per-argument, never re-split.
 	c := exec.CommandContext(ctx, argv[0], argv[1:]...)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
