@@ -42,63 +42,46 @@ jobs:
             echo "No relevant files changed, skipping hash update"
           fi
 
-      - name: Calculate vendorHash (Go dependencies)
-        id: vendor_hash
+      # The Go modules derivation inherits preBuild, which copies the frontend build,
+      # so the frontend hash has to be right before the Go hash can be computed.
+      - name: Calculate outputHash (Bun frontend dependencies)
+        id: output_hash
         if: steps.check.outputs.needs_update == 'true'
         run: |
           FAKE_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-          # Reset both hashes to fake so we can compute them fresh
           sed -i "s|vendorHash = \".*\";|vendorHash = \"${FAKE_HASH}\";|" flake.nix
           sed -i "s|outputHash = \".*\";|outputHash = \"${FAKE_HASH}\";|" flake.nix
 
           BUILD_OUTPUT=$(nix build .#packages.x86_64-linux.default --no-link 2>&1 || true)
           echo "$BUILD_OUTPUT"
 
-          VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "got:\s+\K(sha256-[A-Za-z0-9+/=]+)" | head -1)
-
-          if [ -z "$VENDOR_HASH" ]; then
-            VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "sha256-[A-Za-z0-9+/=]+" | grep -v "${FAKE_HASH}" | head -1)
-          fi
-
-          if [ -z "$VENDOR_HASH" ]; then
-            echo "Failed to extract vendorHash from build output"
-            echo "=== Full build output ==="
-            echo "$BUILD_OUTPUT"
-            exit 1
-          fi
-
-          echo "vendor_hash=${VENDOR_HASH}" >> $GITHUB_OUTPUT
-          echo "Calculated vendorHash: ${VENDOR_HASH}"
-
-      - name: Calculate outputHash (Bun frontend dependencies)
-        id: output_hash
-        if: steps.check.outputs.needs_update == 'true'
-        run: |
-          FAKE_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-          VENDOR_HASH="${{ steps.vendor_hash.outputs.vendor_hash }}"
-
-          # Set correct vendorHash so only the outputHash triggers an error
-          sed -i "s|vendorHash = \".*\";|vendorHash = \"${VENDOR_HASH}\";|" flake.nix
-          sed -i "s|outputHash = \".*\";|outputHash = \"${FAKE_HASH}\";|" flake.nix
-
-          BUILD_OUTPUT=$(nix build .#packages.x86_64-linux.default --no-link 2>&1 || true)
-          echo "$BUILD_OUTPUT"
-
-          OUTPUT_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "got:\s+\K(sha256-[A-Za-z0-9+/=]+)" | head -1)
-
-          if [ -z "$OUTPUT_HASH" ]; then
-            OUTPUT_HASH=$(echo "$BUILD_OUTPUT" | grep -oP "sha256-[A-Za-z0-9+/=]+" | grep -v "${FAKE_HASH}" | head -1)
-          fi
-
+          OUTPUT_HASH=$(echo "$BUILD_OUTPUT" | grep -A2 "hash mismatch in fixed-output derivation '[^']*-frontend-deps-" | grep -oP "got:\s+\K(sha256-[A-Za-z0-9+/=]+)" | head -1)
           if [ -z "$OUTPUT_HASH" ]; then
             echo "Failed to extract outputHash from build output"
-            echo "=== Full build output ==="
-            echo "$BUILD_OUTPUT"
             exit 1
           fi
 
           echo "output_hash=${OUTPUT_HASH}" >> $GITHUB_OUTPUT
           echo "Calculated outputHash: ${OUTPUT_HASH}"
+
+      - name: Calculate vendorHash (Go dependencies)
+        id: vendor_hash
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          OUTPUT_HASH="${{ steps.output_hash.outputs.output_hash }}"
+          sed -i "s|outputHash = \".*\";|outputHash = \"${OUTPUT_HASH}\";|" flake.nix
+
+          BUILD_OUTPUT=$(nix build .#packages.x86_64-linux.default --no-link 2>&1 || true)
+          echo "$BUILD_OUTPUT"
+
+          VENDOR_HASH=$(echo "$BUILD_OUTPUT" | grep -A2 "hash mismatch in fixed-output derivation '[^']*-go-modules.drv" | grep -oP "got:\s+\K(sha256-[A-Za-z0-9+/=]+)" | head -1)
+          if [ -z "$VENDOR_HASH" ]; then
+            echo "Failed to extract vendorHash from build output"
+            exit 1
+          fi
+
+          echo "vendor_hash=${VENDOR_HASH}" >> $GITHUB_OUTPUT
+          echo "Calculated vendorHash: ${VENDOR_HASH}"
 
       - name: Update hashes in flake.nix
         if: steps.check.outputs.needs_update == 'true'
