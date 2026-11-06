@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.6.0](https://github.com/viicslen/gitura/compare/v0.5.1...v0.6.0) (2026-11-06)
+
+
+### Features
+
+* command output streaming ([dddbf6d](https://github.com/viicslen/gitura/commit/dddbf6d688ce0c74fde03b87d53d06adc30947f6))
+* **review:** add a PR overview tab with reviews and general comments ([f9de0eb](https://github.com/viicslen/gitura/commit/f9de0eba09401999dea6bdec097c6f64cbb0b83b))
+* **review:** JetBrains-style side-by-side diff with inline threads and reviewing ([cfdc876](https://github.com/viicslen/gitura/commit/cfdc8764cd5676f212b77a206e2eef5051ff08cb))
+* **review:** review PRs in a JetBrains-style split diff with threads inline ([#16](https://github.com/viicslen/gitura/issues/16)) ([801039e](https://github.com/viicslen/gitura/commit/801039e5f46664aa8fc7b6c4fd003829bc77d331))
+* **review:** scroll split diff panes in sync through change blocks ([35b5f43](https://github.com/viicslen/gitura/commit/35b5f435a4097ce0213560e281101b807d875f49))
+* **review:** show changed files as a folder tree in a resizable sidebar ([70feea2](https://github.com/viicslen/gitura/commit/70feea2996467f958cba05b5857ab9a463c6cbce))
+
+
+### Bug Fixes
+
+* handle avatars correctly ([4603bfd](https://github.com/viicslen/gitura/commit/4603bfd445711c6469179b77a3a8e94c54fa3751))
+* **nix:** build the dev shell with the current Go toolchain ([f9a1d06](https://github.com/viicslen/gitura/commit/f9a1d06a66bfcb0762775841e3c0b646a2a75a9d))
+* **nix:** update stale flake hashes and compute them in dependency order ([6756ecd](https://github.com/viicslen/gitura/commit/6756ecd9904562423467d78920a03fc3f161eddf))
+* **pr-list:** show a retryable error when GitHub search is unavailable ([8ffd31e](https://github.com/viicslen/gitura/commit/8ffd31e88c9ed520c699843e7f239a6c6c64e4c0))
+* **review:** stop the shorter diff pane bouncing while scrolling ([20a71cf](https://github.com/viicslen/gitura/commit/20a71cf89c1936e875a04e54d01567faa1666a49))
+
 ## [0.5.1](https://github.com/viicslen/gitura/compare/v0.5.0...v0.5.1) (2026-09-29)
 
 
