@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js/lib/common'
@@ -33,6 +33,28 @@ marked.use({
 })
 
 const containerRef = ref<HTMLElement | null>(null)
+function closeOpenDropdowns(): void {
+  const container = containerRef.value
+  if (!container) return
+
+  container.querySelectorAll<HTMLElement>('.run-dropdown.open').forEach((dropdown) => {
+    dropdown.classList.remove('open')
+  })
+}
+
+function handleDocumentClick(event: MouseEvent): void {
+  const target = event.target
+  if (!(target instanceof Element)) {
+    closeOpenDropdowns()
+    return
+  }
+
+  if (target.closest('.run-split')) {
+    return
+  }
+
+  closeOpenDropdowns()
+}
 
 const html = computed(() => {
   if (!props.content) return ''
@@ -132,9 +154,6 @@ async function attachCopyButtons(): Promise<void> {
           dropdown.classList.toggle('open')
         })
 
-        // Close on outside click
-        document.addEventListener('click', () => dropdown.classList.remove('open'))
-
         splitWrap.appendChild(chevronBtn)
         splitWrap.appendChild(dropdown)
       }
@@ -147,6 +166,9 @@ async function attachCopyButtons(): Promise<void> {
 }
 
 watch(html, attachCopyButtons, { immediate: true })
+
+onMounted(() => document.addEventListener('click', handleDocumentClick))
+onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick))
 </script>
 
 <template>
