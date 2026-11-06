@@ -16,6 +16,7 @@ import DiffFileView from './DiffFileView.vue'
 import { useDiffReview } from '@/composables/useDiffReview'
 import type { model } from '@/wailsjs/go/models'
 import { toast } from 'vue-sonner'
+import { useLocalStorage } from '@vueuse/core'
 
 const props = defineProps<{
   threads: model.CommentThreadDTO[]
@@ -67,6 +68,23 @@ const unresolvedCounts = computed(() => {
   }
   return counts
 })
+const SIDEBAR_MIN = 180
+const SIDEBAR_MAX = 640
+const sidebarWidth = useLocalStorage('gitura.diffSidebarWidth', 256)
+const clampWidth = (w: number) => Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w)))
+let resizeFrom: { x: number; width: number } | null = null
+
+function startResize(event: PointerEvent): void {
+  resizeFrom = { x: event.clientX, width: sidebarWidth.value }
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+const stopResize = () => (resizeFrom = null)
+
+function resize(event: PointerEvent): void {
+  if (resizeFrom) sidebarWidth.value = clampWidth(resizeFrom.width + event.clientX - resizeFrom.x)
+}
+
 const pendingCount = computed(() => pendingReview.value?.comments.length ?? 0)
 const draftsStale = computed(() => {
   const pinned = pendingReview.value?.head_sha
@@ -236,7 +254,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
     <!-- ── Main split ─────────────────────────────────────────────────────── -->
     <div v-else class="flex flex-1 min-h-0 overflow-hidden">
       <!-- Sidebar -->
-      <div class="w-64 shrink-0 overflow-hidden">
+      <div class="shrink-0 overflow-hidden" :style="{ width: `${clampWidth(sidebarWidth)}px` }">
         <DiffFileSidebar
           :files="files"
           :comment-counts="unresolvedCounts"
@@ -245,6 +263,22 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           @select="selectFile"
         />
       </div>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize file list"
+        :aria-valuenow="clampWidth(sidebarWidth)"
+        :aria-valuemin="SIDEBAR_MIN"
+        :aria-valuemax="SIDEBAR_MAX"
+        tabindex="0"
+        class="-ml-1 w-1 shrink-0 cursor-col-resize touch-none outline-none hover:bg-primary/40 focus-visible:bg-primary/40"
+        @pointerdown="startResize"
+        @pointermove="resize"
+        @pointerup="stopResize"
+        @pointercancel="stopResize"
+        @keydown.left.prevent="sidebarWidth = clampWidth(sidebarWidth - 16)"
+        @keydown.right.prevent="sidebarWidth = clampWidth(sidebarWidth + 16)"
+      />
 
       <!-- Diff panel -->
       <div class="flex-1 flex flex-col min-h-0 overflow-hidden">

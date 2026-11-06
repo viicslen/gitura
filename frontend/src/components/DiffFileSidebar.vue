@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { MessageSquare } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
+import { ChevronDown, ChevronRight, MessageSquare } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import type { model } from '@/wailsjs/go/models'
+import { buildFileTree, flattenFileTree } from '@/lib/fileTree'
 
 const props = defineProps<{
   files: model.PRFileDTO[]
@@ -36,19 +37,27 @@ function statusInfo(status: string): StatusInfo {
   }
 }
 
-const fileItems = computed(() =>
-  props.files.map((f) => ({
-    ...f,
-    status: statusInfo(f.status),
-    displayName: f.filename.split('/').pop() ?? f.filename,
-    dirName: f.filename.includes('/') ? f.filename.slice(0, f.filename.lastIndexOf('/')) : '',
-  })),
-)
+const tree = computed(() => buildFileTree(props.files))
+const collapsed = ref(new Set<string>())
+const rows = computed(() => flattenFileTree(tree.value, collapsed.value))
 
-function handleKeydown(event: KeyboardEvent, path: string): void {
+function toggle(path: string): void {
+  const next = new Set(collapsed.value)
+  if (!next.delete(path)) next.add(path)
+  collapsed.value = next
+}
+
+// Keep the selected file visible when it is reached with next/previous file.
+watch(() => props.selectedPath, (path) => {
+  if (!path) return
+  const next = new Set([...collapsed.value].filter((dir) => !path.startsWith(`${dir}/`)))
+  if (next.size !== collapsed.value.size) collapsed.value = next
+})
+
+function handleKeydown(event: KeyboardEvent, action: () => void): void {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
-    emit('select', path)
+    action()
   }
 }
 </script>
@@ -74,51 +83,64 @@ function handleKeydown(event: KeyboardEvent, path: string): void {
 
     <!-- File list -->
     <div v-else class="flex-1 overflow-y-auto min-h-0">
-      <ul role="listbox" aria-label="Changed files list" class="p-1">
-        <li
-          v-for="file in fileItems"
-          :key="file.filename"
-          role="option"
-          :aria-selected="file.filename === selectedPath"
-          :tabindex="0"
-          class="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer select-none text-xs outline-none
-                 hover:bg-accent hover:text-accent-foreground
-                 focus-visible:ring-2 focus-visible:ring-ring
-                 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
-          :data-selected="file.filename === selectedPath"
-          @click="emit('select', file.filename)"
-          @keydown="handleKeydown($event, file.filename)"
-        >
-          <!-- Status badge -->
-          <Badge
-            :variant="file.status.variant"
-            class="shrink-0 w-4 h-4 p-0 flex items-center justify-center text-[10px] font-bold"
-            :aria-label="file.status.label === 'A' ? 'Added' : file.status.label === 'D' ? 'Deleted' : file.status.label === 'R' ? 'Renamed' : 'Modified'"
+      <ul role="tree" aria-label="Changed files list" class="p-1">
+        <template v-for="row in rows" :key="row.type === 'dir' ? `dir:${row.path}` : row.file.filename">
+          <li
+            v-if="row.type === 'dir'"
+            role="treeitem"
+            :aria-level="row.depth + 1"
+            :aria-expanded="row.expanded"
+            :tabindex="0"
+            :title="row.path"
+            class="flex items-center gap-1 rounded-md py-1 pr-2 cursor-pointer select-none text-xs text-muted-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+            :style="{ paddingLeft: `${row.depth * 12 + 4}px` }"
+            @click="toggle(row.path)"
+            @keydown="handleKeydown($event, () => toggle(row.path))"
           >
-            {{ file.status.label }}
-          </Badge>
-
-          <!-- Filename -->
-          <span class="flex-1 min-w-0 truncate" :title="file.filename">
-            <span v-if="file.dirName" class="text-muted-foreground">{{ file.dirName }}/</span>
-            <span class="font-medium">{{ file.displayName }}</span>
-          </span>
-
-          <span
-            v-if="commentCounts?.[file.filename]"
-            class="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground"
-            :aria-label="`${commentCounts[file.filename]} unresolved comments`"
+            <component :is="row.expanded ? ChevronDown : ChevronRight" class="h-3.5 w-3.5 shrink-0" />
+            <span class="min-w-0 truncate">{{ row.name }}</span>
+          </li>
+          <li
+            v-else
+            role="treeitem"
+            :aria-level="row.depth + 1"
+            :aria-selected="row.file.filename === selectedPath"
+            :tabindex="0"
+            :title="row.file.filename"
+            class="flex items-center gap-2 py-1.5 pr-2 rounded-md cursor-pointer select-none text-xs outline-none
+                   hover:bg-accent hover:text-accent-foreground
+                   focus-visible:ring-2 focus-visible:ring-ring
+                   data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
+            :style="{ paddingLeft: `${row.depth * 12 + 8}px` }"
+            :data-selected="row.file.filename === selectedPath"
+            @click="emit('select', row.file.filename)"
+            @keydown="handleKeydown($event, () => emit('select', row.file.filename))"
           >
-            <MessageSquare class="h-3 w-3" />{{ commentCounts[file.filename] }}
-          </span>
+            <Badge
+              :variant="statusInfo(row.file.status).variant"
+              class="shrink-0 w-4 h-4 p-0 flex items-center justify-center text-[10px] font-bold"
+              :aria-label="row.file.status === 'added' ? 'Added' : row.file.status === 'removed' ? 'Deleted' : row.file.status === 'renamed' ? 'Renamed' : 'Modified'"
+            >
+              {{ statusInfo(row.file.status).label }}
+            </Badge>
 
-          <!-- +/- counts -->
-          <span v-if="!file.is_binary" class="shrink-0 flex gap-1 text-[10px]">
-            <span v-if="file.additions > 0" class="text-green-600 dark:text-green-400">+{{ file.additions }}</span>
-            <span v-if="file.deletions > 0" class="text-red-500 dark:text-red-400">-{{ file.deletions }}</span>
-          </span>
-          <span v-else class="text-[10px] text-muted-foreground shrink-0">bin</span>
-        </li>
+            <span class="flex-1 min-w-0 truncate font-medium">{{ row.name }}</span>
+
+            <span
+              v-if="commentCounts?.[row.file.filename]"
+              class="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground"
+              :aria-label="`${commentCounts[row.file.filename]} unresolved comments`"
+            >
+              <MessageSquare class="h-3 w-3" />{{ commentCounts[row.file.filename] }}
+            </span>
+
+            <span v-if="!row.file.is_binary" class="shrink-0 flex gap-1 text-[10px]">
+              <span v-if="row.file.additions > 0" class="text-green-600 dark:text-green-400">+{{ row.file.additions }}</span>
+              <span v-if="row.file.deletions > 0" class="text-red-500 dark:text-red-400">-{{ row.file.deletions }}</span>
+            </span>
+            <span v-else class="text-[10px] text-muted-foreground shrink-0">bin</span>
+          </li>
+        </template>
       </ul>
     </div>
   </div>
