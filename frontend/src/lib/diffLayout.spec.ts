@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSplitLayout, diffLineKeys, mapOffset, type PaneItem } from './diffLayout'
+import { buildSplitLayout, diffLineKeys, mapOffset, syncScrollTop, type PaneItem } from './diffLayout'
 import type { model } from '@/wailsjs/go/models'
 
 const ctx = (o: number, n: number) => ({ type: 'context', old_no: o, new_no: n, content: `c${o}` })
@@ -68,6 +68,33 @@ describe('mapOffset', () => {
   it('continues 1:1 past the ends', () => {
     expect(mapOffset(points, 320)).toBe(240)
     expect(mapOffset([], 7)).toBe(7)
+  })
+})
+
+describe('syncScrollTop', () => {
+  // Left: 1000px unchanged, a 400px block the right side doesn't have, then 1000px unchanged.
+  const leftToRight: [number, number][] = [[0, 0], [1000, 1000], [1400, 1000], [2400, 2000]]
+  const rightToLeft = leftToRight.map(([l, r]): [number, number] => [r, l])
+  const sweep = (points: [number, number][], max: number, followerMax: number) =>
+    Array.from({ length: max + 1 }, (_, t) => syncScrollTop(points, t, max, followerMax, 600))
+
+  it('never moves the follower backwards, whichever pane drives', () => {
+    for (const ys of [sweep(leftToRight, 1800, 1400), sweep(rightToLeft, 1400, 1800)]) {
+      expect(ys.every((y, i) => i === 0 || y >= ys[i - 1])).toBe(true)
+    }
+  })
+
+  it('starts and ends both panes together', () => {
+    const ys = sweep(leftToRight, 1800, 1400)
+    expect([ys[0], ys[1800]]).toEqual([0, 1400])
+  })
+
+  it('lines up the middle of both viewports away from the ends', () => {
+    // Left top 500 puts left 800 mid-viewport, which is unchanged and maps to right 800.
+    expect(syncScrollTop(leftToRight, 500, 1800, 1400, 600)).toBe(500)
+    // Mid-viewport inside the left-only block, the right holds at the block's insertion point.
+    expect(syncScrollTop(leftToRight, 900, 1800, 1400, 600)).toBe(700)
+    expect(syncScrollTop(leftToRight, 1000, 1800, 1400, 600)).toBe(700)
   })
 })
 

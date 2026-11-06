@@ -132,6 +132,32 @@ export function mapOffset(points: [number, number][], y: number): number {
   return s0 + ((y - m0) / (m1 - m0)) * (s1 - s0)
 }
 
+/**
+ * Where the follower pane should scroll when the driving pane is at `top`. Lines at
+ * the middle of both viewports line up; over the first and last half-viewport of
+ * scrolling the follower eases to its own top and bottom, so both panes reach their
+ * ends together. The result never decreases as `top` grows, so the follower can't
+ * bounce back while the driver passes lines the follower doesn't have.
+ */
+export function syncScrollTop(
+  points: [number, number][],
+  top: number,
+  maxTop: number,
+  followerMaxTop: number,
+  viewport: number,
+): number {
+  const half = viewport / 2
+  const middle = (t: number) => Math.max(0, Math.min(followerMaxTop, mapOffset(points, t + half) - half))
+  if (maxTop <= 0) return 0
+  const edge = Math.min(half, maxTop / 2)
+  if (top <= edge) return middle(edge) * (Math.max(0, top) / edge)
+  if (top >= maxTop - edge) {
+    const from = middle(maxTop - edge)
+    return from + (followerMaxTop - from) * (Math.min(top, maxTop) - (maxTop - edge)) / edge
+  }
+  return middle(top)
+}
+
 /** Every anchor key that maps to a visible line in the diff. */
 export function diffLineKeys(hunks: model.DiffHunkDTO[]): Set<string> {
   const keys = new Set<string>()

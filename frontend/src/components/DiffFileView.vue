@@ -8,7 +8,7 @@ import InlineCommentForm from './InlineCommentForm.vue'
 import DiffPendingComment from './DiffPendingComment.vue'
 import type { model } from '@/wailsjs/go/models'
 import { langFromPath } from '@/lib/lang'
-import { anchorKey, buildSplitLayout, diffLineKeys, mapOffset, type BlockKind, type Edge, type LineSelection, type Side } from '@/lib/diffLayout'
+import { anchorKey, buildSplitLayout, diffLineKeys, syncScrollTop, type BlockKind, type Edge, type LineSelection, type Side } from '@/lib/diffLayout'
 
 const props = defineProps<{
   file: model.PRFileDTO
@@ -232,12 +232,14 @@ function onScroll(side: Side): void {
   const other: Side = side === 'LEFT' ? 'RIGHT' : 'LEFT'
   const target = scrollEls[other].value
   if (!target || !syncPoints.value.length) return
-  // The anchor slides from the viewport's top to its bottom as the pane scrolls, so both panes reach their ends together.
-  const max = el.scrollHeight - el.clientHeight
-  const anchor = el.scrollTop + el.clientHeight * (max > 0 ? el.scrollTop / max : 0)
   const points = side === 'LEFT' ? syncPoints.value : syncPoints.value.map(([l, r]): [number, number] => [r, l])
-  const next = mapOffset(points, anchor) - (anchor - el.scrollTop)
-  target.scrollTop = Math.max(0, Math.min(next, target.scrollHeight - target.clientHeight))
+  target.scrollTop = syncScrollTop(
+    points,
+    el.scrollTop,
+    el.scrollHeight - el.clientHeight,
+    target.scrollHeight - target.clientHeight,
+    el.clientHeight,
+  )
   scrollTop[other] = target.scrollTop
 }
 
