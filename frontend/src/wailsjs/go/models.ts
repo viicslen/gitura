@@ -33,6 +33,7 @@ export namespace model {
 	export class CommentDTO {
 	    id: number;
 	    in_reply_to_id: number;
+	    review_id: number;
 	    body: string;
 	    author_login: string;
 	    author_avatar: string;
@@ -48,6 +49,7 @@ export namespace model {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.in_reply_to_id = source["in_reply_to_id"];
+	        this.review_id = source["review_id"];
 	        this.body = source["body"];
 	        this.author_login = source["author_login"];
 	        this.author_avatar = source["author_avatar"];
@@ -58,11 +60,13 @@ export namespace model {
 	}
 	export class CommentThreadDTO {
 	    root_id: number;
+	    review_id: number;
 	    node_id: string;
 	    comments: CommentDTO[];
 	    resolved: boolean;
 	    path: string;
 	    line: number;
+	    side: string;
 	    outdated: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -72,11 +76,13 @@ export namespace model {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.root_id = source["root_id"];
+	        this.review_id = source["review_id"];
 	        this.node_id = source["node_id"];
 	        this.comments = this.convertValues(source["comments"], CommentDTO);
 	        this.resolved = source["resolved"];
 	        this.path = source["path"];
 	        this.line = source["line"];
+	        this.side = source["side"];
 	        this.outdated = source["outdated"];
 	    }
 	
@@ -211,6 +217,30 @@ export namespace model {
 	        this.login = source["login"];
 	    }
 	}
+	export class PRCommentDTO {
+	    id: number;
+	    body: string;
+	    author_login: string;
+	    author_avatar: string;
+	    created_at: string;
+	    updated_at: string;
+	    html_url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PRCommentDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.body = source["body"];
+	        this.author_login = source["author_login"];
+	        this.author_avatar = source["author_avatar"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.html_url = source["html_url"];
+	    }
+	}
 	export class PRFileDTO {
 	    filename: string;
 	    status: string;
@@ -331,6 +361,118 @@ export namespace model {
 		    return a;
 		}
 	}
+	export class ReviewOverviewDTO {
+	    review_id: number;
+	    state: string;
+	    body: string;
+	    author_login: string;
+	    author_avatar: string;
+	    submitted_at: string;
+	    html_url: string;
+	    all_threads_resolved: boolean;
+	    has_threads: boolean;
+	    resolved_thread_count: number;
+	    total_thread_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewOverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.review_id = source["review_id"];
+	        this.state = source["state"];
+	        this.body = source["body"];
+	        this.author_login = source["author_login"];
+	        this.author_avatar = source["author_avatar"];
+	        this.submitted_at = source["submitted_at"];
+	        this.html_url = source["html_url"];
+	        this.all_threads_resolved = source["all_threads_resolved"];
+	        this.has_threads = source["has_threads"];
+	        this.resolved_thread_count = source["resolved_thread_count"];
+	        this.total_thread_count = source["total_thread_count"];
+	    }
+	}
+	export class PullRequestSummary {
+	    id: number;
+	    number: number;
+	    title: string;
+	    state: string;
+	    is_draft: boolean;
+	    body: string;
+	    head_branch: string;
+	    head_owner: string;
+	    head_repo: string;
+	    base_branch: string;
+	    head_sha: string;
+	    node_id: string;
+	    html_url: string;
+	    author_login: string;
+	    owner: string;
+	    repo: string;
+	    comment_count: number;
+	    unresolved_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PullRequestSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.number = source["number"];
+	        this.title = source["title"];
+	        this.state = source["state"];
+	        this.is_draft = source["is_draft"];
+	        this.body = source["body"];
+	        this.head_branch = source["head_branch"];
+	        this.head_owner = source["head_owner"];
+	        this.head_repo = source["head_repo"];
+	        this.base_branch = source["base_branch"];
+	        this.head_sha = source["head_sha"];
+	        this.node_id = source["node_id"];
+	        this.html_url = source["html_url"];
+	        this.author_login = source["author_login"];
+	        this.owner = source["owner"];
+	        this.repo = source["repo"];
+	        this.comment_count = source["comment_count"];
+	        this.unresolved_count = source["unresolved_count"];
+	    }
+	}
+	export class PROverviewDTO {
+	    summary: PullRequestSummary;
+	    general_comments: PRCommentDTO[];
+	    reviews: ReviewOverviewDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PROverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.summary = this.convertValues(source["summary"], PullRequestSummary);
+	        this.general_comments = this.convertValues(source["general_comments"], PRCommentDTO);
+	        this.reviews = this.convertValues(source["reviews"], ReviewOverviewDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ParsedDiffDTO {
 	    filename: string;
 	    previous_filename?: string;
@@ -377,6 +519,7 @@ export namespace model {
 	    review_id: number;
 	    comments: DraftCommentDTO[];
 	    has_pending: boolean;
+	    head_sha: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PendingReviewDTO(source);
@@ -387,6 +530,7 @@ export namespace model {
 	        this.review_id = source["review_id"];
 	        this.comments = this.convertValues(source["comments"], DraftCommentDTO);
 	        this.has_pending = source["has_pending"];
+	        this.head_sha = source["head_sha"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -423,46 +567,8 @@ export namespace model {
 	        this.interval = source["interval"];
 	    }
 	}
-	export class PullRequestSummary {
-	    id: number;
-	    number: number;
-	    title: string;
-	    state: string;
-	    is_draft: boolean;
-	    body: string;
-	    head_branch: string;
-	    base_branch: string;
-	    head_sha: string;
-	    node_id: string;
-	    html_url: string;
-	    owner: string;
-	    repo: string;
-	    comment_count: number;
-	    unresolved_count: number;
 	
-	    static createFrom(source: any = {}) {
-	        return new PullRequestSummary(source);
-	    }
 	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.number = source["number"];
-	        this.title = source["title"];
-	        this.state = source["state"];
-	        this.is_draft = source["is_draft"];
-	        this.body = source["body"];
-	        this.head_branch = source["head_branch"];
-	        this.base_branch = source["base_branch"];
-	        this.head_sha = source["head_sha"];
-	        this.node_id = source["node_id"];
-	        this.html_url = source["html_url"];
-	        this.owner = source["owner"];
-	        this.repo = source["repo"];
-	        this.comment_count = source["comment_count"];
-	        this.unresolved_count = source["unresolved_count"];
-	    }
-	}
 	export class ReviewSubmitDTO {
 	    body?: string;
 	    verdict: string;

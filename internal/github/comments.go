@@ -46,6 +46,7 @@ type graphQLPageInfo struct {
 type graphQLThread struct {
 	ID         string                   `json:"id"`
 	IsResolved bool                     `json:"isResolved"`
+	DiffSide   string                   `json:"diffSide"`
 	Comments   graphQLCommentConnection `json:"comments"`
 }
 
@@ -57,6 +58,7 @@ type graphQLComment struct {
 	DatabaseID   int64           `json:"databaseId"`
 	Body         string          `json:"body"`
 	Author       graphQLActor    `json:"author"`
+	Review       *graphQLReview  `json:"pullRequestReview"`
 	Path         string          `json:"path"`
 	Line         *int            `json:"line"`
 	OriginalLine *int            `json:"originalLine"`
@@ -75,6 +77,10 @@ type graphQLReplyTo struct {
 	DatabaseID int64 `json:"databaseId"`
 }
 
+type graphQLReview struct {
+	DatabaseID int64 `json:"databaseId"`
+}
+
 type graphQLError struct {
 	Message string `json:"message"`
 }
@@ -90,11 +96,13 @@ query($owner: String!, $repo: String!, $number: Int!, $after: String) {
         nodes {
           id
           isResolved
+          diffSide
           comments(first: 100) {
             nodes {
               databaseId
               body
               author { login avatarUrl }
+              pullRequestReview { databaseId }
               path
               line
               originalLine
@@ -239,15 +247,25 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 		outdated = true
 	}
 
+	side := node.DiffSide
+	if side == "" {
+		side = "RIGHT"
+	}
+
 	comments := make([]model.CommentDTO, 0, len(node.Comments.Nodes))
 	for _, c := range node.Comments.Nodes {
 		var replyToID int64
+		var reviewID int64
 		if c.ReplyTo != nil {
 			replyToID = c.ReplyTo.DatabaseID
+		}
+		if c.Review != nil {
+			reviewID = c.Review.DatabaseID
 		}
 		comments = append(comments, model.CommentDTO{
 			ID:           c.DatabaseID,
 			InReplyToID:  replyToID,
+			ReviewID:     reviewID,
 			Body:         c.Body,
 			AuthorLogin:  c.Author.Login,
 			AuthorAvatar: c.Author.AvatarURL,
@@ -259,11 +277,13 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 
 	return model.CommentThreadDTO{
 		RootID:   root.DatabaseID,
+		ReviewID: comments[0].ReviewID,
 		NodeID:   node.ID,
 		Comments: comments,
 		Resolved: node.IsResolved,
 		Path:     root.Path,
 		Line:     line,
+		Side:     side,
 		Outdated: outdated,
 	}
 }

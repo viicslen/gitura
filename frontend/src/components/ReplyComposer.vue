@@ -1,5 +1,14 @@
+<script lang="ts">
+import { reactive } from 'vue'
+
+// Per thread, shared by every composer showing it (Conversation and Files tabs), so hiding,
+// collapsing or switching tabs keeps unsent text and a thread can't be sent twice at once.
+const replyDrafts = reactive<Record<number, string>>({})
+const sendingThreads = reactive<Record<number, boolean>>({})
+</script>
+
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { model } from '../wailsjs/go/models'
 import { ReplyToComment } from '../wailsjs/go/main/App'
 import { Button } from '@/components/ui/button'
@@ -13,23 +22,31 @@ const emit = defineEmits<{
   (e: 'reply-sent', comment: model.CommentDTO): void
 }>()
 
-const draft = ref('')
-const submitting = ref(false)
+const draft = computed({
+  get: () => replyDrafts[props.threadRootId] ?? '',
+  set: (value: string) => {
+    if (value) replyDrafts[props.threadRootId] = value
+    else delete replyDrafts[props.threadRootId]
+  },
+})
+const submitting = computed(() => !!sendingThreads[props.threadRootId])
 const inlineError = ref('')
 
 async function submit(): Promise<void> {
   if (!draft.value.trim() || submitting.value) return
-  submitting.value = true
+  const rootId = props.threadRootId
+  const sent = draft.value
+  sendingThreads[rootId] = true
   inlineError.value = ''
 
   try {
-    const comment = await ReplyToComment(props.threadRootId, draft.value)
-    draft.value = ''
+    const comment = await ReplyToComment(rootId, sent)
+    if (replyDrafts[rootId] === sent) delete replyDrafts[rootId]
     emit('reply-sent', comment)
   } catch (err) {
     inlineError.value = String(err)
   } finally {
-    submitting.value = false
+    delete sendingThreads[rootId]
   }
 }
 

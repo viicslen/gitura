@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { MessageSquare } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import type { model } from '@/wailsjs/go/models'
 
@@ -7,6 +8,8 @@ const props = defineProps<{
   files: model.PRFileDTO[]
   selectedPath: string | null
   loading?: boolean
+  /** Unresolved thread count per file path. */
+  commentCounts?: Record<string, number>
 }>()
 
 const emit = defineEmits<{
@@ -99,6 +102,14 @@ function handleKeydown(event: KeyboardEvent, path: string): void {
           <span class="flex-1 min-w-0 truncate" :title="file.filename">
             <span v-if="file.dirName" class="text-muted-foreground">{{ file.dirName }}/</span>
             <span class="font-medium">{{ file.displayName }}</span>
+          </span>
+
+          <span
+            v-if="commentCounts?.[file.filename]"
+            class="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground"
+            :aria-label="`${commentCounts[file.filename]} unresolved comments`"
+          >
+            <MessageSquare class="h-3 w-3" />{{ commentCounts[file.filename] }}
           </span>
 
           <!-- +/- counts -->

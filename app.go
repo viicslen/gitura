@@ -33,11 +33,13 @@ type App struct {
 	ghClient *github.Client
 
 	// Cached PR data populated by LoadPullRequest.
-	prOwner  string
-	prRepo   string
-	prNumber int
-	prCache  *model.PullRequestSummary
-	threads  []model.CommentThreadDTO
+	prOwner    string
+	prRepo     string
+	prNumber   int
+	prCache    *model.PullRequestSummary
+	threads    []model.CommentThreadDTO
+	prComments []model.PRCommentDTO
+	reviews    []model.ReviewOverviewDTO
 
 	// prFilesCache holds the raw CommitFile list from the GitHub ListFiles API.
 	// Populated lazily by GetPRFiles; cleared on LoadPullRequest.
@@ -46,6 +48,8 @@ type App struct {
 	// Pending review state. pendingReviewID is 0 when no pending review exists.
 	pendingReviewID int64
 	pendingComments []model.DraftCommentDTO
+	// pendingHeadSHA is the commit the drafts' line numbers refer to; the PR head can move before submit.
+	pendingHeadSHA string
 
 	// ignoredCommenters is the persisted list of commenters to filter from review threads.
 	// Lazily loaded on first use via loadConfig.
@@ -335,6 +339,18 @@ func (a *App) LoadPullRequest(owner, repo string, number int) (model.PullRequest
 	}
 
 	filtered := filterIgnoredThreads(threads, ignoredSet)
+	comments, err := githubclient.ListPRComments(a.ctx, a.ghClient, owner, repo, number)
+	if err != nil {
+		logger.L.Error("ListPRComments failed", "err", err)
+		return model.PullRequestSummary{}, err
+	}
+	reviews, err := githubclient.ListPRReviews(a.ctx, a.ghClient, owner, repo, number)
+	if err != nil {
+		logger.L.Error("ListPRReviews failed", "err", err)
+		return model.PullRequestSummary{}, err
+	}
+	filteredComments := filterIgnoredPRComments(comments, ignoredSet)
+	decoratedReviews := githubclient.DecorateReviewsWithThreadStatus(filterIgnoredReviews(reviews, ignoredSet), filtered)
 
 	commentCount := len(filtered)
 	unresolvedCount := countUnresolved(filtered)
@@ -344,22 +360,33 @@ func (a *App) LoadPullRequest(owner, repo string, number int) (model.PullRequest
 	pr.Owner = owner
 	pr.Repo = repo
 
+	samePR := a.isLoadedPR(owner, repo, number)
+
 	// Cache for subsequent GetCommentThreads / GetThread calls.
 	a.prOwner = owner
 	a.prRepo = repo
 	a.prNumber = number
 	a.prCache = pr
 	a.threads = filtered
-	// Clear diff and review caches for the new PR.
+	a.prComments = filteredComments
+	a.reviews = decoratedReviews
 	a.prFilesCache = nil
-	a.pendingReviewID = 0
-	a.pendingComments = nil
+	// Draft comments live only in memory; a refresh of the same PR must not drop them.
+	if !samePR {
+		a.pendingReviewID = 0
+		a.pendingComments = nil
+		a.pendingHeadSHA = ""
+	}
 
 	logger.L.Info("LoadPullRequest complete",
 		"threads", len(filtered),
 		"unresolved", unresolvedCount,
 	)
 	return *pr, nil
+}
+
+func (a *App) isLoadedPR(owner, repo string, number int) bool {
+	return a.prCache != nil && a.prOwner == owner && a.prRepo == repo && a.prNumber == number
 }
 
 // filterIgnoredThreads returns threads whose root comment author is not in ignored.
@@ -376,6 +403,57 @@ func filterIgnoredThreads(threads []model.CommentThreadDTO, ignored map[string]s
 		}
 	}
 	return filtered
+}
+
+// filterIgnoredPRComments returns general PR comments whose authors are not ignored.
+func filterIgnoredPRComments(comments []model.PRCommentDTO, ignored map[string]struct{}) []model.PRCommentDTO {
+	filtered := make([]model.PRCommentDTO, 0, len(comments))
+	for _, c := range comments {
+		if _, ok := ignored[c.AuthorLogin]; ok {
+			continue
+		}
+		filtered = append(filtered, c)
+	}
+	return filtered
+}
+
+// filterIgnoredReviews returns reviews whose authors are not ignored.
+func filterIgnoredReviews(reviews []model.ReviewOverviewDTO, ignored map[string]struct{}) []model.ReviewOverviewDTO {
+	filtered := make([]model.ReviewOverviewDTO, 0, len(reviews))
+	for _, r := range reviews {
+		if _, ok := ignored[r.AuthorLogin]; ok {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	return filtered
+}
+
+// GetPROverview returns the cached overview data for the loaded PR.
+// When includeResolvedReviews is false, reviews whose child conversations are all
+// resolved are excluded. Empty reviews with no linked threads are always hidden.
+func (a *App) GetPROverview(includeResolvedReviews bool) (model.PROverviewDTO, error) {
+	if a.prCache == nil {
+		return model.PROverviewDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+	comments := make([]model.PRCommentDTO, len(a.prComments))
+	copy(comments, a.prComments)
+	reviews := make([]model.ReviewOverviewDTO, 0, len(a.reviews))
+	for _, review := range a.reviews {
+		isVerdict := review.State == "APPROVED" || review.State == "CHANGES_REQUESTED"
+		if strings.TrimSpace(review.Body) == "" && !review.HasThreads && !isVerdict {
+			continue
+		}
+		if !includeResolvedReviews && review.AllThreadsResolved {
+			continue
+		}
+		reviews = append(reviews, review)
+	}
+	return model.PROverviewDTO{
+		Summary:         *a.prCache,
+		GeneralComments: comments,
+		Reviews:         reviews,
+	}, nil
 }
 
 // countUnresolved returns the number of unresolved threads in the slice.
@@ -408,6 +486,39 @@ func (a *App) GetCommentThreads(includeResolved bool) ([]model.CommentThreadDTO,
 	return result, nil
 }
 
+// ReloadReviewActivity re-fetches review threads and submitted reviews for the
+// loaded PR so newly posted comments and reviews appear. Returns all threads, resolved included.
+// Error prefixes: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+func (a *App) ReloadReviewActivity() ([]model.CommentThreadDTO, error) {
+	if a.ghClient == nil {
+		return nil, fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return nil, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+	owner, repo, number := a.prOwner, a.prRepo, a.prNumber
+	threads, err := githubclient.FetchReviewThreads(
+		a.ctx, githubclient.NewHTTPClient(a.authToken), owner, repo, number, nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	reviews, err := githubclient.ListPRReviews(a.ctx, a.ghClient, owner, repo, number)
+	if err != nil {
+		return nil, err
+	}
+	if !a.isLoadedPR(owner, repo, number) {
+		return nil, fmt.Errorf("notfound: pull request changed during reload")
+	}
+	ignoredSet := make(map[string]struct{}, len(a.ignoredCommenters))
+	for _, ic := range a.ignoredCommenters {
+		ignoredSet[ic.Login] = struct{}{}
+	}
+	a.threads = filterIgnoredThreads(threads, ignoredSet)
+	a.reviews = githubclient.DecorateReviewsWithThreadStatus(filterIgnoredReviews(reviews, ignoredSet), a.threads)
+	return a.threads, nil
+}
+
 // GetThread returns a single review thread by its root comment ID.
 // Returns "notfound:thread" if no thread with that ID exists in the cache.
 func (a *App) GetThread(rootID int64) (model.CommentThreadDTO, error) {
@@ -434,15 +545,7 @@ func (a *App) ReplyToComment(threadRootID int64, body string) (model.CommentDTO,
 		return model.CommentDTO{}, fmt.Errorf("auth: not authenticated")
 	}
 
-	// Find thread in cache.
-	threadIdx := -1
-	for i, t := range a.threads {
-		if t.RootID == threadRootID {
-			threadIdx = i
-			break
-		}
-	}
-	if threadIdx == -1 {
+	if a.threadIndex(threadRootID) == -1 {
 		return model.CommentDTO{}, fmt.Errorf("notfound:thread %d", threadRootID)
 	}
 
@@ -454,6 +557,7 @@ func (a *App) ReplyToComment(threadRootID int64, body string) (model.CommentDTO,
 	dto := model.CommentDTO{
 		ID:           comment.GetID(),
 		InReplyToID:  threadRootID,
+		ReviewID:     comment.GetPullRequestReviewID(),
 		Body:         comment.GetBody(),
 		AuthorLogin:  comment.GetUser().GetLogin(),
 		AuthorAvatar: comment.GetUser().GetAvatarURL(),
@@ -461,8 +565,10 @@ func (a *App) ReplyToComment(threadRootID int64, body string) (model.CommentDTO,
 		IsSuggestion: strings.Contains(comment.GetBody(), "```suggestion"),
 	}
 
-	// Append to cached thread.
-	a.threads[threadIdx].Comments = append(a.threads[threadIdx].Comments, dto)
+	// Re-find the thread: ReloadReviewActivity may have replaced a.threads during the API call.
+	if i := a.threadIndex(threadRootID); i >= 0 {
+		a.threads[i].Comments = append(a.threads[i].Comments, dto)
+	}
 
 	logger.L.Info("ReplyToComment complete", "thread_root_id", threadRootID, "new_comment_id", dto.ID)
 	return dto, nil
@@ -493,7 +599,10 @@ func (a *App) ResolveThread(threadRootID int64) error {
 		return err
 	}
 
-	a.threads[threadIdx].Resolved = true
+	if i := a.threadIndex(threadRootID); i >= 0 {
+		a.threads[i].Resolved = true
+	}
+	a.refreshReviewResolutionState()
 	logger.L.Info("ResolveThread complete", "thread_root_id", threadRootID)
 	return nil
 }
@@ -523,9 +632,25 @@ func (a *App) UnresolveThread(threadRootID int64) error {
 		return err
 	}
 
-	a.threads[threadIdx].Resolved = false
+	if i := a.threadIndex(threadRootID); i >= 0 {
+		a.threads[i].Resolved = false
+	}
+	a.refreshReviewResolutionState()
 	logger.L.Info("UnresolveThread complete", "thread_root_id", threadRootID)
 	return nil
+}
+
+func (a *App) threadIndex(rootID int64) int {
+	for i, t := range a.threads {
+		if t.RootID == rootID {
+			return i
+		}
+	}
+	return -1
+}
+
+func (a *App) refreshReviewResolutionState() {
+	a.reviews = githubclient.DecorateReviewsWithThreadStatus(a.reviews, a.threads)
 }
 
 // CommitSuggestion applies the suggestion block in a review comment to the PR
@@ -746,6 +871,7 @@ func (a *App) GetPendingReview() (model.PendingReviewDTO, error) {
 	return model.PendingReviewDTO{
 		Comments:   comments,
 		HasPending: true,
+		HeadSHA:    a.pendingHeadSHA,
 	}, nil
 }
 
@@ -779,9 +905,11 @@ func (a *App) SyncPendingReview() (model.PendingReviewDTO, error) {
 	}
 
 	var reviewID int64
+	var reviewCommit string
 	for _, r := range reviews {
 		if r.GetState() == "PENDING" {
 			reviewID = r.GetID()
+			reviewCommit = r.GetCommitID()
 			break
 		}
 	}
@@ -790,6 +918,7 @@ func (a *App) SyncPendingReview() (model.PendingReviewDTO, error) {
 	}
 
 	a.pendingReviewID = reviewID
+	a.pendingHeadSHA = reviewCommit
 
 	// Fetch the comments for this review to populate the local cache.
 	rawComments, _, err := a.ghClient.PullRequests.ListReviewComments(
@@ -820,6 +949,7 @@ func (a *App) SyncPendingReview() (model.PendingReviewDTO, error) {
 		ReviewID:   reviewID,
 		Comments:   dtos,
 		HasPending: true,
+		HeadSHA:    a.pendingHeadSHA,
 	}, nil
 }
 
@@ -835,6 +965,12 @@ func (a *App) AddDraftComment(comment model.DraftCommentDTO) (model.PendingRevie
 		return model.PendingReviewDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
 	}
 
+	if len(a.pendingComments) == 0 || a.pendingHeadSHA == "" {
+		a.pendingHeadSHA = a.prCache.HeadSHA
+	} else if a.pendingHeadSHA != a.prCache.HeadSHA {
+		// One review has one commit_id; mixing line numbers from two commits would misplace or reject comments.
+		return model.PendingReviewDTO{}, fmt.Errorf("conflict: pending comments were written against an older commit; submit or discard them first")
+	}
 	a.pendingComments = append(a.pendingComments, comment)
 	logger.L.Info("AddDraftComment (local)", "path", comment.Path, "line", comment.Line, "total", len(a.pendingComments))
 
@@ -843,6 +979,7 @@ func (a *App) AddDraftComment(comment model.DraftCommentDTO) (model.PendingRevie
 	return model.PendingReviewDTO{
 		Comments:   comments,
 		HasPending: true,
+		HeadSHA:    a.pendingHeadSHA,
 	}, nil
 }
 
@@ -919,7 +1056,7 @@ func (a *App) SubmitReview(req model.ReviewSubmitDTO) (model.ReviewSubmitResult,
 		draftComments[i] = draftCommentToGitHub(c)
 	}
 
-	commitSHA := a.prCache.HeadSHA
+	commitSHA := a.reviewCommitSHA()
 	review, _, err := a.ghClient.PullRequests.CreateReview(
 		a.ctx, a.prOwner, a.prRepo, a.prNumber,
 		&github.PullRequestReviewRequest{
@@ -934,6 +1071,7 @@ func (a *App) SubmitReview(req model.ReviewSubmitDTO) (model.ReviewSubmitResult,
 	}
 
 	a.pendingComments = nil
+	a.pendingHeadSHA = ""
 	logger.L.Info("SubmitReview complete", "review_id", review.GetID(), "verdict", req.Verdict)
 	return model.ReviewSubmitResult{
 		ReviewID: review.GetID(),
@@ -957,8 +1095,17 @@ func (a *App) DiscardPendingReview() error {
 	}
 	a.pendingReviewID = 0
 	a.pendingComments = nil
+	a.pendingHeadSHA = ""
 	logger.L.Info("DiscardPendingReview: cleared state")
 	return nil
+}
+
+// reviewCommitSHA is the commit a review is submitted against: the one pending drafts were written on, else the PR head.
+func (a *App) reviewCommitSHA() string {
+	if len(a.pendingComments) > 0 && a.pendingHeadSHA != "" {
+		return a.pendingHeadSHA
+	}
+	return a.prCache.HeadSHA
 }
 
 // draftCommentToGitHub converts a DraftCommentDTO to a go-github DraftReviewComment.

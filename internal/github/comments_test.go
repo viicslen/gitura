@@ -55,10 +55,12 @@ func TestFetchReviewThreads_SinglePage_ReturnsOneThread(t *testing.T) {
 	th := threads[0]
 	assert.Equal(t, "PRRT_kwDOA1B2Mc4ADeF1", th.NodeID)
 	assert.False(t, th.Resolved)
+	assert.Equal(t, int64(9001), th.ReviewID)
 	assert.Equal(t, "internal/foo/bar.go", th.Path)
 	assert.Equal(t, 42, th.Line)
 	require.Len(t, th.Comments, 1)
 	assert.Equal(t, int64(1001), th.Comments[0].ID)
+	assert.Equal(t, int64(9001), th.Comments[0].ReviewID)
 	assert.Equal(t, "reviewer1", th.Comments[0].AuthorLogin)
 	assert.False(t, th.Comments[0].IsSuggestion)
 }
@@ -90,7 +92,9 @@ func TestFetchReviewThreads_MultiPage_PaginatesAndMerges(t *testing.T) {
 	assert.Equal(t, 2, callCount, "expected exactly 2 GraphQL requests for 2 pages")
 	assert.Len(t, threads, 2)
 	assert.Equal(t, int64(2001), threads[0].RootID)
+	assert.Equal(t, int64(9101), threads[0].ReviewID)
 	assert.Equal(t, int64(3001), threads[1].RootID)
+	assert.Equal(t, int64(9102), threads[1].ReviewID)
 	assert.True(t, threads[1].Resolved)
 }
 
@@ -201,6 +205,7 @@ func TestFetchReviewThreads_SuggestionDetection_SetsFlagFromBody(t *testing.T) {
 									"databaseId": 5001,
 									"body": "Please fix:\n` + "```" + `suggestion\nfixed line\n` + "```" + `",
 									"author": {"login": "rev", "avatarUrl": ""},
+									"pullRequestReview": {"databaseId": 9201},
 									"path": "main.go",
 									"line": 1,
 									"originalLine": 1,
@@ -230,6 +235,7 @@ func TestFetchReviewThreads_SuggestionDetection_SetsFlagFromBody(t *testing.T) {
 	threads, err := FetchReviewThreads(context.Background(), srv.Client(), "o", "r", 1, nil)
 	require.NoError(t, err)
 	require.Len(t, threads, 1)
+	assert.Equal(t, int64(9201), threads[0].ReviewID)
 	assert.True(t, threads[0].Comments[0].IsSuggestion)
 }
 
@@ -261,6 +267,7 @@ func TestMapGraphQLThread_EmptyComments_ReturnsEmptyThreadDTO(t *testing.T) {
 	dto := mapGraphQLThread(node)
 	assert.Equal(t, "PRRT_empty", dto.NodeID)
 	assert.True(t, dto.Resolved)
+	assert.Equal(t, int64(0), dto.ReviewID)
 	assert.Empty(t, dto.Comments)
 }
 
@@ -287,6 +294,7 @@ func TestMapGraphQLThread_OriginalLine_FallsBackCorrectly(t *testing.T) {
 	dto := mapGraphQLThread(node)
 	assert.Equal(t, 17, dto.Line)
 	assert.Equal(t, "src/foo.go", dto.Path)
+	assert.Equal(t, int64(0), dto.ReviewID)
 }
 
 // TestMapGraphQLThread_ReplyTo_SetsInReplyToID verifies that a comment with a
@@ -300,11 +308,13 @@ func TestMapGraphQLThread_ReplyTo_SetsInReplyToID(t *testing.T) {
 					DatabaseID: 100,
 					Body:       "root comment",
 					Author:     graphQLActor{Login: "alice"},
+					Review:     &graphQLReview{DatabaseID: 501},
 				},
 				{
 					DatabaseID: 101,
 					Body:       "reply comment",
 					Author:     graphQLActor{Login: "bob"},
+					Review:     &graphQLReview{DatabaseID: 501},
 					ReplyTo:    &graphQLReplyTo{DatabaseID: 100},
 				},
 			},
@@ -314,4 +324,15 @@ func TestMapGraphQLThread_ReplyTo_SetsInReplyToID(t *testing.T) {
 	require.Len(t, dto.Comments, 2)
 	assert.Equal(t, int64(0), dto.Comments[0].InReplyToID)
 	assert.Equal(t, int64(100), dto.Comments[1].InReplyToID)
+	assert.Equal(t, int64(501), dto.ReviewID)
+	assert.Equal(t, int64(501), dto.Comments[0].ReviewID)
+	assert.Equal(t, int64(501), dto.Comments[1].ReviewID)
+}
+
+func TestMapGraphQLThread_DiffSide(t *testing.T) {
+	line := 3
+	comments := graphQLCommentConnection{Nodes: []graphQLComment{{DatabaseID: 1, Line: &line}}}
+
+	assert.Equal(t, "LEFT", mapGraphQLThread(graphQLThread{DiffSide: "LEFT", Comments: comments}).Side)
+	assert.Equal(t, "RIGHT", mapGraphQLThread(graphQLThread{Comments: comments}).Side)
 }

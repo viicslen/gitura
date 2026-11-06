@@ -24,19 +24,22 @@ func FetchPR(ctx context.Context, client *github.Client, owner, repo string, num
 	}
 
 	summary := &model.PullRequestSummary{
-		ID:         pr.GetID(),
-		Number:     pr.GetNumber(),
-		Title:      pr.GetTitle(),
-		State:      pr.GetState(),
-		IsDraft:    pr.GetDraft(),
-		Body:       pr.GetBody(),
-		HeadBranch: pr.GetHead().GetRef(),
-		BaseBranch: pr.GetBase().GetRef(),
-		HeadSHA:    pr.GetHead().GetSHA(),
-		NodeID:     pr.GetNodeID(),
-		HTMLURL:    pr.GetHTMLURL(),
-		Owner:      owner,
-		Repo:       repo,
+		ID:          pr.GetID(),
+		Number:      pr.GetNumber(),
+		Title:       pr.GetTitle(),
+		State:       pr.GetState(),
+		IsDraft:     pr.GetDraft(),
+		Body:        pr.GetBody(),
+		HeadBranch:  pr.GetHead().GetRef(),
+		HeadOwner:   pr.GetHead().GetRepo().GetOwner().GetLogin(),
+		HeadRepo:    pr.GetHead().GetRepo().GetName(),
+		BaseBranch:  pr.GetBase().GetRef(),
+		HeadSHA:     pr.GetHead().GetSHA(),
+		NodeID:      pr.GetNodeID(),
+		HTMLURL:     pr.GetHTMLURL(),
+		AuthorLogin: pr.GetUser().GetLogin(),
+		Owner:       owner,
+		Repo:        repo,
 	}
 	return summary, nil
 }

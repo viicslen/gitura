@@ -33,8 +33,9 @@ and hand a comment straight to your coding agent — without a browser tab in si
 
 - **Pull request list** — everything you author, are assigned, or are asked to review, filtered by repository, organisation, author, or last-updated date
 - **Conversation view** — step through review comments one at a time with diff hunk context and thread replies
-- **Files changed view** — split diff with syntax highlighting, per-file sidebar, and inline comments on any line
-- **Batch reviews** — draft comments, then submit them together as comment, approval, or changes requested
+- **Files changed view** — JetBrains-style side-by-side diff with curved connectors mapping each changed block; added and deleted files open as a single full-width panel
+- **Review in the diff** — click or drag line numbers (Shift+click extends) to comment on either side; threads, pending drafts, replies and resolve/unresolve sit inline under their lines
+- **Batch reviews** — draft comments, then submit them together as comment, approval, or changes requested (approve and request changes are off on your own PRs)
 - **Reply, resolve, unresolve** — posted straight to GitHub with optimistic UI updates
 - **Commit suggestions** — accept a GitHub suggestion block and commit it to the PR branch
 - **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch its output stream live in the run panel
