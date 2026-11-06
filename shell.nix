@@ -3,7 +3,7 @@
 let
   devPackages = with pkgs; [
     # Go toolchain
-    go_1_25
+    go
 
     # Wails CLI (v2)
     wails
