@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useEventListener } from '@vueuse/core'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { useElementSize, useEventListener, useResizeObserver } from '@vueuse/core'
 import { Badge } from '@/components/ui/badge'
-import DiffSplitSegment from './DiffSplitSegment.vue'
+import DiffPane from './DiffPane.vue'
 import DiffInlineThread from './DiffInlineThread.vue'
 import InlineCommentForm from './InlineCommentForm.vue'
 import DiffPendingComment from './DiffPendingComment.vue'
 import type { model } from '@/wailsjs/go/models'
 import { langFromPath } from '@/lib/lang'
-import { anchorKey, buildDiffRows, diffLineKeys, type DiffSegment, type LineSelection, type Side } from '@/lib/diffLayout'
+import { anchorKey, buildSplitLayout, diffLineKeys, mapOffset, type BlockKind, type Edge, type LineSelection, type Side } from '@/lib/diffLayout'
 
 const props = defineProps<{
   file: model.PRFileDTO
@@ -35,8 +35,11 @@ const language = computed(() => langFromPath(props.file.filename))
 const mode = computed(() =>
   props.file.status === 'added' ? 'right' : props.file.status === 'removed' ? 'left' : 'split',
 )
+const sides = computed<Side[]>(() => (mode.value === 'split' ? ['LEFT', 'RIGHT'] : mode.value === 'left' ? ['LEFT'] : ['RIGHT']))
 const hunks = computed(() => props.diff?.hunks ?? [])
 const lineKeys = computed(() => diffLineKeys(hunks.value))
+const layout = computed(() => buildSplitLayout(hunks.value))
+const blockKinds = computed<BlockKind[]>(() => layout.value.blocks.map((b) => b.kind))
 
 const threadKey = (t: model.CommentThreadDTO) => anchorKey(t.side === 'LEFT' ? 'LEFT' : 'RIGHT', t.line)
 const draftKey = (d: model.DraftCommentDTO) => anchorKey(d.side === 'LEFT' ? 'LEFT' : 'RIGHT', d.line)
@@ -62,12 +65,16 @@ interface FormTarget {
   startLine?: number
 }
 const form = ref<FormTarget | null>(null)
+const formBody = ref('')
 // While a comment posts, the form's target is pinned so a failed post can't be retried on another line.
 const posting = ref(false)
 const drag = ref<{ side: Side; hunk: number; anchor: number; current: number } | null>(null)
 watch(() => props.file.filename, () => {
   form.value = null
   drag.value = null
+})
+watch(form, (f) => {
+  if (!f) formBody.value = ''
 })
 
 function rangeTarget(side: Side, hunk: number, a: number, b: number): FormTarget {
@@ -83,17 +90,17 @@ function extendForm(side: Side, hunk: number, line: number): boolean {
   return true
 }
 
-function onPress(hunk: number, side: Side, line: number, shift: boolean): void {
+function onPress(side: Side, hunk: number, line: number, shift: boolean): void {
   if (posting.value) return
   if (shift && extendForm(side, hunk, line)) return
   drag.value = { side, hunk, anchor: line, current: line }
 }
 
-function onHover(hunk: number, side: Side, line: number): void {
+function onHover(side: Side, hunk: number, line: number): void {
   if (drag.value && drag.value.side === side && drag.value.hunk === hunk) drag.value.current = line
 }
 
-function onActivate(hunk: number, side: Side, line: number, shift: boolean): void {
+function onActivate(side: Side, hunk: number, line: number, shift: boolean): void {
   if (posting.value) return
   if (shift && extendForm(side, hunk, line)) return
   form.value = { side, hunk, line }
@@ -134,56 +141,140 @@ async function submitComment(body: string, submitMode: 'draft' | 'immediate'): P
   }
 }
 
-// ── Layout ─────────────────────────────────────────────────────────────────
+// ── Inline rows ────────────────────────────────────────────────────────────
 
-const formKey = computed(() => (form.value ? anchorKey(form.value.side, form.value.line) : ''))
-
-const rows = computed(() => {
-  const breakAt = new Set<string>([
-    ...placedThreads.value.map(threadKey),
-    ...placedDrafts.value.map((d) => draftKey(d.draft)),
-  ])
-  if (formKey.value) breakAt.add(formKey.value)
-  return buildDiffRows(hunks.value, breakAt)
-})
-
-// Inline rows are siblings of segments with keys independent of the layout, so re-splitting
-// (opening the form, new threads) moves them instead of remounting and losing typed text.
-type Item =
-  | { type: 'gap'; key: string; hidden: number }
-  | { type: 'segment'; key: string; segment: DiffSegment }
+type Inline =
   | { type: 'thread'; key: string; thread: model.CommentThreadDTO }
   | { type: 'draft'; key: string; draft: model.DraftCommentDTO }
   | { type: 'form'; key: string }
 
-const items = computed<Item[]>(() => {
-  const out: Item[] = []
-  for (const row of rows.value) {
-    if (row.type === 'gap') {
-      out.push(row)
-      continue
-    }
-    out.push({ type: 'segment', key: `seg:${row.segment.key}`, segment: row.segment })
-    for (const key of row.segment.anchors) {
-      for (const t of placedThreads.value) {
-        if (threadKey(t) === key) out.push({ type: 'thread', key: `thread:${t.root_id}`, thread: t })
-      }
-      for (const d of placedDrafts.value) {
-        if (draftKey(d.draft) === key) out.push({ type: 'draft', key: d.key, draft: d.draft })
-      }
-      if (key === formKey.value) out.push({ type: 'form', key: 'form' })
-    }
+const inlineByKey = computed(() => {
+  const m = new Map<string, Inline[]>()
+  const add = (key: string, row: Inline) => {
+    const rows = m.get(key)
+    if (rows) rows.push(row)
+    else m.set(key, [row])
+  }
+  for (const t of placedThreads.value) add(threadKey(t), { type: 'thread', key: `thread:${t.root_id}`, thread: t })
+  for (const d of placedDrafts.value) add(draftKey(d.draft), { type: 'draft', key: d.key, draft: d.draft })
+  if (form.value) add(anchorKey(form.value.side, form.value.line), { type: 'form', key: 'form' })
+  return m
+})
+const inlineKeys = computed(() => new Set(inlineByKey.value.keys()))
+
+// ── Synchronized scrolling ─────────────────────────────────────────────────
+// Each pane scrolls on its own; the one the user drives maps its position through the
+// sync points, so through a change block the side with fewer lines moves slower.
+
+const scrollEls = { LEFT: ref<HTMLElement | null>(null), RIGHT: ref<HTMLElement | null>(null) }
+const gutterEl = ref<HTMLElement | null>(null)
+const setScrollEl = (side: Side, el: unknown) => (scrollEls[side].value = el as HTMLElement | null)
+const setGutterEl = (el: unknown) => (gutterEl.value = el as HTMLElement | null)
+const { width: gutterW, height: gutterH } = useElementSize(gutterEl)
+const master = ref<Side>('RIGHT')
+const scrollTop = reactive<Record<Side, number>>({ LEFT: 0, RIGHT: 0 })
+
+interface PaneMetrics {
+  top: number[]
+  bottom: number[]
+  height: number
+}
+const metrics = ref<Record<Side, PaneMetrics> | null>(null)
+
+const contentEl = (side: Side) => (scrollEls[side].value?.firstElementChild as HTMLElement | null) ?? null
+
+function measurePane(side: Side): PaneMetrics | null {
+  const content = contentEl(side)
+  if (!content) return null
+  const items = side === 'LEFT' ? layout.value.left : layout.value.right
+  const top: number[] = []
+  const bottom: number[] = []
+  Array.from(content.children).forEach((child, i) => {
+    const el = child as HTMLElement
+    const type = items[i]?.type
+    top.push(el.offsetTop)
+    bottom.push(
+      type === 'line' ? el.offsetTop + (el.firstElementChild as HTMLElement).offsetHeight
+        : type === 'mark' ? el.offsetTop
+          : el.offsetTop + el.offsetHeight,
+    )
+  })
+  return { top, bottom, height: content.offsetHeight }
+}
+
+function measure(): void {
+  const l = mode.value === 'split' ? measurePane('LEFT') : null
+  const r = mode.value === 'split' ? measurePane('RIGHT') : null
+  metrics.value = l && r ? { LEFT: l, RIGHT: r } : null
+}
+
+useResizeObserver(() => [contentEl('LEFT'), contentEl('RIGHT')], measure)
+watch([layout, inlineKeys, mode], () => nextTick(measure))
+
+const pos = (m: PaneMetrics, e: Edge) => (e.at === 'top' ? m.top : m.bottom)[e.item] ?? 0
+
+const syncPoints = computed<[number, number][]>(() => {
+  const m = metrics.value
+  if (!m) return []
+  return [
+    [0, 0],
+    ...layout.value.sync.map((p): [number, number] => [pos(m.LEFT, p.left), pos(m.RIGHT, p.right)]),
+    [m.LEFT.height, m.RIGHT.height],
+  ]
+})
+
+
+function onScroll(side: Side): void {
+  const el = scrollEls[side].value
+  if (!el) return
+  scrollTop[side] = el.scrollTop
+  if (side !== master.value) return
+  const other: Side = side === 'LEFT' ? 'RIGHT' : 'LEFT'
+  const target = scrollEls[other].value
+  if (!target || !syncPoints.value.length) return
+  // The anchor slides from the viewport's top to its bottom as the pane scrolls, so both panes reach their ends together.
+  const max = el.scrollHeight - el.clientHeight
+  const anchor = el.scrollTop + el.clientHeight * (max > 0 ? el.scrollTop / max : 0)
+  const points = side === 'LEFT' ? syncPoints.value : syncPoints.value.map(([l, r]): [number, number] => [r, l])
+  const next = mapOffset(points, anchor) - (anchor - el.scrollTop)
+  target.scrollTop = Math.max(0, Math.min(next, target.scrollHeight - target.clientHeight))
+  scrollTop[other] = target.scrollTop
+}
+
+watch(syncPoints, () => onScroll(master.value))
+watch(() => props.file.filename, () => {
+  master.value = 'RIGHT'
+  for (const side of ['LEFT', 'RIGHT'] as const) {
+    const el = scrollEls[side].value
+    if (el) el.scrollTop = 0
+    scrollTop[side] = 0
+  }
+})
+
+const SHAPE: Record<BlockKind, string> = {
+  added: 'fill-emerald-500/20 stroke-emerald-500/70',
+  deleted: 'fill-rose-500/20 stroke-rose-500/70',
+  modified: 'fill-sky-500/20 stroke-sky-500/70',
+}
+
+const connectors = computed(() => {
+  const m = metrics.value
+  if (!m) return []
+  const w = gutterW.value
+  const h = gutterH.value
+  const mid = w / 2
+  const out: { d: string; cls: string }[] = []
+  for (const b of layout.value.blocks) {
+    const [l0, l1] = b.left.map((e) => pos(m.LEFT, e) - scrollTop.LEFT)
+    const [r0, r1] = b.right.map((e) => pos(m.RIGHT, e) - scrollTop.RIGHT)
+    if (Math.max(l1, r1) < 0 || Math.min(l0, r0) > h) continue
+    out.push({
+      d: `M0,${l0} C${mid},${l0} ${mid},${r0} ${w},${r0} L${w},${r1} C${mid},${r1} ${mid},${l1} 0,${l1} Z`,
+      cls: SHAPE[b.kind],
+    })
   }
   return out
 })
-
-/** Only segments containing selected lines get a selection, so a drag re-renders just those. */
-function selectionFor(segment: DiffSegment): LineSelection | null {
-  const s = selection.value
-  if (!s) return null
-  const lines = s.side === 'LEFT' ? segment.left : segment.right
-  return lines.some((l) => l.no >= s.from && l.no <= s.to) ? s : null
-}
 
 function statusLabel(status: string): string {
   switch (status) {
@@ -228,17 +319,8 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
       {{ diff ? 'No textual changes' : 'No diff available' }}
     </div>
 
-    <div v-else class="flex-1 overflow-auto">
-      <div
-        v-if="mode === 'split'"
-        class="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] border-b border-border bg-background/95 font-mono text-[11px] text-muted-foreground backdrop-blur"
-      >
-        <span class="truncate px-3 py-1">Base · {{ file.previous_filename || file.filename }}</span>
-        <span />
-        <span class="truncate px-3 py-1">Head · {{ file.filename }}</span>
-      </div>
-
-      <div v-if="unplacedThreads.length || unplacedDrafts.length" class="border-b border-border bg-muted/20 py-1">
+    <template v-else>
+      <div v-if="unplacedThreads.length || unplacedDrafts.length" class="max-h-[40%] shrink-0 overflow-y-auto border-b border-border bg-muted/20 py-1">
         <p v-if="unplacedThreads.length" class="px-4 pt-1 text-xs text-muted-foreground">
           {{ unplacedThreads.length }} comment{{ unplacedThreads.length === 1 ? '' : 's' }} outside the visible diff
         </p>
@@ -259,41 +341,82 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
         <DiffPendingComment v-for="d in unplacedDrafts" :key="d.key" :draft="d.draft" />
       </div>
 
-      <template v-for="item in items" :key="item.key">
-        <div
-          v-if="item.type === 'gap'"
-          class="select-none border-y border-border/60 bg-muted/50 py-0.5 text-center font-mono text-[11px] text-muted-foreground"
-        >
-          ⋯ {{ item.hidden }} unchanged line{{ item.hidden === 1 ? '' : 's' }}
-        </div>
-        <DiffSplitSegment
-          v-else-if="item.type === 'segment'"
-          :segment="item.segment"
-          :mode="mode"
-          :language="language"
-          :commentable="commentable"
-          :selection="selectionFor(item.segment)"
-          @press="(side, line, shift) => onPress(item.segment.hunk, side, line, shift)"
-          @hover="(side, line) => onHover(item.segment.hunk, side, line)"
-          @activate="(side, line, shift) => onActivate(item.segment.hunk, side, line, shift)"
-        />
-        <DiffInlineThread
-          v-else-if="item.type === 'thread'"
-          :thread="item.thread"
-          :language="language"
-          @resolve="emit('resolve', $event)"
-          @unresolve="emit('unresolve', $event)"
-          @reply-sent="emit('reply-sent', $event)"
-        />
-        <DiffPendingComment v-else-if="item.type === 'draft'" :draft="item.draft" />
-        <div v-else-if="item.type === 'form' && form" class="px-3 py-2 font-sans">
-          <InlineCommentForm
-            :target="{ path: file.filename, side: form.side, line: form.line, startLine: form.startLine }"
-            :post="submitComment"
-            @cancel="form = null"
-          />
-        </div>
-      </template>
-    </div>
+      <div
+        class="grid min-h-0 flex-1"
+        :class="mode === 'split'
+          ? 'grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)]'
+          : 'grid-cols-1 grid-rows-[minmax(0,1fr)]'"
+      >
+        <template v-if="mode === 'split'">
+          <span class="truncate border-b border-border px-3 py-1 font-mono text-[11px] text-muted-foreground">
+            Base · {{ file.previous_filename || file.filename }}
+          </span>
+          <span class="border-b border-border bg-muted/30" />
+          <span class="truncate border-b border-border px-3 py-1 font-mono text-[11px] text-muted-foreground">
+            Head · {{ file.filename }}
+          </span>
+        </template>
+
+        <template v-for="(side, si) in sides" :key="side">
+          <div
+            v-if="si === 1"
+            :ref="setGutterEl"
+            aria-hidden="true"
+            class="relative overflow-hidden bg-muted/30"
+          >
+            <svg class="absolute inset-0 overflow-visible" :width="gutterW" :height="gutterH">
+              <path v-for="(c, i) in connectors" :key="i" :d="c.d" :class="c.cls" stroke-width="1" />
+            </svg>
+          </div>
+          <div
+            :ref="(el) => setScrollEl(side, el)"
+            class="min-h-0 overflow-y-auto overflow-x-hidden"
+            :class="mode === 'split' && side === 'LEFT' ? 'border-r border-border/60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : ''"
+            @scroll.passive="onScroll(side)"
+            @wheel.passive="master = side"
+            @touchstart.passive="master = side"
+            @pointerdown="master = side"
+            @keydown="master = side"
+            @focusin="master = side"
+          >
+            <DiffPane
+              :side="side"
+              :items="side === 'LEFT' ? layout.left : layout.right"
+              :block-kinds="blockKinds"
+              :split="mode === 'split'"
+              :language="language"
+              :commentable="commentable"
+              :selection="selection"
+              :inline-keys="inlineKeys"
+              @press="(hunk, line, shift) => onPress(side, hunk, line, shift)"
+              @hover="(hunk, line) => onHover(side, hunk, line)"
+              @activate="(hunk, line, shift) => onActivate(side, hunk, line, shift)"
+            >
+              <template #inline="{ no }">
+                <template v-for="row in inlineByKey.get(anchorKey(side, no)) ?? []" :key="row.key">
+                  <DiffInlineThread
+                    v-if="row.type === 'thread'"
+                    :thread="row.thread"
+                    :language="language"
+                    @resolve="emit('resolve', $event)"
+                    @unresolve="emit('unresolve', $event)"
+                    @reply-sent="emit('reply-sent', $event)"
+                  />
+                  <DiffPendingComment v-else-if="row.type === 'draft'" :draft="row.draft" />
+                  <div v-else-if="form" class="px-3 py-2">
+                    <InlineCommentForm
+                      v-model:body="formBody"
+                      :target="{ path: file.filename, side: form.side, line: form.line, startLine: form.startLine }"
+                      :post="submitComment"
+                      @cancel="form = null"
+                    />
+                  </div>
+                </template>
+              </template>
+            </DiffPane>
+          </div>
+        </template>
+      </div>
+    </template>
   </div>
 </template>

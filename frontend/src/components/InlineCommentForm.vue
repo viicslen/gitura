@@ -14,7 +14,8 @@ const emit = defineEmits<{
   (e: 'cancel'): void
 }>()
 
-const body = ref('')
+// Bound by the diff so typed text survives the form moving to another anchor line.
+const body = defineModel<string>('body', { default: '' })
 const submitting = ref(false)
 const hasPendingReview = inject<ComputedRef<boolean>>('hasPendingReview')
 const draftsStale = inject<ComputedRef<boolean> | null>('draftsStale', null)
