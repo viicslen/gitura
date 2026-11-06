@@ -1,8 +1,9 @@
 import { ref, computed, watch } from 'vue'
-import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime'
+import { EventsOn } from '../wailsjs/runtime/runtime'
 import * as App from '../wailsjs/go/main/App'
 import type { model } from '../wailsjs/go/models'
 import type { ReviewLoadInput } from '@/types/review'
+import { toast } from 'vue-sonner'
 
 export type ResolveError = { rootId: number; message: string }
 
@@ -60,29 +61,29 @@ export function useReview(prItem: ReviewLoadInput) {
     const progressHandler = (progress: LoadProgress) => {
       loadProgress.value = progress
     }
-    EventsOn('pr:load-progress', progressHandler)
+    const unsubscribeProgress = EventsOn('pr:load-progress', progressHandler)
 
     try {
       prSummary.value = await App.LoadPullRequest(prItem.owner, prItem.repo, prItem.number)
-      threads.value = await App.GetCommentThreads(showResolved.value)
+      threads.value = await App.GetCommentThreads(true)
     } catch (err) {
       error.value = String(err)
     } finally {
       loading.value = false
-      EventsOff('pr:load-progress')
+      unsubscribeProgress()
     }
   }
 
-  /**
-   * toggleShowResolved flips the showResolved flag and re-fetches threads
-   * from the in-memory Go cache (no network call).
-   */
-  async function toggleShowResolved(): Promise<void> {
+  function toggleShowResolved(): void {
     showResolved.value = !showResolved.value
+  }
+
+  /** Re-fetches threads and reviews from GitHub so newly posted comments and reviews show up. */
+  async function reloadReviewActivity(): Promise<void> {
     try {
-      threads.value = await App.GetCommentThreads(showResolved.value)
+      threads.value = await App.ReloadReviewActivity()
     } catch (err) {
-      error.value = String(err)
+      toast.error('Could not refresh comments: ' + String(err))
     }
   }
 
@@ -96,8 +97,9 @@ export function useReview(prItem: ReviewLoadInput) {
     thread.resolved = true
     try {
       await App.ResolveThread(rootId)
-    } catch {
+    } catch (err) {
       thread.resolved = false
+      toast.error('Could not resolve conversation: ' + String(err))
     }
   }
 
@@ -111,8 +113,9 @@ export function useReview(prItem: ReviewLoadInput) {
     thread.resolved = false
     try {
       await App.UnresolveThread(rootId)
-    } catch {
+    } catch (err) {
       thread.resolved = true
+      toast.error('Could not unresolve conversation: ' + String(err))
     }
   }
 
@@ -130,7 +133,7 @@ export function useReview(prItem: ReviewLoadInput) {
     // Fallback: if the thread is not currently present in local state,
     // refresh from backend cache to avoid dropping the reply in UI.
     try {
-      threads.value = await App.GetCommentThreads(showResolved.value)
+      threads.value = await App.GetCommentThreads(true)
     } catch (err) {
       error.value = String(err)
     }
@@ -151,6 +154,7 @@ export function useReview(prItem: ReviewLoadInput) {
     canGoBack,
     loadPR,
     toggleShowResolved,
+    reloadReviewActivity,
     goNext,
     goPrev,
     resolveThread,

@@ -20,6 +20,9 @@
                       "login": "reviewer1",
                       "avatarUrl": "https://avatars.githubusercontent.com/u/1?v=4"
                     },
+                    "pullRequestReview": {
+                      "databaseId": 9001
+                    },
                     "path": "internal/foo/bar.go",
                     "line": 42,
                     "originalLine": 42,

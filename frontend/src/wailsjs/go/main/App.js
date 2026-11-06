@@ -58,6 +58,10 @@ export function GetPRLocalPath(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetPRLocalPath'](arg1, arg2, arg3);
 }
 
+export function GetPROverview(arg1) {
+  return window['go']['main']['App']['GetPROverview'](arg1);
+}
+
 export function GetPendingReview() {
   return window['go']['main']['App']['GetPendingReview']();
 }
@@ -88,6 +92,10 @@ export function PollDeviceFlow() {
 
 export function PostImmediateComment(arg1) {
   return window['go']['main']['App']['PostImmediateComment'](arg1);
+}
+
+export function ReloadReviewActivity() {
+  return window['go']['main']['App']['ReloadReviewActivity']();
 }
 
 export function RemoveCommand(arg1) {

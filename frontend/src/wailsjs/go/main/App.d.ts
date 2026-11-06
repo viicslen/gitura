@@ -30,6 +30,8 @@ export function GetPRFiles():Promise<Array<model.PRFileDTO>>;
 
 export function GetPRLocalPath(arg1:string,arg2:string,arg3:number):Promise<string>;
 
+export function GetPROverview(arg1:boolean):Promise<model.PROverviewDTO>;
+
 export function GetPendingReview():Promise<model.PendingReviewDTO>;
 
 export function GetThread(arg1:number):Promise<model.CommentThreadDTO>;
@@ -45,6 +47,8 @@ export function OpenFolderPicker(arg1:string,arg2:string):Promise<string>;
 export function PollDeviceFlow():Promise<model.PollResult>;
 
 export function PostImmediateComment(arg1:model.DraftCommentDTO):Promise<model.CommentDTO>;
+
+export function ReloadReviewActivity():Promise<Array<model.CommentThreadDTO>>;
 
 export function RemoveCommand(arg1:string):Promise<Array<model.CommandDTO>>;
 

@@ -56,8 +56,8 @@
         <DropdownMenu>
           <DropdownMenuTrigger class="flex items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <img
-              v-if="authState.avatar_url"
-              :src="authState.avatar_url"
+              v-if="authAvatarSrc"
+              :src="authAvatarSrc"
               :alt="authState.login"
               class="h-6 w-6 rounded-full"
             />
@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-vue-next'
 import AuthPage from '@/pages/AuthPage.vue'
 import PRPage from '@/pages/PRPage.vue'
@@ -128,6 +128,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
+import { buildAvatarProxyURL } from '@/composables/useAvatarFallback'
 import type { ReviewLoadInput } from '@/types/review'
 import { BrowserOpenURL } from '../wailsjs/runtime/runtime'
 
@@ -146,6 +147,7 @@ const currentPage = ref<'pr' | 'review'>('pr')
 const selectedPRItem = ref<ReviewLoadInput | null>(null)
 const reviewNavMeta = ref<ReviewNavMeta | null>(null)
 const settingsDialogOpen = ref(false)
+const authAvatarSrc = computed(() => buildAvatarProxyURL(authState.value.avatar_url))
 
 onMounted(async () => {
   await refreshAuthState()

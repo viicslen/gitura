@@ -4,8 +4,7 @@ import type { model } from '../wailsjs/go/models'
 
 /**
  * useDiffReview provides reactive state and actions for the diff review view.
- * Manages file list, current file selection, diff loading, pending review state,
- * and other-reviewer thread visibility.
+ * Manages file list, current file selection, diff loading and pending review state.
  */
 export function useDiffReview() {
   const files = ref<model.PRFileDTO[]>([])
@@ -19,9 +18,6 @@ export function useDiffReview() {
 
   const pendingReview = ref<model.PendingReviewDTO | null>(null)
 
-  const showOtherThreads = ref(false)
-  const otherThreads = ref<model.CommentThreadDTO[]>([])
-
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const currentFile = computed<model.PRFileDTO | null>(
@@ -34,12 +30,6 @@ export function useDiffReview() {
 
   const canGoPrev = computed(() => currentFileIndex.value > 0)
   const canGoNext = computed(() => currentFileIndex.value < files.value.length - 1)
-
-  /** Returns threads anchored to the current file. */
-  const threadsForFile = computed<model.CommentThreadDTO[]>(() => {
-    if (!currentFilePath.value) return []
-    return otherThreads.value.filter((t) => t.path === currentFilePath.value)
-  })
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -115,17 +105,6 @@ export function useDiffReview() {
     }
   }
 
-  async function toggleOtherThreads(): Promise<void> {
-    showOtherThreads.value = !showOtherThreads.value
-    if (showOtherThreads.value && otherThreads.value.length === 0) {
-      try {
-        otherThreads.value = await App.GetCommentThreads(false)
-      } catch {
-        // non-fatal; threads simply won't show
-      }
-    }
-  }
-
   return {
     // state
     files,
@@ -137,13 +116,10 @@ export function useDiffReview() {
     diffLoading,
     diffError,
     pendingReview,
-    showOtherThreads,
-    otherThreads,
     // derived
     currentFileIndex,
     canGoPrev,
     canGoNext,
-    threadsForFile,
     // actions
     loadFiles,
     selectFile,
@@ -154,6 +130,5 @@ export function useDiffReview() {
     submitReview,
     discardPendingReview,
     loadPendingReview,
-    toggleOtherThreads,
   }
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed, provide } from 'vue'
+import { onMounted, computed, provide, ref } from 'vue'
 import { Send, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,9 +14,24 @@ import {
 import DiffFileSidebar from './DiffFileSidebar.vue'
 import DiffFileView from './DiffFileView.vue'
 import { useDiffReview } from '@/composables/useDiffReview'
-import { ref } from 'vue'
 import type { model } from '@/wailsjs/go/models'
 import { toast } from 'vue-sonner'
+
+const props = defineProps<{
+  threads: model.CommentThreadDTO[]
+  showThreads: boolean
+  /** GitHub rejects approve/request-changes from the PR author. */
+  isOwnPr: boolean
+  headSha: string
+}>()
+
+const emit = defineEmits<{
+  (e: 'resolve', rootId: number): void
+  (e: 'unresolve', rootId: number): void
+  (e: 'reply-sent', comment: model.CommentDTO): void
+  /** New threads were created on GitHub; the parent should re-fetch them. */
+  (e: 'threads-changed'): void
+}>()
 
 const {
   files,
@@ -28,10 +43,8 @@ const {
   diffLoading,
   diffError,
   pendingReview,
-  showOtherThreads,
   canGoPrev,
   canGoNext,
-  threadsForFile,
   loadFiles,
   selectFile,
   nextFile,
@@ -41,8 +54,24 @@ const {
   submitReview,
   discardPendingReview,
   loadPendingReview,
-  toggleOtherThreads,
 } = useDiffReview()
+
+const threadsForFile = computed(() => props.threads.filter((t) => t.path === currentFilePath.value))
+const draftsForFile = computed(() =>
+  (pendingReview.value?.comments ?? []).filter((c) => c.path === currentFilePath.value),
+)
+const unresolvedCounts = computed(() => {
+  const counts: Record<string, number> = {}
+  for (const t of props.threads) {
+    if (!t.resolved) counts[t.path] = (counts[t.path] ?? 0) + 1
+  }
+  return counts
+})
+const pendingCount = computed(() => pendingReview.value?.comments.length ?? 0)
+const draftsStale = computed(() => {
+  const pinned = pendingReview.value?.head_sha
+  return !!pinned && !!props.headSha && pinned !== props.headSha
+})
 
 // ── Review submit panel state ──────────────────────────────────────────────
 const submitPanelOpen = ref(false)
@@ -50,11 +79,16 @@ const verdict = ref<'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'>('COMMENT')
 const reviewBody = ref('')
 const submitLoading = ref(false)
 
-const VERDICT_OPTIONS: { value: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'; label: string; desc: string }[] = [
-  { value: 'COMMENT', label: 'Comment', desc: 'Submit general feedback without explicit approval.' },
-  { value: 'APPROVE', label: 'Approve', desc: 'Submit feedback and approve merging these changes.' },
-  { value: 'REQUEST_CHANGES', label: 'Request changes', desc: 'Submit feedback that must be addressed before merging.' },
+const VERDICT_OPTIONS: { value: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'; label: string; desc: string; authorAllowed: boolean }[] = [
+  { value: 'COMMENT', label: 'Comment', desc: 'Submit general feedback without explicit approval.', authorAllowed: true },
+  { value: 'APPROVE', label: 'Approve', desc: 'Submit feedback and approve merging these changes.', authorAllowed: false },
+  { value: 'REQUEST_CHANGES', label: 'Request changes', desc: 'Submit feedback that must be addressed before merging.', authorAllowed: false },
 ]
+
+// GitHub rejects COMMENT and REQUEST_CHANGES reviews that have neither a body nor comments.
+const canSubmit = computed(
+  () => !submitLoading.value && (verdict.value === 'APPROVE' || !!reviewBody.value.trim() || pendingCount.value > 0),
+)
 
 // ── Discard confirmation dialog ────────────────────────────────────────────
 const discardDialogOpen = ref(false)
@@ -62,6 +96,8 @@ const discardLoading = ref(false)
 
 // Provide pending-review state to deep descendants (e.g. InlineCommentForm)
 provide('hasPendingReview', computed(() => pendingReview.value?.has_pending ?? false))
+provide('draftsStale', draftsStale)
+const changedPaths = computed(() => new Set(files.value.map((f) => f.filename)))
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 onMounted(async () => {
@@ -70,21 +106,20 @@ onMounted(async () => {
 })
 
 // ── Comment handlers ──────────────────────────────────────────────────────
-async function handleDraftComment(comment: model.DraftCommentDTO): Promise<void> {
+async function postComment(comment: model.DraftCommentDTO, mode: 'draft' | 'immediate'): Promise<boolean> {
   try {
-    await addDraftComment(comment)
-    toast('Comment added to review')
+    if (mode === 'draft') {
+      await addDraftComment(comment)
+      toast('Comment added to review')
+    } else {
+      await postImmediateComment(comment)
+      toast('Comment posted')
+      emit('threads-changed')
+    }
+    return true
   } catch (err) {
     toast.error(String(err))
-  }
-}
-
-async function handleImmediateComment(comment: model.DraftCommentDTO): Promise<void> {
-  try {
-    await postImmediateComment(comment)
-    toast('Comment posted')
-  } catch (err) {
-    toast.error(String(err))
+    return false
   }
 }
 
@@ -95,7 +130,9 @@ async function handleSubmitReview(): Promise<void> {
     await submitReview({ verdict: verdict.value, body: reviewBody.value })
     submitPanelOpen.value = false
     reviewBody.value = ''
+    verdict.value = 'COMMENT'
     toast('Review submitted')
+    emit('threads-changed')
   } catch (err) {
     toast.error(String(err))
   } finally {
@@ -141,13 +178,13 @@ async function reload(): Promise<void> {
 
 // ── Keyboard nav ──────────────────────────────────────────────────────────
 function handleKeydown(event: KeyboardEvent): void {
-  if ((event.target as HTMLElement).tagName === 'TEXTAREA') return
+  if ((event.target as HTMLElement).closest('input, textarea, [contenteditable]')) return
   if (event.key === ']') nextFile()
   else if (event.key === '[') prevFile()
 }
 
 // ── Exposed interface for parent ──────────────────────────────────────────
-defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggleOtherThreads, files, reload })
+defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
 </script>
 
 <template>
@@ -162,21 +199,19 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggl
         {{ currentFile?.filename ?? 'Select a file' }}
       </span>
 
-      <!-- Pending review badge + actions -->
+      <Badge v-if="pendingCount > 0" variant="secondary" class="gap-1 text-xs">
+        {{ pendingCount }} pending
+      </Badge>
+      <Button
+        :variant="pendingCount > 0 ? 'default' : 'outline'"
+        size="sm"
+        class="gap-1.5"
+        @click="submitPanelOpen = true"
+      >
+        <Send class="h-3.5 w-3.5" />
+        {{ pendingCount > 0 ? 'Finish review' : 'Review changes' }}
+      </Button>
       <template v-if="pendingReview?.has_pending">
-        <Badge variant="secondary" class="gap-1 text-xs">
-          {{ pendingReview.comments.length }} pending
-        </Badge>
-        <Button
-          variant="outline"
-          size="sm"
-          class="gap-1.5"
-          aria-label="Submit review"
-          @click="submitPanelOpen = true"
-        >
-          <Send class="h-3.5 w-3.5" />
-          Submit review
-        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -204,6 +239,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggl
       <div class="w-64 shrink-0 overflow-hidden">
         <DiffFileSidebar
           :files="files"
+          :comment-counts="unresolvedCounts"
           :selected-path="currentFilePath"
           :loading="filesLoading"
           @select="selectFile"
@@ -250,11 +286,15 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggl
           :file="currentFile"
           :diff="currentDiff"
           :commentable="true"
-          :other-threads="threadsForFile"
-          :show-other-threads="showOtherThreads"
+          :threads="threadsForFile"
+          :drafts="draftsForFile"
+          :drafts-stale="draftsStale"
+          :show-threads="showThreads"
           class="flex-1 min-h-0 overflow-hidden"
-          @draft-comment="handleDraftComment"
-          @immediate-comment="handleImmediateComment"
+          :post-comment="postComment"
+          @resolve="emit('resolve', $event)"
+          @unresolve="emit('unresolve', $event)"
+          @reply-sent="emit('reply-sent', $event)"
         />
       </div>
     </div>
@@ -271,22 +311,48 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggl
           <label
             v-for="option in VERDICT_OPTIONS"
             :key="option.value"
-            class="flex items-start gap-2.5 rounded-md border border-border px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
-            :class="verdict === option.value ? 'border-primary bg-accent' : ''"
+            class="flex items-start gap-2.5 rounded-md border border-border px-3 py-2 transition-colors"
+            :class="[
+              verdict === option.value ? 'border-primary bg-accent' : '',
+              isOwnPr && !option.authorAllowed ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent',
+            ]"
           >
             <input
               type="radio"
               name="verdict"
               :value="option.value"
               :checked="verdict === option.value"
+              :disabled="isOwnPr && !option.authorAllowed"
               class="mt-0.5"
               @change="verdict = option.value"
             />
             <div>
               <div class="text-sm font-medium">{{ option.label }}</div>
-              <div class="text-xs text-muted-foreground">{{ option.desc }}</div>
+              <div class="text-xs text-muted-foreground">
+                {{ isOwnPr && !option.authorAllowed ? 'Not available on your own pull request.' : option.desc }}
+              </div>
             </div>
           </label>
+        </div>
+
+        <div v-if="pendingCount > 0" class="flex flex-col gap-1">
+          <p class="text-xs font-medium text-muted-foreground">
+            {{ pendingCount }} pending comment{{ pendingCount === 1 ? '' : 's' }}
+            <span v-if="draftsStale"> · will be posted on earlier commit {{ pendingReview?.head_sha.slice(0, 7) }}</span>
+          </p>
+          <ul class="max-h-40 overflow-y-auto rounded-md border border-border text-xs">
+            <li
+              v-for="(c, i) in pendingReview?.comments ?? []"
+              :key="i"
+              class="flex flex-col gap-0.5 border-b border-border px-2 py-1.5 last:border-b-0"
+            >
+              <span class="truncate font-mono text-muted-foreground">
+                {{ c.path }}:{{ c.start_line ? `${c.start_line}–` : '' }}{{ c.line }}
+                <span v-if="!changedPaths.has(c.path)" class="text-amber-700 dark:text-amber-300">· file no longer in this PR</span>
+              </span>
+              <span class="whitespace-pre-wrap break-words">{{ c.body }}</span>
+            </li>
+          </ul>
         </div>
 
         <!-- Review body -->
@@ -300,7 +366,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, showOtherThreads, toggl
 
         <DialogFooter>
           <Button variant="ghost" @click="submitPanelOpen = false">Cancel</Button>
-          <Button :disabled="submitLoading" @click="handleSubmitReview">
+          <Button :disabled="!canSubmit" @click="handleSubmitReview">
             {{ submitLoading ? 'Submitting…' : 'Submit review' }}
           </Button>
         </DialogFooter>

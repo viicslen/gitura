@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -43,6 +45,23 @@ const repoPathToken = "{{repo_path}}"
 // If ctx is cancelled before the process finishes, the process is killed and
 // the returned RunResult has Cancelled=true.
 func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPath string) model.RunResult {
+	return RunCommandWithOutput(ctx, cmd, input, localPath, nil)
+}
+
+// OutputChunkHandler receives raw output chunks as they are read.
+// stream is either "stdout" or "stderr".
+type OutputChunkHandler func(stream string, chunk string)
+
+// RunCommandWithOutput executes cmd against input and returns the result.
+// When onChunk is non-nil, raw stdout/stderr chunks are streamed as they are
+// produced by the subprocess.
+func RunCommandWithOutput(
+	ctx context.Context,
+	cmd model.CommandDTO,
+	input string,
+	localPath string,
+	onChunk OutputChunkHandler,
+) model.RunResult {
 	startedAt := time.Now().UTC()
 
 	result := model.RunResult{
@@ -62,18 +81,89 @@ func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPa
 	// #nosec G204 -- argv comes from the user's own command config; untrusted input is substituted per-argument, never re-split.
 	c := exec.CommandContext(ctx, argv[0], argv[1:]...)
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	c.Stdout = &stdoutBuf
-	c.Stderr = &stderrBuf
+	stdoutPipe, err := c.StdoutPipe()
+	if err != nil {
+		return startFailureResult(result, err)
+	}
+	stderrPipe, err := c.StderrPipe()
+	if err != nil {
+		return startFailureResult(result, err)
+	}
 	configureCommand(c, input, localPath, usePlaceholder)
+	if err := c.Start(); err != nil {
+		return startFailureResult(result, err)
+	}
 
-	runErr := c.Run()
+	var stdoutBuf, stderrBuf bytes.Buffer
+	streamErrs := make(chan error, 2)
+	var streamWG sync.WaitGroup
+	streamWG.Add(2)
+
+	go readOutputStream(&streamWG, streamErrs, "stdout", stdoutPipe, &stdoutBuf, onChunk)
+	go readOutputStream(&streamWG, streamErrs, "stderr", stderrPipe, &stderrBuf, onChunk)
+
+	runErr := c.Wait()
+	streamWG.Wait()
+	close(streamErrs)
+	for streamErr := range streamErrs {
+		if streamErr != nil {
+			stderrBuf.WriteString("\n")
+			stderrBuf.WriteString(streamErr.Error())
+		}
+	}
+
 	result.Stdout = stdoutBuf.String()
 	result.Stderr = stderrBuf.String()
 	result.FinishedAt = time.Now().UTC().Format(time.RFC3339)
 	applyRunResult(&result, ctx, runErr)
 
 	return result
+}
+
+func startFailureResult(result model.RunResult, err error) model.RunResult {
+	result.Stderr = fmt.Sprintf("runner: failed to start command: %v", err)
+	result.ExitCode = -1
+	result.FinishedAt = time.Now().UTC().Format(time.RFC3339)
+
+	return result
+}
+
+func readOutputStream(
+	wg *sync.WaitGroup,
+	errCh chan<- error,
+	stream string,
+	r io.Reader,
+	dst *bytes.Buffer,
+	onChunk OutputChunkHandler,
+) {
+	defer wg.Done()
+	errCh <- streamToBuffer(stream, r, dst, onChunk)
+}
+
+func streamToBuffer(
+	stream string,
+	r io.Reader,
+	dst *bytes.Buffer,
+	onChunk OutputChunkHandler,
+) error {
+	buf := make([]byte, 4096)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			chunk := string(buf[:n])
+			dst.WriteString(chunk)
+			if onChunk != nil {
+				onChunk(stream, chunk)
+			}
+		}
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return fmt.Errorf("runner: failed reading %s: %w", stream, err)
+	}
 }
 
 // substitutePlaceholders replaces the placeholder tokens within each argv

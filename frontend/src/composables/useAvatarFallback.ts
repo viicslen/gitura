@@ -6,6 +6,32 @@ type AvatarState = {
   retryURL: string
 }
 
+const AVATAR_PROXY_PATH = '/__avatar'
+
+/**
+ * buildAvatarProxyURL rewrites a GitHub avatar URL to an in-app route so the
+ * Wails webview fetches avatars from the app origin.
+ */
+export function buildAvatarProxyURL(originalURL: string): string {
+  const trimmed = originalURL.trim()
+  if (!trimmed) return ''
+
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'https:') return ''
+    const host = url.hostname.toLowerCase()
+    if (host !== 'avatars.githubusercontent.com' && !host.endsWith('.githubusercontent.com')) {
+      return ''
+    }
+
+    const proxied = new URL(AVATAR_PROXY_PATH, 'http://localhost')
+    proxied.searchParams.set('url', url.toString())
+    return `${proxied.pathname}${proxied.search}`
+  } catch {
+    return ''
+  }
+}
+
 /**
  * useAvatarFallback handles one retry for failed avatar loads and then marks
  * the avatar as failed so callers can render a placeholder.
@@ -37,15 +63,20 @@ export function useAvatarFallback() {
     const state = ensureState(key)
     if (state.failed) return ''
     if (state.retried && state.retryURL) return state.retryURL
-    return originalURL
+    return buildAvatarProxyURL(originalURL)
   }
 
   function handleAvatarError(key: string, originalURL: string): void {
     if (!key || !originalURL) return
     const state = ensureState(key)
     if (!state.retried) {
+      const proxied = buildAvatarProxyURL(originalURL)
+      if (!proxied) {
+        state.failed = true
+        return
+      }
       state.retried = true
-      state.retryURL = withRetryQuery(originalURL)
+      state.retryURL = withRetryQuery(proxied)
       return
     }
     state.failed = true

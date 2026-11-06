@@ -110,6 +110,44 @@ func issueToItem(issue *github.Issue, login string) (model.PRListItem, bool) {
 	}, true
 }
 
+func mapSearchError(err error) (model.PRListResult, bool) {
+	// Check for transient GitHub service-side failures first.
+	var ghErr *github.ErrorResponse
+	if errors.As(err, &ghErr) && ghErr.Response != nil {
+		status := ghErr.Response.StatusCode
+		if status >= 500 {
+			return model.PRListResult{
+				Error: "github service unavailable; please refresh shortly",
+			}, true
+		}
+	}
+
+	// Check for primary rate limit.
+	var rateLimitErr *github.RateLimitError
+	if errors.As(err, &rateLimitErr) {
+		resetAt := rateLimitErr.Rate.Reset.Time.UTC().Format(time.RFC3339)
+		return model.PRListResult{
+			RateLimitReset: resetAt,
+			Error:          "rate limit exceeded",
+		}, true
+	}
+
+	// Check for secondary / abuse rate limit.
+	var abuseErr *github.AbuseRateLimitError
+	if errors.As(err, &abuseErr) {
+		retryAfter := ""
+		if d := abuseErr.GetRetryAfter(); d > 0 {
+			retryAfter = time.Now().UTC().Add(d).Format(time.RFC3339)
+		}
+		return model.PRListResult{
+			RateLimitReset: retryAfter,
+			Error:          "secondary rate limit exceeded",
+		}, true
+	}
+
+	return model.PRListResult{Error: fmt.Sprintf("search error: %v", err)}, true
+}
+
 // SearchOpenPRs fetches all open pull requests involving the authenticated user
 // using a single GitHub Search query with the involves: qualifier. Results are
 // tagged with IsAuthor, IsAssignee, IsReviewer for client-side filtering.
@@ -139,28 +177,8 @@ func SearchOpenPRs(
 		_ = incomplete
 	}
 	if err != nil {
-		// Check for primary rate limit.
-		var rateLimitErr *github.RateLimitError
-		if errors.As(err, &rateLimitErr) {
-			resetAt := rateLimitErr.Rate.Reset.Time.UTC().Format(time.RFC3339)
-			return model.PRListResult{
-				RateLimitReset: resetAt,
-				Error:          "rate limit exceeded",
-			}, nil
-		}
-		// Check for secondary / abuse rate limit.
-		var abuseErr *github.AbuseRateLimitError
-		if errors.As(err, &abuseErr) {
-			retryAfter := ""
-			if d := abuseErr.GetRetryAfter(); d > 0 {
-				retryAfter = time.Now().UTC().Add(d).Format(time.RFC3339)
-			}
-			return model.PRListResult{
-				RateLimitReset: retryAfter,
-				Error:          "secondary rate limit exceeded",
-			}, nil
-		}
-		return model.PRListResult{Error: fmt.Sprintf("search error: %v", err)}, nil
+		result, _ := mapSearchError(err)
+		return result, nil
 	}
 
 	// Sort by UpdatedAt descending.

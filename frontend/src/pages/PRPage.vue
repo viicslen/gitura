@@ -212,22 +212,43 @@
         </Button>
       </div>
 
-      <!-- Rate limit banner -->
+      <!-- Error state -->
       <div
-        v-if="errorMsg && rateLimitReset"
-        class="mb-4 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-600 dark:text-yellow-400"
+        v-if="errorMsg"
+        class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-5"
         role="alert"
       >
-        GitHub rate limit reached. Resets at {{ formatReset(rateLimitReset) }}.
-      </div>
-
-      <!-- General error banner -->
-      <div
-        v-else-if="errorMsg"
-        class="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-        role="alert"
-      >
-        {{ errorMsg }}
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div class="space-y-1">
+            <p class="text-sm font-semibold text-destructive">Could not load pull requests</p>
+            <p
+              v-if="rateLimitReset"
+              class="text-sm text-yellow-700 dark:text-yellow-300"
+            >
+              GitHub rate limit reached. Resets at {{ formatReset(rateLimitReset) }}.
+            </p>
+            <p
+              v-else-if="isGitHubServiceIssue"
+              class="text-sm text-muted-foreground"
+            >
+              GitHub is temporarily unavailable. This is usually transient.
+            </p>
+            <p
+              v-else
+              class="text-sm text-muted-foreground"
+            >
+              {{ errorMsg }}
+            </p>
+          </div>
+          <Button
+            size="lg"
+            :disabled="loading"
+            @click="fetchPRs()"
+          >
+            <RefreshCw :class="['mr-2 h-4 w-4', loading && 'animate-spin']" />
+            Refresh pull requests
+          </Button>
+        </div>
       </div>
 
       <!-- Skeleton loading state -->
@@ -254,6 +275,15 @@
         <div class="flex flex-col items-center justify-center py-20 text-center gap-3">
           <GitPullRequest class="h-10 w-10 text-muted-foreground" />
           <p class="text-sm text-muted-foreground">No open pull requests found.</p>
+          <Button
+            size="lg"
+            variant="outline"
+            :disabled="loading"
+            @click="fetchPRs()"
+          >
+            <RefreshCw :class="['mr-2 h-4 w-4', loading && 'animate-spin']" />
+            Refresh pull requests
+          </Button>
         </div>
       </template>
 
@@ -335,6 +365,10 @@ const rateLimitReset = ref<string | null>(null)
 
 /** Raw unfiltered result from the backend (involves: query). */
 const rawResult = ref<model.PRListResult | null>(null)
+const isGitHubServiceIssue = computed<boolean>(() => {
+  if (!errorMsg.value) return false
+  return errorMsg.value.toLowerCase().includes('github service unavailable')
+})
 
 // ── Filters composable ────────────────────────────────────────────────────────
 

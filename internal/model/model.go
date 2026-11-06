@@ -18,10 +18,13 @@ type PullRequestSummary struct {
 	IsDraft         bool   `json:"is_draft"`
 	Body            string `json:"body"`
 	HeadBranch      string `json:"head_branch"`
+	HeadOwner       string `json:"head_owner"`
+	HeadRepo        string `json:"head_repo"`
 	BaseBranch      string `json:"base_branch"`
 	HeadSHA         string `json:"head_sha"`
 	NodeID          string `json:"node_id"`
 	HTMLURL         string `json:"html_url"`
+	AuthorLogin     string `json:"author_login"`
 	Owner           string `json:"owner"`
 	Repo            string `json:"repo"`
 	CommentCount    int    `json:"comment_count"`
@@ -34,6 +37,7 @@ type PullRequestSummary struct {
 type CommentDTO struct {
 	ID           int64  `json:"id"`
 	InReplyToID  int64  `json:"in_reply_to_id"`
+	ReviewID     int64  `json:"review_id"`
 	Body         string `json:"body"`
 	AuthorLogin  string `json:"author_login"`
 	AuthorAvatar string `json:"author_avatar"`
@@ -48,14 +52,49 @@ type CommentDTO struct {
 // do not carry a resolved flag.
 type CommentThreadDTO struct {
 	RootID   int64        `json:"root_id"`
+	ReviewID int64        `json:"review_id"`
 	NodeID   string       `json:"node_id"`
 	Comments []CommentDTO `json:"comments"`
 	Resolved bool         `json:"resolved"`
 	Path     string       `json:"path"`
 	Line     int          `json:"line"`
+	Side     string       `json:"side"` // "LEFT" (old file) or "RIGHT" (new file)
 	// Outdated is true when GitHub reports the thread's current line as null
 	// (the surrounding code changed since the comment was posted).
 	Outdated bool `json:"outdated"`
+}
+
+// PRCommentDTO represents a general comment left on the pull request itself.
+type PRCommentDTO struct {
+	ID           int64  `json:"id"`
+	Body         string `json:"body"`
+	AuthorLogin  string `json:"author_login"`
+	AuthorAvatar string `json:"author_avatar"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
+	HTMLURL      string `json:"html_url"`
+}
+
+// ReviewOverviewDTO represents a submitted pull request review in the overview view.
+type ReviewOverviewDTO struct {
+	ReviewID            int64  `json:"review_id"`
+	State               string `json:"state"`
+	Body                string `json:"body"`
+	AuthorLogin         string `json:"author_login"`
+	AuthorAvatar        string `json:"author_avatar"`
+	SubmittedAt         string `json:"submitted_at"`
+	HTMLURL             string `json:"html_url"`
+	AllThreadsResolved  bool   `json:"all_threads_resolved"`
+	HasThreads          bool   `json:"has_threads"`
+	ResolvedThreadCount int    `json:"resolved_thread_count"`
+	TotalThreadCount    int    `json:"total_thread_count"`
+}
+
+// PROverviewDTO holds the data shown in the overview tab for a pull request.
+type PROverviewDTO struct {
+	Summary         PullRequestSummary  `json:"summary"`
+	GeneralComments []PRCommentDTO      `json:"general_comments"`
+	Reviews         []ReviewOverviewDTO `json:"reviews"`
 }
 
 // AuthState represents the current authentication status of the app.
@@ -218,6 +257,7 @@ type PendingReviewDTO struct {
 	ReviewID   int64             `json:"review_id"` // 0 = none
 	Comments   []DraftCommentDTO `json:"comments"`
 	HasPending bool              `json:"has_pending"`
+	HeadSHA    string            `json:"head_sha"` // commit the comments' line numbers refer to
 }
 
 // ReviewSubmitDTO is the request payload for submitting a review verdict.

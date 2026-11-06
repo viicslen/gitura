@@ -15,11 +15,13 @@ import CommentDetailPanel from '@/components/CommentDetailPanel.vue'
 import RunPanel from '@/components/RunPanel.vue'
 import ViewToggle from '@/components/ViewToggle.vue'
 import DiffReviewView from '@/components/DiffReviewView.vue'
+import PROverviewPanel from '@/components/PROverviewPanel.vue'
 import { useReview } from '@/composables/useReview'
 import { useRuns } from '@/composables/useRuns'
+import { useAuth } from '@/composables/useAuth'
 import type { ReviewLoadInput } from '@/types/review'
 import type { model } from '../wailsjs/go/models'
-import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker } from '../wailsjs/go/main/App'
+import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview } from '../wailsjs/go/main/App'
 import { toast } from 'vue-sonner'
 
 const props = defineProps<{
@@ -39,9 +41,10 @@ const emit = defineEmits<{
   }): void
 }>()
 
-const prView = ref<'conversation' | 'files'>('conversation')
+const prView = ref<'overview' | 'conversation' | 'files'>('overview')
 
 const VIEW_OPTIONS = [
+  { value: 'overview', label: 'Overview' },
   { value: 'conversation', label: 'Conversation' },
   { value: 'files', label: 'Files changed' },
 ]
@@ -73,18 +76,20 @@ const pendingRunCount = computed(() => runs.value.filter((r) => r.running).lengt
 const diffReviewRef = ref<InstanceType<typeof DiffReviewView> | null>(null)
 const diffCanGoPrev = computed(() => diffReviewRef.value?.canGoPrev ?? false)
 const diffCanGoNext = computed(() => diffReviewRef.value?.canGoNext ?? false)
-const diffShowOtherThreads = computed(() => diffReviewRef.value?.showOtherThreads ?? false)
+const showDiffThreads = ref(true)
 const diffFileCount = computed(() => diffReviewRef.value?.files?.length ?? 0)
 const diffAdded = computed(() => diffReviewRef.value?.files?.filter(f => f.status === 'added').length ?? 0)
 const diffDeleted = computed(() => diffReviewRef.value?.files?.filter(f => f.status === 'removed').length ?? 0)
 const diffModified = computed(() => diffReviewRef.value?.files?.filter(f => f.status !== 'added' && f.status !== 'removed').length ?? 0)
 function diffPrevFile(): void { diffReviewRef.value?.prevFile() }
 function diffNextFile(): void { diffReviewRef.value?.nextFile() }
-function diffToggleOtherThreads(): void { diffReviewRef.value?.toggleOtherThreads() }
 
 const refreshing = ref(false)
+const overview = ref<model.PROverviewDTO | null>(null)
+const showResolvedReviews = ref(false)
 
 const {
+  threads,
   prSummary,
   loading,
   error,
@@ -103,7 +108,11 @@ const {
   resolveThread,
   unresolveThread,
   addReplyToThread,
+  reloadReviewActivity,
 } = useReview(props.prItem)
+
+const { authState } = useAuth()
+const isOwnPR = computed(() => !!prSummary.value?.author_login && prSummary.value.author_login === authState.value.login)
 
 function handleSelect(index: number): void {
   currentIndex.value = index
@@ -126,10 +135,34 @@ function handleRan(): void {
   runPanelOpen.value = true
 }
 
+async function refreshOverview(): Promise<void> {
+  try {
+    overview.value = await GetPROverview(showResolvedReviews.value)
+  } catch {
+    // Non-fatal; the overview refreshes on the next load.
+  }
+}
+
+async function handleResolve(rootId: number): Promise<void> {
+  await resolveThread(rootId)
+  await refreshOverview()
+}
+
+async function handleUnresolve(rootId: number): Promise<void> {
+  await unresolveThread(rootId)
+  await refreshOverview()
+}
+
+async function handleReviewActivity(): Promise<void> {
+  await reloadReviewActivity()
+  await refreshOverview()
+}
+
 async function refreshPRView(): Promise<void> {
   refreshing.value = true
   try {
     await loadPR()
+    overview.value = await GetPROverview(showResolvedReviews.value)
     await diffReviewRef.value?.reload()
   } catch (err) {
     toast.error('Could not refresh PR data: ' + String(err))
@@ -173,9 +206,29 @@ async function browseForPath(): Promise<void> {
 }
 
 onMounted(() => {
-  loadPR()
+  void loadPR().then(async () => {
+    overview.value = await GetPROverview(showResolvedReviews.value)
+  }).catch(() => {})
   void loadCommands()
   void loadLocalPath()
+})
+
+watch(showResolvedReviews, async (value) => {
+  if (loading.value || !prSummary.value) return
+  try {
+    overview.value = await GetPROverview(value)
+  } catch (err) {
+    toast.error('Could not update overview: ' + String(err))
+  }
+})
+
+watch(prSummary, async (summary) => {
+  if (!summary) return
+  try {
+    overview.value = await GetPROverview(showResolvedReviews.value)
+  } catch {
+    // Non-fatal; handled by refresh/load error paths.
+  }
 })
 
 watch(
@@ -215,13 +268,20 @@ watch(
         />
         <span class="text-xs text-muted-foreground select-none">Show resolved</span>
       </div>
+      <div v-else-if="prView === 'overview'" class="flex items-center gap-2 shrink-0">
+        <Switch
+          :model-value="showResolvedReviews"
+          aria-label="Show reviews with resolved conversations"
+          @update:model-value="showResolvedReviews = !showResolvedReviews"
+        />
+        <span class="text-xs text-muted-foreground select-none">Show resolved reviews</span>
+      </div>
       <div v-else class="flex items-center gap-2 shrink-0">
         <Switch
-          :model-value="diffShowOtherThreads"
-          aria-label="Show reviewer comments"
-          @update:model-value="diffToggleOtherThreads()"
+          v-model="showDiffThreads"
+          aria-label="Show comments in diff"
         />
-        <span class="text-xs text-muted-foreground select-none">Reviewer comments</span>
+        <span class="text-xs text-muted-foreground select-none">Comments</span>
       </div>
 
       <!-- Spacer -->
@@ -232,6 +292,11 @@ watch(
         <span>{{ prSummary.unresolved_count }} unresolved</span>
         <span class="text-border">·</span>
         <span>{{ prSummary.comment_count }} total</span>
+      </div>
+      <div v-if="overview && prView === 'overview'" class="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+        <span>{{ overview.general_comments.length }} comments</span>
+        <span class="text-border">·</span>
+        <span>{{ overview.reviews.length }} reviews</span>
       </div>
 
       <!-- File count (files view only) -->
@@ -380,8 +445,8 @@ watch(
             :commands="commands"
             :default-command-name="defaultCommandName"
             class="flex-1 overflow-hidden"
-            @resolve="resolveThread"
-            @unresolve="unresolveThread"
+            @resolve="handleResolve"
+            @unresolve="handleUnresolve"
             @reply-sent="handleReplySent"
             @suggestion-committed="handleSuggestionCommitted"
             @ran="handleRan"
@@ -395,11 +460,25 @@ watch(
         </div>
       </div>
 
+      <PROverviewPanel
+        v-if="prView === 'overview'"
+        :overview="overview"
+        class="flex-1 min-h-0 overflow-hidden"
+      />
+
       <!-- Files changed view -->
       <DiffReviewView
-        ref="diffReviewRef"
         v-show="prView === 'files'"
+        ref="diffReviewRef"
+        :threads="threads"
+        :show-threads="showDiffThreads"
+        :is-own-pr="isOwnPR"
+        :head-sha="prSummary?.head_sha ?? ''"
         class="flex-1 min-h-0 overflow-hidden"
+        @resolve="handleResolve"
+        @unresolve="handleUnresolve"
+        @reply-sent="handleReplySent"
+        @threads-changed="handleReviewActivity"
       />
     </template>
   </div>

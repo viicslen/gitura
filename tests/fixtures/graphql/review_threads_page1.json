@@ -20,6 +20,9 @@
                       "login": "alice",
                       "avatarUrl": "https://avatars.githubusercontent.com/u/10?v=4"
                     },
+                    "pullRequestReview": {
+                      "databaseId": 9101
+                    },
                     "path": "src/main.go",
                     "line": 10,
                     "originalLine": 10,

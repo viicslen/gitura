@@ -20,6 +20,9 @@
                       "login": "bob",
                       "avatarUrl": "https://avatars.githubusercontent.com/u/20?v=4"
                     },
+                    "pullRequestReview": {
+                      "databaseId": 9102
+                    },
                     "path": "src/util.go",
                     "line": 55,
                     "originalLine": 55,

@@ -391,6 +391,23 @@ func TestSearchOpenPRs_GenericError_ReturnsMappedResult(t *testing.T) {
 	filters := model.PRListFilters{IncludeAuthor: true}
 	result, err := SearchOpenPRs(context.Background(), client, "alice", filters)
 	require.NoError(t, err)
+	assert.Equal(t, "github service unavailable; please refresh shortly", result.Error)
+}
+
+// TestSearchOpenPRs_BadRequest_ReturnsSearchError verifies that non-5xx
+// non-rate-limit errors are still surfaced as generic search errors.
+func TestSearchOpenPRs_BadRequest_ReturnsSearchError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprint(w, `{"message":"Validation Failed"}`)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(srv)
+	filters := model.PRListFilters{IncludeAuthor: true}
+	result, err := SearchOpenPRs(context.Background(), client, "alice", filters)
+	require.NoError(t, err)
 	assert.Contains(t, result.Error, "search error")
 }
 
