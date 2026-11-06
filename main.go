@@ -2,14 +2,19 @@
 package main
 
 import (
+	"os"
+	"runtime"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
 
 func main() {
+	configureLinuxWebView()
+
 	app := NewApp()
-	assetMiddleware := assetserver.Middleware(avatarProxyMiddleware)
+	assetMiddleware := assetserver.Middleware(assetProxyMiddleware(app))
 
 	err := wails.Run(&options.App{
 		Title:            "gitura",
@@ -27,5 +32,20 @@ func main() {
 
 	if err != nil {
 		println("Error:", err.Error())
+	}
+}
+
+// configureLinuxWebView applies conservative WebKitGTK defaults for Linux GPUs
+// that fail EGL/GBM initialisation and otherwise abort before rendering.
+func configureLinuxWebView() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	if _, exists := os.LookupEnv("WEBKIT_DISABLE_COMPOSITING_MODE"); !exists {
+		_ = os.Setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1")
+	}
+	if _, exists := os.LookupEnv("WEBKIT_DISABLE_DMABUF_RENDERER"); !exists {
+		_ = os.Setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
 	}
 }

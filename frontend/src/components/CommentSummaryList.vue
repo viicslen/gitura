@@ -28,6 +28,17 @@ const visibleThreads = computed(() =>
     : props.threads.filter((t) => !t.resolved)
 )
 
+const reviewIndexById = computed(() => {
+  const indices = new Map<number, number>()
+  let nextIndex = 1
+  for (const thread of props.threads) {
+    if (thread.review_id <= 0 || indices.has(thread.review_id)) continue
+    indices.set(thread.review_id, nextIndex)
+    nextIndex++
+  }
+  return indices
+})
+
 function rootComment(thread: model.CommentThreadDTO): model.CommentDTO | null {
   return thread.comments?.[0] ?? null
 }
@@ -62,6 +73,11 @@ function handleKeydown(event: KeyboardEvent, index: number): void {
 
 function threadAvatarKey(thread: model.CommentThreadDTO): string {
   return `thread:${thread.root_id}`
+}
+
+function reviewLabel(thread: model.CommentThreadDTO): string {
+  const index = reviewIndexById.value.get(thread.review_id)
+  return index ? `Review ${index}` : 'Single comment'
 }
 </script>
 
@@ -136,6 +152,17 @@ function threadAvatarKey(thread: model.CommentThreadDTO): string {
               {{ rootComment(thread)?.author_login ?? 'Unknown' }}
             </span>
             <span class="flex-1" />
+            <Badge
+              variant="secondary"
+              :class="[
+                'text-[10px] font-normal shrink-0 border',
+                index === currentIndex
+                  ? 'bg-background/90 border-border text-foreground'
+                  : 'bg-muted border-transparent text-muted-foreground',
+              ]"
+            >
+              {{ reviewLabel(thread) }}
+            </Badge>
             <Badge
               v-if="thread.resolved && showResolved"
               variant="outline"
