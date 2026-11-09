@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { model } from '@/wailsjs/go/models'
+import { model } from '@/wailsjs/go/models'
+import * as App from '../wailsjs/go/main/App'
 
 const SetFileViewed = vi.fn()
 vi.mock('../wailsjs/go/main/App', () => ({
@@ -11,9 +12,11 @@ vi.mock('../wailsjs/go/main/App', () => ({
 
 const { useDiffReview } = await import('./useDiffReview')
 
+const diffNamed = (filename: string) => model.ParsedDiffDTO.createFrom({ filename, hunks: [] })
+
 function withFile() {
   const review = useDiffReview()
-  review.files.value = [{ filename: 'a.go', viewed: false } as model.PRFileDTO]
+  review.files.value = [model.PRFileDTO.createFrom({ filename: 'a.go', viewed: false })]
   return review
 }
 
@@ -55,7 +58,7 @@ describe('useDiffReview file filters', () => {
     localStorage.clear()
     const review = useDiffReview()
     review.files.value = ['a.go', 'a_test.go', 'b.go', 'c.go', 'd.go'].map(
-      (filename) => ({ filename, viewed: filename === 'b.go' }) as model.PRFileDTO,
+      (filename) => model.PRFileDTO.createFrom({ filename, viewed: filename === 'b.go' }),
     )
     review.hideTests.value = true
     review.hideViewed.value = true
@@ -77,43 +80,40 @@ describe('useDiffReview file filters', () => {
   })
 
   it('keeps only the latest diff when files are switched quickly', async () => {
-    const { GetFileDiff } = await import('../wailsjs/go/main/App') as unknown as { GetFileDiff: ReturnType<typeof vi.fn> }
-    let resolveSlow!: (v: unknown) => void
-    GetFileDiff.mockImplementationOnce(() => new Promise((r) => { resolveSlow = r }))
-    GetFileDiff.mockResolvedValueOnce({ hunks: ['fast'] })
+    let resolveSlow!: (v: model.ParsedDiffDTO) => void
+    vi.mocked(App.GetFileDiff).mockImplementationOnce(() => new Promise((r) => { resolveSlow = r }))
+    vi.mocked(App.GetFileDiff).mockResolvedValueOnce(diffNamed('fast'))
     const review = useDiffReview()
     const slow = review.selectFile('a.go')
     await review.selectFile('b.go')
-    resolveSlow({ hunks: ['slow'] })
+    resolveSlow(diffNamed('slow'))
     await slow
     expect(review.currentFilePath.value).toBe('b.go')
-    expect(review.currentDiff.value).toEqual({ hunks: ['fast'] })
+    expect(review.currentDiff.value?.filename).toBe('fast')
   })
 })
 
 describe('useDiffReview refetch', () => {
   it('keeps the open diff on screen while it is fetched again', async () => {
-    const { GetFileDiff } = await import('../wailsjs/go/main/App') as unknown as { GetFileDiff: ReturnType<typeof vi.fn> }
-    GetFileDiff.mockResolvedValueOnce({ hunks: ['old'] })
+    vi.mocked(App.GetFileDiff).mockResolvedValueOnce(diffNamed('old'))
     const review = useDiffReview()
     await review.selectFile('a.go')
-    let resolve!: (v: unknown) => void
-    GetFileDiff.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+    let resolve!: (v: model.ParsedDiffDTO) => void
+    vi.mocked(App.GetFileDiff).mockImplementationOnce(() => new Promise((r) => { resolve = r }))
     const refetch = review.selectFile('a.go', true)
     expect(review.diffLoading.value).toBe(false)
-    expect(review.currentDiff.value).toEqual({ hunks: ['old'] })
-    resolve({ hunks: ['new'] })
+    expect(review.currentDiff.value?.filename).toBe('old')
+    resolve(diffNamed('new'))
     await refetch
-    expect(review.currentDiff.value).toEqual({ hunks: ['new'] })
+    expect(review.currentDiff.value?.filename).toBe('new')
   })
 })
 
 describe('useDiffReview start file', () => {
   it('opens the first shown file that has not been viewed yet', async () => {
     localStorage.clear()
-    const { GetPRFiles, GetViewedFiles } = await import('../wailsjs/go/main/App') as unknown as Record<string, ReturnType<typeof vi.fn>>
-    GetPRFiles.mockResolvedValueOnce(['a.go', 'b_test.go', 'c.go', 'd.go'].map((filename) => ({ filename, viewed: false })))
-    GetViewedFiles.mockResolvedValueOnce(['a.go'])
+    vi.mocked(App.GetPRFiles).mockResolvedValueOnce(['a.go', 'b_test.go', 'c.go', 'd.go'].map((filename) => model.PRFileDTO.createFrom({ filename, viewed: false })))
+    vi.mocked(App.GetViewedFiles).mockResolvedValueOnce(['a.go'])
     const review = useDiffReview()
     review.hideTests.value = true
     await review.loadFiles()

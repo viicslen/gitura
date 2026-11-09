@@ -13,18 +13,24 @@ function box(index: string, checked: boolean): HTMLInputElement {
   return el
 }
 
+function changeOn(el: HTMLInputElement): Event {
+  const event = new Event('change')
+  Object.defineProperty(event, 'target', { value: el })
+  return event
+}
+
 describe('onTaskChange', () => {
   it('passes the offset index and new state to the toggle', async () => {
     const toggle = vi.fn().mockResolvedValue(undefined)
     const el = box('1', true)
-    await onTaskChange({ target: el } as unknown as Event, toggle, 2)
+    await onTaskChange(changeOn(el), toggle, 2)
     expect(toggle).toHaveBeenCalledWith(3, true)
     expect(el.disabled).toBe(false)
   })
 
   it('reverts the checkbox when GitHub rejects the edit', async () => {
     const el = box('0', true)
-    await onTaskChange({ target: el } as unknown as Event, vi.fn().mockRejectedValue(new Error('403')))
+    await onTaskChange(changeOn(el), vi.fn().mockRejectedValue(new Error('403')))
     expect(el.checked).toBe(false)
   })
 })

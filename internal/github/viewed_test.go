@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFetchViewedFiles_PaginatesAndKeepsOnlyViewed(t *testing.T) {
+func TestFetchViewedFiles_MultiplePages_ReturnsOnlyViewedPaths(t *testing.T) {
 	pages := []string{
 		`{"data":{"repository":{"pullRequest":{"files":{"nodes":[{"path":"a.go","viewerViewedState":"VIEWED"},{"path":"b.go","viewerViewedState":"DISMISSED"}],"pageInfo":{"hasNextPage":true,"endCursor":"c1"}}}}}}`,
 		`{"data":{"repository":{"pullRequest":{"files":{"nodes":[{"path":"c.go","viewerViewedState":"VIEWED"},{"path":"d.go","viewerViewedState":"UNVIEWED"}],"pageInfo":{"hasNextPage":false,"endCursor":"c2"}}}}}}`,
@@ -36,7 +36,7 @@ func TestFetchViewedFiles_PaginatesAndKeepsOnlyViewed(t *testing.T) {
 	assert.Equal(t, []any{nil, "c1"}, afters)
 }
 
-func TestSetFileViewed_PicksMutationAndSurfacesErrors(t *testing.T) {
+func TestSetFileViewed_ViewedFlag_SendsMatchingMutationOrError(t *testing.T) {
 	var query string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

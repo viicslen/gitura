@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PROverviewPanel from './PROverviewPanel.vue'
-import type { model } from '@/wailsjs/go/models'
+import { model } from '@/wailsjs/go/models'
 
 function overview(review: Partial<model.ReviewOverviewDTO>): model.PROverviewDTO {
-  return {
+  return model.PROverviewDTO.createFrom({
     summary: { body: '' },
     general_comments: [],
     reviews: [{ review_id: 1, author_login: 'a', state: 'COMMENTED', body: 'x', ...review }],
-  } as unknown as model.PROverviewDTO
+  })
 }
 
 function sectionHeadings(o: model.PROverviewDTO): string[] {

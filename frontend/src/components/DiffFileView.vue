@@ -162,12 +162,12 @@ async function submitComment(body: string, submitMode: 'draft' | 'immediate'): P
     start_side: t.startLine ? t.side : undefined,
   } as model.DraftCommentDTO
   props.unsentComments.set(path, { target: t, body: formBody.value, sending: true })
-  const entry = props.unsentComments.get(path)!
+  const entry = props.unsentComments.get(path)
   let ok = false
   try {
     ok = await props.postComment(comment, submitMode)
   } finally {
-    if (props.unsentComments.get(path) === entry) {
+    if (entry && props.unsentComments.get(path) === entry) {
       if (ok) props.unsentComments.delete(path)
       else entry.sending = false
     }

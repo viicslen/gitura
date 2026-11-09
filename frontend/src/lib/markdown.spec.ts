@@ -17,15 +17,15 @@ describe('renderGitHubMarkdown', () => {
     const doc = render(`> [!${marker}]\n> Body text.`)
     const alert = doc.querySelector(`.markdown-alert.markdown-alert-${marker.toLowerCase()}`)
     expect(alert).not.toBeNull()
-    expect(alert!.querySelector('.markdown-alert-title')!.textContent!.trim()).toBe(title)
-    expect(alert!.textContent).toContain('Body text.')
-    expect(alert!.textContent).not.toContain(`[!${marker}]`)
+    expect(alert?.querySelector('.markdown-alert-title')?.textContent?.trim()).toBe(title)
+    expect(alert?.textContent).toContain('Body text.')
+    expect(alert?.textContent).not.toContain(`[!${marker}]`)
     expect(doc.querySelector('blockquote')).toBeNull()
   })
 
   it('leaves ordinary blockquotes alone', () => {
     const doc = render('> just a quote')
-    expect(doc.querySelector('blockquote')!.textContent!.trim()).toBe('just a quote')
+    expect(doc.querySelector('blockquote')?.textContent?.trim()).toBe('just a quote')
     expect(doc.querySelector('.markdown-alert')).toBeNull()
   })
 
@@ -34,9 +34,9 @@ describe('renderGitHubMarkdown', () => {
       '<picture><source media="(prefers-color-scheme: dark)" srcset="https://storage.googleapis.com/a/dark.svg">'
       + '<img src="https://storage.googleapis.com/a/light.svg" alt="x"></picture>',
     )
-    expect(doc.querySelector('source')!.getAttribute('srcset'))
+    expect(doc.querySelector('source')?.getAttribute('srcset'))
       .toBe('/__markdown-image?url=https%3A%2F%2Fstorage.googleapis.com%2Fa%2Fdark.svg')
-    expect(doc.querySelector('img')!.getAttribute('src'))
+    expect(doc.querySelector('img')?.getAttribute('src'))
       .toBe('/__markdown-image?url=https%3A%2F%2Fstorage.googleapis.com%2Fa%2Flight.svg')
   })
 
@@ -47,7 +47,7 @@ describe('renderGitHubMarkdown', () => {
   })
 
   it('enables and numbers task checkboxes only when asked', () => {
-    expect(render('- [ ] a').querySelector('input')!.hasAttribute('disabled')).toBe(true)
+    expect(render('- [ ] a').querySelector('input')?.hasAttribute('disabled')).toBe(true)
     const boxes = Array.from(render('- [ ] a\n- [x] b', { tasks: true }).querySelectorAll('input'))
     expect(boxes.map((b) => [b.disabled, b.dataset.taskIndex])).toEqual([[false, '0'], [false, '1']])
   })
@@ -56,7 +56,7 @@ describe('renderGitHubMarkdown', () => {
     const doc = render(coderabbitRateLimit)
     const alert = doc.querySelector('.markdown-alert-warning')
     expect(alert).not.toBeNull()
-    expect(alert!.querySelector('h2')!.textContent).toBe('Review limit reached')
+    expect(alert?.querySelector('h2')?.textContent).toBe('Review limit reached')
     expect(doc.body.textContent).not.toContain('[!WARNING]')
     for (const s of Array.from(doc.querySelectorAll('source[srcset]'))) {
       expect(s.getAttribute('srcset')).toMatch(/^\/__markdown-image\?/)

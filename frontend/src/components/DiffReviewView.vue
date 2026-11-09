@@ -425,7 +425,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
                 id="viewed-toggle"
                 :model-value="currentFile.viewed"
                 :disabled="viewedSaving.has(currentFile.filename)"
-                @update:model-value="(v) => toggleViewed(currentFile!.filename, v === true)"
+                @update:model-value="(v) => currentFile && toggleViewed(currentFile.filename, v === true)"
               />
               Viewed
             </label>

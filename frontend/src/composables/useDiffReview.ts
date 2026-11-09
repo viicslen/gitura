@@ -62,7 +62,10 @@ export function useDiffReview() {
     filesError.value = ''
     try {
       const pending = new Map(files.value.filter((f) => viewedSaving.value.has(f.filename)).map((f) => [f.filename, f.viewed]))
-      files.value = (await App.GetPRFiles()).map((f) => (pending.has(f.filename) ? { ...f, viewed: pending.get(f.filename)! } : f))
+      files.value = (await App.GetPRFiles()).map((f) => {
+        const viewed = pending.get(f.filename)
+        return viewed === undefined ? f : { ...f, viewed }
+      })
       await loadViewed()
       if (startFile.value && currentFilePath.value === null) {
         await selectFile(startFile.value.filename)
