@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/viicslen/gitura/compare/v0.12.0...v0.12.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **nix:** add git to nativeCheckInputs ([d98befb](https://github.com/viicslen/gitura/commit/d98befbb000d0efeed7bd23b6ccfde75b32f8d6e))
+
 ## [0.12.0](https://github.com/viicslen/gitura/compare/v0.11.0...v0.12.0) (2026-11-09)
 
 
