@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.13.0](https://github.com/viicslen/gitura/compare/v0.12.1...v0.13.0) (2026-11-09)
+
+
+### Features
+
+* **frontend:** merge, squash, rebase or close a PR from the title strip ([07e2548](https://github.com/viicslen/gitura/commit/07e25482e8ae345faa7077c23f8e73224901c591))
+* **frontend:** zoom markdown images in a lightbox on click ([24176c2](https://github.com/viicslen/gitura/commit/24176c204017703f2398ffd68c4e2c7f6ab0c00a))
+* **github:** merge and close the loaded pull request ([73a90aa](https://github.com/viicslen/gitura/commit/73a90aae473831fa97db9f35338ff744b5a5ee35))
+* **review:** merge, squash, rebase or close a PR without leaving gitura ([#31](https://github.com/viicslen/gitura/issues/31)) ([f3e4cda](https://github.com/viicslen/gitura/commit/f3e4cda25da66e7f9e22a7a8be147b503af714d6))
+
 ## [0.12.1](https://github.com/viicslen/gitura/compare/v0.12.0...v0.12.1) (2026-11-09)
 
 
