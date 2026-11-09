@@ -114,7 +114,7 @@ function reviewLabel(thread: model.CommentThreadDTO): string {
           />
           <span
             v-else
-            class="w-5 h-5 rounded-full bg-background/95 border border-border text-[10px] font-semibold text-foreground inline-flex items-center justify-center shadow-sm"
+            class="w-5 h-5 rounded-full bg-background/95 border border-border text-[0.625rem] font-semibold text-foreground inline-flex items-center justify-center shadow-sm"
             :title="rootComment(thread)?.author_login ?? 'Unknown'"
             aria-hidden="true"
           >
@@ -147,7 +147,7 @@ function reviewLabel(thread: model.CommentThreadDTO): string {
             <Badge
               variant="secondary"
               :class="[
-                'text-[10px] font-normal shrink-0 border',
+                'text-[0.625rem] font-normal shrink-0 border',
                 index === currentIndex
                   ? 'bg-background/90 border-border text-foreground'
                   : 'bg-muted border-transparent text-muted-foreground',

@@ -389,7 +389,7 @@ watch(
             >
               <Terminal class="h-3.5 w-3.5" />
               Run history
-              <span v-if="pendingRunCount > 0" class="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground tabular-nums">{{ pendingRunCount }}</span>
+              <span v-if="pendingRunCount > 0" class="rounded-full bg-primary px-1.5 text-[0.625rem] text-primary-foreground tabular-nums">{{ pendingRunCount }}</span>
               <ChevronUp class="h-3.5 w-3.5 transition-transform" :class="runPanelOpen && 'rotate-180'" />
             </Button>
           </div>

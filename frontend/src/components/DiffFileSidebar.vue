@@ -260,7 +260,7 @@ function handleKeydown(event: KeyboardEvent, action: () => void): void {
           >
             <Badge
               :variant="statusInfo(row.file.status).variant"
-              class="shrink-0 w-4 h-4 p-0 flex items-center justify-center text-[10px] font-bold"
+              class="shrink-0 w-4 h-4 p-0 flex items-center justify-center text-[0.625rem] font-bold"
               :aria-label="STATUS_NAMES[row.file.status] ?? 'Modified'"
             >
               {{ statusInfo(row.file.status).label }}
@@ -272,17 +272,17 @@ function handleKeydown(event: KeyboardEvent, action: () => void): void {
 
             <span
               v-if="commentCounts?.[row.file.filename]"
-              class="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground"
+              class="shrink-0 flex items-center gap-0.5 text-[0.625rem] text-muted-foreground"
               :aria-label="`${commentCounts[row.file.filename]} unresolved comments`"
             >
               <MessageSquare class="h-3 w-3" />{{ commentCounts[row.file.filename] }}
             </span>
 
-            <span v-if="!row.file.is_binary" class="shrink-0 flex gap-1 text-[10px]">
+            <span v-if="!row.file.is_binary" class="shrink-0 flex gap-1 text-[0.625rem]">
               <span v-if="row.file.additions > 0" class="text-green-600 dark:text-green-400">+{{ row.file.additions }}</span>
               <span v-if="row.file.deletions > 0" class="text-red-500 dark:text-red-400">-{{ row.file.deletions }}</span>
             </span>
-            <span v-else class="text-[10px] text-muted-foreground shrink-0">bin</span>
+            <span v-else class="text-[0.625rem] text-muted-foreground shrink-0">bin</span>
           </li>
         </template>
       </ul>

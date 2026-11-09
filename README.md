@@ -29,7 +29,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 | Settings | Light theme |
 | -------- | ----------- |
 | ![Settings](docs/screenshots/settings.png) | ![Light theme](docs/screenshots/review-light.png) |
-| Ignored commenters and the CLI commands you can run on a comment | Dark, light, and system themes |
+| Fonts and text size, ignored commenters, and the CLI commands you can run on a comment | Dark, light, and system themes |
 
 ## Features
 
@@ -48,6 +48,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch its output stream live in the run panel
 - **Ignored commenters** — filter out CI bot noise by username
 - **Dark, light, and system themes**
+- **Readable type** — Inter and JetBrains Mono by default; switch to Atkinson Hyperlegible or system fonts and scale the text size in Settings
 
 ## Install
 

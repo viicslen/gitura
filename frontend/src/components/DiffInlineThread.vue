@@ -59,8 +59,8 @@ function toggleResolved(): void {
       <span v-if="thread.comments.length > 1" class="shrink-0 text-muted-foreground">
         {{ thread.comments.length - 1 }} repl{{ thread.comments.length === 2 ? 'y' : 'ies' }}
       </span>
-      <Badge v-if="thread.outdated" variant="secondary" class="shrink-0 text-[10px]">Outdated</Badge>
-      <Badge v-if="thread.resolved" variant="secondary" class="shrink-0 gap-1 text-[10px]">
+      <Badge v-if="thread.outdated" variant="secondary" class="shrink-0 text-[0.625rem]">Outdated</Badge>
+      <Badge v-if="thread.resolved" variant="secondary" class="shrink-0 gap-1 text-[0.625rem]">
         <CheckCircle2 class="h-3 w-3" /> Resolved
       </Badge>
     </button>
@@ -86,7 +86,7 @@ function toggleResolved(): void {
           />
           <span
             v-else
-            class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground"
+            class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[0.625rem] font-semibold text-muted-foreground"
             aria-hidden="true"
           >{{ avatarInitial(comment.author_login) }}</span>
           <span class="font-medium">{{ comment.author_login }}</span>

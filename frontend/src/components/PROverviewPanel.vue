@@ -190,13 +190,13 @@ function avatarKey(prefix: string, id: number): string {
                   <div class="min-w-0">
                     <div class="flex items-center gap-2 min-w-0 flex-wrap">
                       <span class="text-sm font-medium truncate">{{ review.author_login }}</span>
-                      <Badge variant="secondary" class="text-[10px] font-normal shrink-0">{{ reviewLabel(review) }}</Badge>
-                      <Badge variant="outline" class="text-[10px] uppercase shrink-0">{{ reviewStateLabel(review) }}</Badge>
+                      <Badge variant="secondary" class="text-[0.625rem] font-normal shrink-0">{{ reviewLabel(review) }}</Badge>
+                      <Badge variant="outline" class="text-[0.625rem] uppercase shrink-0">{{ reviewStateLabel(review) }}</Badge>
                     </div>
                     <div class="text-xs text-muted-foreground">{{ formatTimestamp(review.submitted_at) }}</div>
                   </div>
                 </div>
-                <Badge v-if="review.all_threads_resolved" variant="secondary" class="shrink-0 text-[10px]">
+                <Badge v-if="review.all_threads_resolved" variant="secondary" class="shrink-0 text-[0.625rem]">
                   All conversations resolved
                 </Badge>
               </div>

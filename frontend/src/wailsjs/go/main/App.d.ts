@@ -18,6 +18,8 @@ export function DeleteDraftComment(arg1:number,arg2:string):Promise<model.Pendin
 
 export function DiscardPendingReview():Promise<void>;
 
+export function GetAppearance():Promise<model.AppearanceDTO>;
+
 export function GetAuthState():Promise<model.AuthState>;
 
 export function GetCommands():Promise<Array<model.CommandDTO>>;
@@ -65,6 +67,8 @@ export function ReplyToComment(arg1:number,arg2:string):Promise<model.CommentDTO
 export function ResolveThread(arg1:number):Promise<void>;
 
 export function RunCommands(arg1:Array<string>,arg2:string,arg3:model.RunContext):Promise<Array<model.RunResult>>;
+
+export function SetAppearance(arg1:model.AppearanceDTO):Promise<void>;
 
 export function SetDefaultCommandName(arg1:string):Promise<void>;
 

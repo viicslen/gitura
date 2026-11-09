@@ -66,6 +66,8 @@ type App struct {
 	// Empty string means no default is set.
 	defaultCommandName string
 
+	appearance model.AppearanceDTO
+
 	// runCancels maps run IDs to their context cancel functions, allowing
 	// in-flight commands to be stopped via CancelRun.
 	runCancelsMu sync.Mutex
@@ -128,6 +130,7 @@ func (a *App) loadConfig() error {
 	a.ignoredCommenters = cfg.IgnoredCommenters
 	a.commands = cfg.Commands
 	a.defaultCommandName = cfg.DefaultCommandName
+	a.appearance = cfg.Appearance
 	logger.L.Debug("config loaded",
 		"ignored_commenters", len(a.ignoredCommenters),
 		"commands", len(a.commands),
@@ -894,7 +897,7 @@ func (a *App) AddIgnoredCommenter(login string) error {
 	a.ignoredCommenters = append(a.ignoredCommenters, model.IgnoredCommenterDTO{
 		Login: login,
 	})
-	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters, Commands: a.commands, DefaultCommandName: a.defaultCommandName}); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters, Commands: a.commands, DefaultCommandName: a.defaultCommandName, Appearance: a.appearance}); err != nil {
 		// Roll back in-memory change.
 		a.ignoredCommenters = a.ignoredCommenters[:len(a.ignoredCommenters)-1]
 		return fmt.Errorf("settings: save: %w", err)
@@ -923,7 +926,7 @@ func (a *App) RemoveIgnoredCommenter(login string) error {
 	updated := make([]model.IgnoredCommenterDTO, 0, len(a.ignoredCommenters)-1)
 	updated = append(updated, a.ignoredCommenters[:idx]...)
 	updated = append(updated, a.ignoredCommenters[idx+1:]...)
-	if err := settings.Save(settings.Config{IgnoredCommenters: updated, Commands: a.commands, DefaultCommandName: a.defaultCommandName}); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: updated, Commands: a.commands, DefaultCommandName: a.defaultCommandName, Appearance: a.appearance}); err != nil {
 		return fmt.Errorf("settings: save: %w", err)
 	}
 	a.ignoredCommenters = updated
@@ -1397,6 +1400,7 @@ func (a *App) AddCommand(cmd model.CommandDTO) ([]model.CommandDTO, error) {
 		IgnoredCommenters:  a.ignoredCommenters,
 		Commands:           a.commands,
 		DefaultCommandName: a.defaultCommandName,
+		Appearance:         a.appearance,
 	}); err != nil {
 		a.commands = a.commands[:len(a.commands)-1]
 		return nil, fmt.Errorf("settings: save: %w", err)
@@ -1437,6 +1441,7 @@ func (a *App) RemoveCommand(name string) ([]model.CommandDTO, error) {
 		IgnoredCommenters:  a.ignoredCommenters,
 		Commands:           updated,
 		DefaultCommandName: a.defaultCommandName,
+		Appearance:         a.appearance,
 	}); err != nil {
 		return nil, fmt.Errorf("settings: save: %w", err)
 	}
@@ -1483,9 +1488,40 @@ func (a *App) SetDefaultCommandName(name string) error {
 		IgnoredCommenters:  a.ignoredCommenters,
 		Commands:           a.commands,
 		DefaultCommandName: a.defaultCommandName,
+		Appearance:         a.appearance,
 	}); err != nil {
 		return err
 	}
+	return nil
+}
+
+// GetAppearance returns the persisted font and text-size choices. Empty fields
+// mean the frontend default.
+//
+// Error prefix: "settings:" — load failure.
+func (a *App) GetAppearance() (model.AppearanceDTO, error) {
+	if err := a.loadConfig(); err != nil {
+		return model.AppearanceDTO{}, fmt.Errorf("settings: load: %w", err)
+	}
+	return a.appearance, nil
+}
+
+// SetAppearance persists the font and text-size choices.
+//
+// Error prefix: "settings:" — load or save failure.
+func (a *App) SetAppearance(appearance model.AppearanceDTO) error {
+	if err := a.loadConfig(); err != nil {
+		return fmt.Errorf("settings: load: %w", err)
+	}
+	if err := settings.Save(settings.Config{
+		IgnoredCommenters:  a.ignoredCommenters,
+		Commands:           a.commands,
+		DefaultCommandName: a.defaultCommandName,
+		Appearance:         appearance,
+	}); err != nil {
+		return fmt.Errorf("settings: save: %w", err)
+	}
+	a.appearance = appearance
 	return nil
 }
 

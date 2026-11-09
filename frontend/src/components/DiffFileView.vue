@@ -347,7 +347,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
 <template>
   <div class="flex min-h-0 flex-col overflow-hidden">
     <div class="flex shrink-0 items-center gap-3 border-b border-border bg-muted/30 px-4 py-2">
-      <Badge :variant="statusVariant(file.status)" class="text-[10px]">
+      <Badge :variant="statusVariant(file.status)" class="text-[0.625rem]">
         {{ statusLabel(file.status) }}
       </Badge>
       <span class="flex min-w-0 flex-1 font-mono text-xs font-medium" :title="file.filename">
@@ -426,11 +426,11 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
           : 'grid-cols-1 grid-rows-[minmax(0,1fr)]'"
       >
         <template v-if="mode === 'split'">
-          <span class="truncate border-b border-border px-3 py-1 font-mono text-[11px] text-muted-foreground">
+          <span class="truncate border-b border-border px-3 py-1 font-mono text-[0.6875rem] text-muted-foreground">
             Base
           </span>
           <span class="border-b border-border bg-muted/30" />
-          <span class="truncate border-b border-border px-3 py-1 font-mono text-[11px] text-muted-foreground">
+          <span class="truncate border-b border-border px-3 py-1 font-mono text-[0.6875rem] text-muted-foreground">
             Head
           </span>
         </template>

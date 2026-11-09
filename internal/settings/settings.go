@@ -25,7 +25,8 @@ type Config struct {
 	Commands          []model.CommandDTO          `toml:"commands"`
 	// DefaultCommandName is the command name to use as the primary action
 	// in split-run buttons. Empty string means no default is set.
-	DefaultCommandName string `toml:"default_command_name"`
+	DefaultCommandName string              `toml:"default_command_name"`
+	Appearance         model.AppearanceDTO `toml:"appearance"`
 }
 
 // ConfigDir returns the OS-appropriate configuration directory for gitura,
@@ -77,6 +78,7 @@ type decodedConfig struct {
 	Commands           []legacyCommand             `toml:"commands"`
 	DefaultCommandName string                      `toml:"default_command_name"`
 	DefaultCommandID   string                      `toml:"default_command_id"`
+	Appearance         model.AppearanceDTO         `toml:"appearance"`
 }
 
 func readSettingsFile(path string) ([]byte, error) {
@@ -106,6 +108,7 @@ func buildConfig(raw decodedConfig) Config {
 		IgnoredCommenters:  raw.IgnoredCommenters,
 		Commands:           make([]model.CommandDTO, 0, len(raw.Commands)),
 		DefaultCommandName: raw.DefaultCommandName,
+		Appearance:         raw.Appearance,
 	}
 	for _, c := range raw.Commands {
 		cfg.Commands = append(cfg.Commands, model.CommandDTO{

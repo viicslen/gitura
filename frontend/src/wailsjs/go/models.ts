@@ -1,5 +1,21 @@
 export namespace model {
 	
+	export class AppearanceDTO {
+	    text_font: string;
+	    code_font: string;
+	    text_size: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AppearanceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.text_font = source["text_font"];
+	        this.code_font = source["code_font"];
+	        this.text_size = source["text_size"];
+	    }
+	}
 	export class AuthState {
 	    is_authenticated: boolean;
 	    login: string;

@@ -203,8 +203,8 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   cursor: default;
 }
 .markdown-body :deep(code) {
-  font-family: ui-monospace, monospace;
-  font-size: 0.85em;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
   background: var(--color-muted);
   border: 1px solid var(--color-border);
   border-radius: 3px;
@@ -224,10 +224,11 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   border-radius: 6px;
   padding: 0.75rem 1rem;
   overflow-x: auto;
-  font-size: 0.8em;
+  font-size: 0.9em;
   margin: 0;
 }
 .markdown-body :deep(pre code) {
+  font-size: inherit;
   background: transparent;
   border: none;
   padding: 0;
@@ -355,7 +356,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
 }
 .markdown-body :deep(.run-dropdown-cmd) {
   font-size: 0.65rem;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   color: var(--color-muted-foreground);
   max-width: 200px;
   overflow: hidden;

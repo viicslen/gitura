@@ -93,7 +93,7 @@ const numbersRight = computed(() => props.split && props.side === 'LEFT')
     <template v-for="(item, i) in items" :key="item.key">
       <div
         v-if="item.type === 'gap'"
-        class="select-none border-y border-border/60 bg-muted/50 py-0.5 text-center text-[11px] text-muted-foreground"
+        class="select-none border-y border-border/60 bg-muted/50 py-0.5 text-center text-[0.6875rem] text-muted-foreground"
         :class="wrap ? '' : 'sticky left-0 w-[100cqw]'"
       >
         ⋯ {{ item.hidden }} unchanged line{{ item.hidden === 1 ? '' : 's' }}
@@ -110,7 +110,7 @@ const numbersRight = computed(() => props.split && props.side === 'LEFT')
         >
           <button
             type="button"
-            class="w-12 shrink-0 self-start select-none px-2 text-[11px] text-muted-foreground/80 tabular-nums"
+            class="w-12 shrink-0 self-start select-none px-2 text-[0.6875rem] text-muted-foreground/80 tabular-nums"
             :class="[
               numbersRight ? 'text-left' : 'text-right',
               wrap ? '' : [

@@ -293,6 +293,14 @@ type CommandDTO struct {
 	Command string `json:"command" toml:"command"`
 }
 
+// AppearanceDTO holds the user's font and text-size choices. Values are option
+// keys the frontend understands; empty means its default.
+type AppearanceDTO struct {
+	TextFont string `json:"text_font" toml:"text_font"`
+	CodeFont string `json:"code_font" toml:"code_font"`
+	TextSize string `json:"text_size" toml:"text_size"`
+}
+
 // RunContext carries optional provenance metadata attached to a command run.
 // ThreadRootID identifies the review thread from which the run was launched;
 // 0 means the run was not launched from a specific thread.

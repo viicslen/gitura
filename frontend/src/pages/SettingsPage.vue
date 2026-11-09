@@ -14,7 +14,17 @@ import type { model } from '../wailsjs/go/models'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { Trash2, UserX, Terminal, Plus, Star } from 'lucide-vue-next'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Trash2, UserX, Terminal, Plus, Star, Type } from 'lucide-vue-next'
+import { useAppearance, setAppearance, appearanceOptions, type AppearanceKey } from '@/composables/useAppearance'
+
+// ── Appearance ─────────────────────────────────────────────────────────────
+const { appearance } = useAppearance()
+const appearanceRows: { key: AppearanceKey; label: string }[] = [
+  { key: 'text_font', label: 'Text font' },
+  { key: 'code_font', label: 'Code font' },
+  { key: 'text_size', label: 'Text size' },
+]
 
 // ── Ignored Commenters ─────────────────────────────────────────────────────
 const commenters = ref<model.IgnoredCommenterDTO[]>([])
@@ -150,6 +160,36 @@ async function handleRemoveCommand(name: string) {
         Manage application preferences.
       </p>
     </header>
+
+        <section aria-labelledby="appearance-heading">
+          <h2
+            id="appearance-heading"
+            class="text-sm font-semibold mb-1 flex items-center gap-2"
+          >
+            <Type class="h-4 w-4" aria-hidden="true" />
+            Appearance
+          </h2>
+          <p class="text-xs text-muted-foreground mb-3">
+            Fonts and text size across the app.
+          </p>
+          <div class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2">
+            <template v-for="row in appearanceRows" :key="row.key">
+              <span :id="`appearance-${row.key}-label`" class="text-sm">{{ row.label }}</span>
+              <Select :model-value="appearance[row.key]" @update:model-value="setAppearance(row.key, String($event))">
+                <SelectTrigger :aria-labelledby="`appearance-${row.key}-label`" class="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="option in appearanceOptions[row.key]" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </template>
+          </div>
+        </section>
+
+        <Separator />
 
         <!-- Ignored Commenters section -->
         <section aria-labelledby="ignored-commenters-heading">

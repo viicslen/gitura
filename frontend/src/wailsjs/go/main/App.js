@@ -34,6 +34,10 @@ export function DiscardPendingReview() {
   return window['go']['main']['App']['DiscardPendingReview']();
 }
 
+export function GetAppearance() {
+  return window['go']['main']['App']['GetAppearance']();
+}
+
 export function GetAuthState() {
   return window['go']['main']['App']['GetAuthState']();
 }
@@ -128,6 +132,10 @@ export function ResolveThread(arg1) {
 
 export function RunCommands(arg1, arg2, arg3) {
   return window['go']['main']['App']['RunCommands'](arg1, arg2, arg3);
+}
+
+export function SetAppearance(arg1) {
+  return window['go']['main']['App']['SetAppearance'](arg1);
 }
 
 export function SetDefaultCommandName(arg1) {

@@ -40,6 +40,7 @@ func TestSave_RoundTrip_PreservesAllFields(t *testing.T) {
 			{Login: "alice"},
 			{Login: "bob"},
 		},
+		Appearance: model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large"},
 	}
 
 	require.NoError(t, Save(input))
@@ -49,6 +50,7 @@ func TestSave_RoundTrip_PreservesAllFields(t *testing.T) {
 	require.Len(t, got.IgnoredCommenters, 2)
 	assert.Equal(t, "alice", got.IgnoredCommenters[0].Login)
 	assert.Equal(t, "bob", got.IgnoredCommenters[1].Login)
+	assert.Equal(t, input.Appearance, got.Appearance)
 }
 
 // TestSave_EmptySlice_WritesEmptyConfig verifies that saving a Config with nil

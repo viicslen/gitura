@@ -177,7 +177,7 @@ function replyAvatarKey(replyId: number): string {
             />
             <span
               v-else
-              class="w-5 h-5 rounded-full bg-muted text-[10px] font-semibold text-muted-foreground inline-flex items-center justify-center"
+              class="w-5 h-5 rounded-full bg-muted text-[0.625rem] font-semibold text-muted-foreground inline-flex items-center justify-center"
               :title="reply.author_login"
               aria-hidden="true"
             >
