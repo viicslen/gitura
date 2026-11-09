@@ -62,6 +62,10 @@ export function GetIgnoredCommenters() {
   return window['go']['main']['App']['GetIgnoredCommenters']();
 }
 
+export function GetKeybindings() {
+  return window['go']['main']['App']['GetKeybindings']();
+}
+
 export function GetPRFiles() {
   return window['go']['main']['App']['GetPRFiles']();
 }
@@ -144,6 +148,10 @@ export function SetDefaultCommandName(arg1) {
 
 export function SetFileViewed(arg1, arg2) {
   return window['go']['main']['App']['SetFileViewed'](arg1, arg2);
+}
+
+export function SetKeybindings(arg1) {
+  return window['go']['main']['App']['SetKeybindings'](arg1);
 }
 
 export function SetPRLocalPath(arg1, arg2, arg3, arg4) {

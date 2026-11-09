@@ -119,25 +119,12 @@ const tabStop = computed(() => {
 function onTreeKeydown(event: KeyboardEvent): void {
   const items = Array.from((event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="treeitem"]'))
   const i = items.indexOf(document.activeElement as HTMLElement)
-  const row = rows.value[i]
-  if (!row) return
-  const parentIndex = () => {
-    for (let j = i - 1; j >= 0; j--) if (rows.value[j].depth < row.depth) return j
-    return -1
-  }
+  if (i < 0) return
   switch (event.key) {
     case 'ArrowDown': items[i + 1]?.focus(); break
     case 'ArrowUp': items[i - 1]?.focus(); break
     case 'Home': items[0]?.focus(); break
     case 'End': items[items.length - 1]?.focus(); break
-    case 'ArrowRight':
-      if (row.type === 'dir' && !row.expanded) toggle(row.path)
-      else if (row.type === 'dir') items[i + 1]?.focus()
-      break
-    case 'ArrowLeft':
-      if (row.type === 'dir' && row.expanded) toggle(row.path)
-      else items[parentIndex()]?.focus()
-      break
     default: return
   }
   event.preventDefault()
