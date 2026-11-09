@@ -166,6 +166,14 @@ export function StartDeviceFlow() {
   return window['go']['main']['App']['StartDeviceFlow']();
 }
 
+export function StartLocalReview(arg1, arg2) {
+  return window['go']['main']['App']['StartLocalReview'](arg1, arg2);
+}
+
+export function StopLocalReview() {
+  return window['go']['main']['App']['StopLocalReview']();
+}
+
 export function SubmitReview(arg1) {
   return window['go']['main']['App']['SubmitReview'](arg1);
 }

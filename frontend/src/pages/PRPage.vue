@@ -201,15 +201,21 @@
             <span v-if="rawResult?.incomplete_results" class="ml-1 text-yellow-500">(incomplete)</span>
           </template>
         </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          :disabled="loading"
-          aria-label="Refresh pull request list"
-          @click="fetchPRs()"
-        >
-          <RefreshCw :class="['h-4 w-4', loading && 'animate-spin']" />
-        </Button>
+        <div class="flex items-center gap-1">
+          <Button variant="outline" size="sm" class="gap-1.5" @click="openLocalReview()">
+            <FolderGit2 class="h-4 w-4" />
+            Review local changes
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            :disabled="loading"
+            aria-label="Refresh pull request list"
+            @click="fetchPRs()"
+          >
+            <RefreshCw :class="['h-4 w-4', loading && 'animate-spin']" />
+          </Button>
+        </div>
       </div>
 
       <!-- Error state -->
@@ -329,7 +335,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { RefreshCw, GitPullRequest, GitPullRequestDraft, Filter } from 'lucide-vue-next'
+import { useLocalStorage } from '@vueuse/core'
+import { toast } from 'vue-sonner'
+import { RefreshCw, GitPullRequest, GitPullRequestDraft, Filter, FolderGit2 } from 'lucide-vue-next'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -344,7 +352,21 @@ import type { ReviewLoadInput } from '@/types/review'
 
 const emit = defineEmits<{
   (e: 'open-review', item: ReviewLoadInput): void
+  (e: 'open-local', path: string): void
 }>()
+
+const lastLocalDir = useLocalStorage('gitura.lastLocalDir', '')
+
+async function openLocalReview(): Promise<void> {
+  try {
+    const path = await App.OpenFolderPicker('Select a local repository', lastLocalDir.value)
+    if (!path) return
+    lastLocalDir.value = path
+    emit('open-local', path)
+  } catch (err) {
+    toast.error('Could not open folder picker: ' + String(err))
+  }
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 

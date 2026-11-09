@@ -84,6 +84,10 @@ export function SetPRLocalPath(arg1:string,arg2:string,arg3:number,arg4:string):
 
 export function StartDeviceFlow():Promise<model.DeviceFlowInfo>;
 
+export function StartLocalReview(arg1:string,arg2:string):Promise<string>;
+
+export function StopLocalReview():Promise<void>;
+
 export function SubmitReview(arg1:model.ReviewSubmitDTO):Promise<model.ReviewSubmitResult>;
 
 export function SyncPendingReview():Promise<model.PendingReviewDTO>;
