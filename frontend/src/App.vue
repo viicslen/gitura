@@ -18,6 +18,7 @@
       :meta="authState.is_authenticated && currentPage === 'review' ? reviewNavMeta : null"
       :fallback="authState.is_authenticated ? 'Pull Requests' : 'gitura'"
       @open-pr="openPRInBrowser"
+      @back="goHome"
     />
 
     <!-- Theme toggle shown in top-right corner when not authenticated -->
