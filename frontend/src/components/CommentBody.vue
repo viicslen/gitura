@@ -12,6 +12,8 @@ import { computed } from 'vue'
 import MarkdownBody from './MarkdownBody.vue'
 import CodeBlockWithRunner from './CodeBlockWithRunner.vue'
 import { parseCodeBlocks } from '@/lib/parseCodeBlocks'
+import { countTaskListItems } from '@/lib/markdown'
+import type { TaskToggle } from '@/lib/taskList'
 import type { model } from '../wailsjs/go/models'
 import { RunCommands } from '../wailsjs/go/main/App'
 
@@ -21,6 +23,7 @@ const props = defineProps<{
   defaultCommandName: string
   threadRootId?: number
   commentId?: number
+  toggleTask?: TaskToggle
 }>()
 
 const emit = defineEmits<{
@@ -28,6 +31,16 @@ const emit = defineEmits<{
 }>()
 
 const segments = computed(() => parseCodeBlocks(props.content))
+
+const taskOffsets = computed(() => {
+  if (!props.toggleTask) return []
+  let seen = 0
+  return segments.value.map((seg) => {
+    const offset = seen
+    if (seg.type === 'text') seen += countTaskListItems(seg.content)
+    return offset
+  })
+})
 
 /** Returns the primary command (default or first). */
 const primaryCommand = computed((): model.CommandDTO | null => {
@@ -63,6 +76,8 @@ const runCodeCallback = computed(() =>
         :on-run-code="runCodeCallback"
         :thread-root-id="threadRootId"
         :comment-id="commentId"
+        :toggle-task="toggleTask"
+        :task-index-offset="taskOffsets[i]"
       />
       <!-- Code block with optional agent runner -->
       <CodeBlockWithRunner

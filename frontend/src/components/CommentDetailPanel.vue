@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { CheckCircle, Circle } from 'lucide-vue-next'
 import { langFromPath } from '@/lib/lang'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
+import { taskToggler } from '@/lib/taskList'
 
 const props = defineProps<{
   thread: model.CommentThreadDTO | null
@@ -124,6 +125,7 @@ function replyAvatarKey(replyId: number): string {
             :default-command-name="defaultCommandName"
             :thread-root-id="thread.root_id"
             :comment-id="rootComment.id"
+            :toggle-task="taskToggler('review_comment', rootComment.id, rootComment)"
             @ran="emit('ran')"
           />
           <!-- Run button overlay on the comment body -->
@@ -182,7 +184,7 @@ function replyAvatarKey(replyId: number): string {
             <span class="text-xs text-muted-foreground">{{ formatTimestamp(reply.created_at) }}</span>
           </div>
           <div class="rounded-md bg-muted/30 px-3 py-2">
-            <MarkdownBody :content="reply.body" />
+            <MarkdownBody :content="reply.body" :toggle-task="taskToggler('review_comment', reply.id, reply)" />
           </div>
         </div>
       </div>
@@ -223,7 +225,7 @@ function replyAvatarKey(replyId: number): string {
         v-if="isAtEnd"
         class="rounded-md bg-muted/50 border border-border px-4 py-3 text-sm text-center text-muted-foreground"
       >
-        All comments reviewed.
+        This is the last thread.
       </div>
     </div>
   </ScrollArea>

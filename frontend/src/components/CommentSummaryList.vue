@@ -12,6 +12,8 @@ const props = defineProps<{
   showResolved: boolean
   commands: model.CommandDTO[]
   defaultCommandName: string
+  /** PR-wide review numbers, so labels match the Overview and don't shift with filters. */
+  reviewNumbers?: Record<number, number>
 }>()
 
 const { runsForThread } = useRuns()
@@ -28,16 +30,6 @@ const visibleThreads = computed(() =>
     : props.threads.filter((t) => !t.resolved)
 )
 
-const reviewIndexById = computed(() => {
-  const indices = new Map<number, number>()
-  let nextIndex = 1
-  for (const thread of props.threads) {
-    if (thread.review_id <= 0 || indices.has(thread.review_id)) continue
-    indices.set(thread.review_id, nextIndex)
-    nextIndex++
-  }
-  return indices
-})
 
 function rootComment(thread: model.CommentThreadDTO): model.CommentDTO | null {
   return thread.comments?.[0] ?? null
@@ -60,12 +52,12 @@ function lastRunStatus(thread: model.CommentThreadDTO): 'running' | 'success' | 
 }
 
 function handleKeydown(event: KeyboardEvent, index: number): void {
-  if (event.key === 'ArrowUp') {
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
     event.preventDefault()
-    if (index > 0) emit('select', index - 1)
-  } else if (event.key === 'ArrowDown') {
-    event.preventDefault()
-    if (index < visibleThreads.value.length - 1) emit('select', index + 1)
+    const target = index + (event.key === 'ArrowUp' ? -1 : 1)
+    if (target < 0 || target >= visibleThreads.value.length) return
+    emit('select', target)
+    document.getElementById(`thread-item-${target}`)?.focus()
   } else if (event.key === 'Enter') {
     emit('select', index)
   }
@@ -76,8 +68,8 @@ function threadAvatarKey(thread: model.CommentThreadDTO): string {
 }
 
 function reviewLabel(thread: model.CommentThreadDTO): string {
-  const index = reviewIndexById.value.get(thread.review_id)
-  return index ? `Review ${index}` : 'Single comment'
+  const number = props.reviewNumbers?.[thread.review_id]
+  return number ? `Review ${number}` : 'Single comment'
 }
 </script>
 

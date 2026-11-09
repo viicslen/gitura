@@ -69,12 +69,12 @@ function handleKeydown(event: KeyboardEvent): void {
       @keydown="handleKeydown"
     />
 
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <slot name="leading" />
 
       <div class="flex-1" />
 
-      <p v-if="inlineError" class="text-xs text-destructive truncate">
+      <p v-if="inlineError" class="min-w-0 text-xs text-destructive truncate">
         {{ inlineError }}
       </p>
       <span v-else class="text-xs text-muted-foreground">
@@ -83,6 +83,7 @@ function handleKeydown(event: KeyboardEvent): void {
 
       <Button
         size="sm"
+        class="ml-auto"
         :disabled="!draft.trim() || submitting"
         @click="submit"
       >
