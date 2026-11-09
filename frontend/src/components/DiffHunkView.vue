@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import hljs from 'highlight.js/lib/common'
+import { highlightLine as highlightCode, lineLanguages } from '@/lib/highlight'
 
 const props = defineProps<{
   diffHunk: string
@@ -23,23 +23,20 @@ function escapeHtml(s: string): string {
 
 const lines = computed<DiffLine[]>(() => {
   if (!props.diffHunk) return []
-  const lang = props.language && hljs.getLanguage(props.language) ? props.language : 'plaintext'
+  const raws = props.diffHunk.split('\n')
+  const codes = raws.filter((raw) => !raw.startsWith('@@')).map((raw) => raw.slice(1))
+  const langs = lineLanguages(codes, props.language ?? 'plaintext')
   let contentIndex = 0
 
-  return props.diffHunk.split('\n').map((raw) => {
+  return raws.map((raw) => {
     if (raw.startsWith('@@')) {
       return { prefix: '', highlighted: escapeHtml(raw), kind: 'header' as const, contentIndex: 0 }
     }
+    const code = codes[contentIndex]
+    const highlighted = highlightCode(code, langs[contentIndex])
     contentIndex++
     const prefix = raw[0] === '+' || raw[0] === '-' ? raw[0] : ' '
-    const code = raw.slice(1)
     const kind: DiffLine['kind'] = prefix === '+' ? 'add' : prefix === '-' ? 'remove' : 'context'
-    let highlighted: string
-    try {
-      highlighted = hljs.highlight(code, { language: lang }).value
-    } catch {
-      highlighted = escapeHtml(code)
-    }
     return { prefix, highlighted, kind, contentIndex }
   })
 })

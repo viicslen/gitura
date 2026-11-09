@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject } from 'vue'
+import { ref, computed, inject } from 'vue'
 import type { ComputedRef } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -8,6 +8,8 @@ const props = defineProps<{
   target: { path: string; line: number; side: string; startLine?: number }
   /** Resolves true once the comment is saved; on false the typed text is kept. */
   post: (body: string, mode: 'draft' | 'immediate') => Promise<boolean>
+  /** Sent from an earlier view of the file and still in flight. */
+  sending?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -17,11 +19,12 @@ const emit = defineEmits<{
 // Bound by the diff so typed text survives the form moving to another anchor line.
 const body = defineModel<string>('body', { default: '' })
 const submitting = ref(false)
+const busy = computed(() => submitting.value || props.sending)
 const hasPendingReview = inject<ComputedRef<boolean>>('hasPendingReview')
 const draftsStale = inject<ComputedRef<boolean> | null>('draftsStale', null)
 
 async function submit(mode: 'draft' | 'immediate'): Promise<void> {
-  if (!body.value.trim() || submitting.value) return
+  if (!body.value.trim() || busy.value) return
   submitting.value = true
   try {
     if (await props.post(body.value.trim(), mode)) body.value = ''
@@ -35,7 +38,7 @@ function handleKeydown(event: KeyboardEvent): void {
     submit('draft')
   }
   // Escape only dismisses an empty form, so a stray keypress can't discard a written comment.
-  if (event.key === 'Escape' && !body.value.trim() && !submitting.value) {
+  if (event.key === 'Escape' && !body.value.trim() && !busy.value) {
     emit('cancel')
   }
 }
@@ -46,6 +49,7 @@ function handleKeydown(event: KeyboardEvent): void {
     class="rounded-md border border-border bg-background shadow-sm p-3 flex flex-col gap-2"
     role="group"
     aria-label="Add inline comment"
+    :aria-busy="busy"
   >
     <Textarea
       v-model="body"
@@ -53,19 +57,20 @@ function handleKeydown(event: KeyboardEvent): void {
       rows="3"
       class="text-sm resize-none"
       aria-label="Comment body"
-      :disabled="submitting"
+      :disabled="busy"
       autofocus
       @keydown="handleKeydown"
     />
-    <div class="flex items-center justify-end gap-2">
-      <span v-if="draftsStale" class="mr-auto text-xs text-muted-foreground">
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      <span v-if="busy" class="mr-auto text-xs text-muted-foreground" role="status">Sending…</span>
+      <span v-else-if="draftsStale" class="mr-auto text-xs text-muted-foreground">
         Your pending review was started on an earlier commit. Submit or discard it to add review comments here.
       </span>
       <Button
         variant="ghost"
         size="sm"
         aria-label="Cancel comment"
-        :disabled="submitting"
+        :disabled="busy"
         @click="emit('cancel')"
       >
         Cancel
@@ -73,7 +78,7 @@ function handleKeydown(event: KeyboardEvent): void {
       <Button
         variant="outline"
         size="sm"
-        :disabled="!body.trim() || submitting"
+        :disabled="!body.trim() || busy"
         aria-label="Add as single comment"
         @click="submit('immediate')"
       >
@@ -81,7 +86,7 @@ function handleKeydown(event: KeyboardEvent): void {
       </Button>
       <Button
         size="sm"
-        :disabled="!body.trim() || submitting || draftsStale"
+        :disabled="!body.trim() || busy || draftsStale"
         aria-label="Add to review"
         @click="submit('draft')"
       >

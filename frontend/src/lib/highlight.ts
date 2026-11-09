@@ -23,3 +23,54 @@ export function highlightLine(content: string, language: string): string {
   }
   return html
 }
+
+// Top-level single-file-component blocks start at column 0; nested <template> tags are indented.
+const SFC_OPEN = /^<(script|style|template)\b([^>]*)>/i
+const SFC_CLOSE = /^<\/(script|style|template)>/i
+
+function sfcBlockLanguage(tag: string, attrs = ''): string {
+  const lang = /\blang=["']?(\w+)/i.exec(attrs)?.[1]?.toLowerCase()
+  if (tag.toLowerCase() === 'template') return 'xml'
+  if (tag.toLowerCase() === 'script') return lang === 'js' || lang === 'jsx' ? 'javascript' : 'typescript'
+  return lang === 'scss' || lang === 'sass' ? 'scss' : lang === 'less' ? 'less' : 'css'
+}
+
+// A diff shows slices of the file, so the block a slice starts in is inferred: the first
+// top-level closing tag ahead names it, then markup in the slice, then the block the previous
+// slice ended in, then the code.
+function guessSfcStart(lines: string[], carried?: string): string {
+  for (const line of lines) {
+    const close = SFC_CLOSE.exec(line)
+    if (close) return sfcBlockLanguage(close[1])
+    if (SFC_OPEN.test(line)) return 'xml'
+  }
+  if (lines.some((l) => /^\s*<\/?[a-zA-Z][\w-]*(?:[\s>/]|$)/.test(l))) return 'xml'
+  if (carried) return carried
+  const scriptHint = /^\s*(import |export |const |let |var |function |async |await |return |if \(|for \(|\/\/|}\)?;?$|defineProps|defineEmits)|=>|\.value\b|:\s*(string|number|boolean)\b/
+  if (lines.some((l) => scriptHint.test(l))) return 'typescript'
+  if (lines.some((l) => /^\s*[\w-]+\s*:\s*[^;]+;\s*$/.test(l) && !/[<>]/.test(l))) return 'css'
+  return 'xml'
+}
+
+/**
+ * Language for each line of one contiguous run of code. Vue/Svelte files mix markup, script and
+ * styles, so each line is highlighted in the language of the block it sits in.
+ */
+export function lineLanguages(lines: string[], language: string, carry: { mode?: string } = {}): string[] {
+  if (language !== 'vue') return lines.map(() => language)
+  let mode = guessSfcStart(lines, carry.mode)
+  const langs = lines.map((line) => {
+    const open = SFC_OPEN.exec(line)
+    if (open) {
+      mode = sfcBlockLanguage(open[1], open[2])
+      return 'xml'
+    }
+    if (SFC_CLOSE.test(line)) {
+      mode = 'xml'
+      return 'xml'
+    }
+    return mode
+  })
+  carry.mode = mode
+  return langs
+}

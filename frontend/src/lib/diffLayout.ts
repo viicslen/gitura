@@ -1,6 +1,20 @@
 import type { model } from '@/wailsjs/go/models'
 
 export type Side = 'LEFT' | 'RIGHT'
+
+/** Where a new inline comment is being written. */
+export interface CommentTarget {
+  side: Side
+  hunk: number
+  line: number
+  startLine?: number
+}
+
+/**
+ * Half-written inline comments by file path, kept while the user moves between files.
+ * Must be reactive: views of the same file follow an entry's `sending` state.
+ */
+export type UnsentComments = Map<string, { target: CommentTarget; body: string; sending?: boolean }>
 export type BlockKind = 'added' | 'deleted' | 'modified'
 
 /** One row of a pane: a code line, a collapsed run of unchanged lines, or the insertion point of a block with no lines on this side. */
