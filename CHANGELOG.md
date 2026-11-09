@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/viicslen/gitura/compare/v0.10.0...v0.11.0) (2026-11-09)
+
+
+### Features
+
+* **frontend:** improve PR list page and exact org/repo filtering ([1211816](https://github.com/viicslen/gitura/commit/12118160ffd8d26376e781a28a33373c8ba71dd1))
+* **pr-list:** exact org/repo filtering and a denser, scannable PR list ([#26](https://github.com/viicslen/gitura/issues/26)) ([7e451e8](https://github.com/viicslen/gitura/commit/7e451e8f445c2b30352b7a857f2dc22dd3ec2cee))
+
 ## [0.10.0](https://github.com/viicslen/gitura/compare/v0.9.1...v0.10.0) (2026-11-09)
 
 
