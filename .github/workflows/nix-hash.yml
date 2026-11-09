@@ -10,6 +10,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# release-please pushes its branch twice in quick succession; parallel runs race and the loser's push is rejected.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   update-nix-hashes:
     name: "Update flake.nix vendorHash and outputHash"
