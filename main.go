@@ -2,13 +2,18 @@
 package main
 
 import (
+	_ "embed"
 	"os"
 	"runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 )
+
+//go:embed build/appicon.png
+var appIcon []byte
 
 func main() {
 	configureLinuxWebView()
@@ -29,10 +34,12 @@ func main() {
 		Frameless:        true, // the app draws its own title strip and window controls
 		AssetServer:      &assetserver.Options{Assets: assets, Middleware: assetMiddleware},
 		BackgroundColour: &options.RGBA{R: 9, G: 9, B: 11, A: 1},
-		OnStartup:        app.startup,
-		OnDomReady:       app.domReady,
-		OnBeforeClose:    app.beforeClose,
-		Bind:             []interface{}{app},
+		// Wails only defaults the GPU policy to Never when Linux options are nil; keep it for GPUs that fail EGL/GBM.
+		Linux:         &linux.Options{Icon: appIcon, WebviewGpuPolicy: linux.WebviewGpuPolicyNever},
+		OnStartup:     app.startup,
+		OnDomReady:    app.domReady,
+		OnBeforeClose: app.beforeClose,
+		Bind:          []interface{}{app},
 	})
 
 	if err != nil {

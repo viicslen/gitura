@@ -80,6 +80,9 @@ wails build
 
 # Regenerate Wails JS bindings
 wails generate module
+
+# Regenerate build/appicon.png and build/windows/icon.ico from frontend/src/assets/images/logo.svg
+just icons
 ```
 
 ## Package Manager

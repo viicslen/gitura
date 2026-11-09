@@ -26,6 +26,11 @@ let
     glib
     glib.dev
 
+    # App icon (`just icons`)
+    resvg
+    imagemagick
+    icoutils
+
     # Build tooling
     pkg-config
     gcc

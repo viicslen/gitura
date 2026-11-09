@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="frontend/src/assets/images/logo.svg" alt="" width="96" height="96">
+
 # gitura
 
 **Review GitHub pull requests from a native desktop app.**

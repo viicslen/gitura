@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 824 824">
+  <defs>
+    <linearGradient id="gitura-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#27272a"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+  <rect width="824" height="824" rx="184" fill="url(#gitura-bg)"/>
+  <rect x="2" y="2" width="820" height="820" rx="182" fill="none" stroke="#fff" stroke-opacity="0.12" stroke-width="4"/>
+  <g fill="none" stroke="#fafafa" stroke-width="76" stroke-linecap="round">
+    <circle cx="412" cy="295" r="130"/>
+    <path d="M542 165V505Q542 635 412 635H340"/>
+  </g>
+  <circle cx="312" cy="635" r="62" fill="#34d399"/>
+</svg>

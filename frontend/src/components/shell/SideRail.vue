@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // While reviewing, the rail also switches the review view.
 import { FileDiff, GitPullRequest, LayoutList, MessagesSquare } from 'lucide-vue-next'
+import logoUrl from '@/assets/images/logo.svg'
 import UserMenu from './UserMenu.vue'
 import { prView } from './reviewView'
 import type { ReviewNavMeta } from './types'
@@ -20,7 +21,9 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 
 <template>
   <nav class="w-12 border-r border-border flex flex-col items-center shrink-0 bg-muted/30 select-none" aria-label="App navigation">
-    <div class="h-10 w-full grid place-items-center text-xs font-bold tracking-tight" style="--wails-draggable: drag">g</div>
+    <div class="h-10 w-full grid place-items-center" style="--wails-draggable: drag">
+      <img :src="logoUrl" alt="gitura" class="h-6 w-6" draggable="false" />
+    </div>
     <div class="flex flex-col items-center gap-1 mt-1">
       <button
         :class="[item, !meta ? 'bg-accent text-foreground' : idle]"
