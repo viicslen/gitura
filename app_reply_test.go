@@ -71,3 +71,25 @@ func TestDeleteComment_DropsReviewCommentAndEmptyThread(t *testing.T) {
 	assert.Equal(t, []model.CommentDTO{{ID: 10}}, app.threads[0].Comments)
 	assert.ErrorContains(t, app.DeleteComment("review", 1), "validation:")
 }
+
+func TestDraftComment_EditAndDelete(t *testing.T) {
+	app := &App{pendingComments: []model.DraftCommentDTO{{Body: "a"}, {Body: "b"}}, pendingHeadSHA: "sha"}
+
+	_, err := app.UpdateDraftComment(1, "stale", "x")
+	assert.ErrorContains(t, err, "conflict:")
+	_, err = app.UpdateDraftComment(1, "b", "  ")
+	assert.ErrorContains(t, err, "validation:")
+
+	got, err := app.UpdateDraftComment(1, "b", "b2")
+	require.NoError(t, err)
+	assert.Equal(t, "b2", got.Comments[1].Body)
+
+	got, err = app.DeleteDraftComment(0, "a")
+	require.NoError(t, err)
+	assert.Equal(t, []model.DraftCommentDTO{{Body: "b2"}}, got.Comments)
+
+	got, err = app.DeleteDraftComment(0, "b2")
+	require.NoError(t, err)
+	assert.False(t, got.HasPending)
+	assert.Empty(t, app.pendingHeadSHA)
+}

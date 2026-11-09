@@ -26,6 +26,10 @@ export function DeleteComment(arg1, arg2) {
   return window['go']['main']['App']['DeleteComment'](arg1, arg2);
 }
 
+export function DeleteDraftComment(arg1, arg2) {
+  return window['go']['main']['App']['DeleteDraftComment'](arg1, arg2);
+}
+
 export function DiscardPendingReview() {
   return window['go']['main']['App']['DiscardPendingReview']();
 }
@@ -156,4 +160,8 @@ export function UnresolveThread(arg1) {
 
 export function UpdateBodyIfUnchanged(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['UpdateBodyIfUnchanged'](arg1, arg2, arg3, arg4);
+}
+
+export function UpdateDraftComment(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UpdateDraftComment'](arg1, arg2, arg3);
 }

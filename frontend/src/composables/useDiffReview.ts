@@ -157,6 +157,16 @@ export function useDiffReview() {
     return result
   }
 
+  const draftIndex = (draft: model.DraftCommentDTO) => pendingReview.value?.comments?.indexOf(draft) ?? -1
+
+  async function updateDraftComment(draft: model.DraftCommentDTO, base: string, next: string): Promise<void> {
+    pendingReview.value = await App.UpdateDraftComment(draftIndex(draft), base, next)
+  }
+
+  async function deleteDraftComment(draft: model.DraftCommentDTO): Promise<void> {
+    pendingReview.value = await App.DeleteDraftComment(draftIndex(draft), draft.body)
+  }
+
   async function discardPendingReview(): Promise<void> {
     await App.DiscardPendingReview()
     pendingReview.value = null
@@ -203,5 +213,8 @@ export function useDiffReview() {
     submitReview,
     discardPendingReview,
     loadPendingReview,
+    draftIndex,
+    updateDraftComment,
+    deleteDraftComment,
   }
 }

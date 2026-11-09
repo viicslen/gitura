@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import DiffFileSidebar from './DiffFileSidebar.vue'
 import DiffFileView from './DiffFileView.vue'
+import type { DraftActions } from './DiffPendingComment.vue'
 import { useDiffReview } from '@/composables/useDiffReview'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
 import type { model } from '@/wailsjs/go/models'
@@ -73,6 +74,9 @@ const {
   submitReview,
   discardPendingReview,
   loadPendingReview,
+  draftIndex,
+  updateDraftComment,
+  deleteDraftComment,
 } = useDiffReview()
 
 // Marking a file viewed moves on to the next shown file, while the save finishes in the background.
@@ -161,6 +165,7 @@ const discardLoading = ref(false)
 // Provide pending-review state to deep descendants (e.g. InlineCommentForm)
 provide('hasPendingReview', computed(() => pendingReview.value?.has_pending ?? false))
 provide('draftsStale', draftsStale)
+provide<DraftActions>('draftActions', { indexOf: draftIndex, update: updateDraftComment, remove: deleteDraftComment })
 const changedPaths = computed(() => new Set(files.value.map((f) => f.filename)))
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -470,7 +475,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           </label>
         </div>
 
-        <div v-if="pendingCount > 0" class="flex flex-col gap-1">
+        <div v-if="pendingCount > 0" class="flex min-w-0 flex-col gap-1">
           <p class="text-xs font-medium text-muted-foreground">
             {{ pendingCount }} pending comment{{ pendingCount === 1 ? '' : 's' }}
             <span v-if="draftsStale"> · will be posted on earlier commit {{ pendingReview?.head_sha.slice(0, 7) }}</span>

@@ -75,6 +75,33 @@ describe('EditableComment', () => {
     w.unmount()
   })
 
+  it('routes draft edits and deletes through the given handlers, not GitHub', async () => {
+    update.mockClear()
+    del.mockClear()
+    const save = vi.fn(async (_base: string, next: string) => next)
+    const remove = vi.fn(async () => {})
+    const w = mount(EditableComment, {
+      props: { kind: 'draft', id: 0, target: { body: 'old' }, save, remove },
+      slots: { default: '<p>view</p>' },
+      attachTo: document.body,
+    })
+
+    await w.find('button[aria-label="Edit comment"]').trigger('click')
+    await w.find('textarea').setValue('new')
+    await w.findAll('button').find((b) => b.text() === 'Save')?.trigger('click')
+    await flushPromises()
+    expect(save).toHaveBeenCalledWith('old', 'new')
+
+    await w.find('button[aria-label="Delete comment"]').trigger('click')
+    await flushPromises()
+    Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Delete')?.click()
+    await flushPromises()
+    expect(remove).toHaveBeenCalledOnce()
+    expect(update).not.toHaveBeenCalled()
+    expect(del).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
   it('offers no delete on a submitted review', () => {
     const w = mountAs('dev', { body: 'x', author_login: 'dev' }, 5, 'review')
     expect(w.find('button[aria-label="Delete comment"]').exists()).toBe(false)

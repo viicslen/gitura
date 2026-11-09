@@ -16,13 +16,16 @@ import { DeleteComment, UpdateBodyIfUnchanged } from '@/wailsjs/go/main/App'
 import type { TaskSource } from '@/lib/taskList'
 
 const props = defineProps<{
-  kind: Exclude<TaskSource, 'pr_body'>
+  kind: Exclude<TaskSource, 'pr_body'> | 'draft'
   id: number
-  target: { body: string; author_login: string }
+  target: { body: string; author_login?: string }
+  /** Overrides how an edit and a delete reach the backend, e.g. for local drafts. */
+  save?: (base: string, next: string) => Promise<string>
+  remove?: () => Promise<void>
 }>()
 
 const viewerLogin = inject<Ref<string>>('viewerLogin', ref(''))
-const canEdit = computed(() => !!viewerLogin.value && viewerLogin.value === props.target.author_login)
+const canEdit = computed(() => props.kind === 'draft' || (!!viewerLogin.value && viewerLogin.value === props.target.author_login))
 const key = computed(() => `${props.kind}:${props.id}`)
 const edit = computed(() => edits[key.value])
 const error = ref('')
@@ -36,9 +39,13 @@ async function remove(): Promise<void> {
   deleting.value = true
   deleteError.value = ''
   try {
-    await DeleteComment(props.kind, props.id)
-    confirmingDelete.value = false
-    await onDeleted()
+    if (props.remove) {
+      await props.remove()
+    } else {
+      await DeleteComment(props.kind, props.id)
+      confirmingDelete.value = false
+      await onDeleted()
+    }
   } catch (err) {
     deleteError.value = String(err)
   } finally {
@@ -61,7 +68,7 @@ async function save(): Promise<void> {
   e.saving = true
   error.value = ''
   try {
-    props.target.body = await UpdateBodyIfUnchanged(props.kind, props.id, e.base, e.text)
+    props.target.body = await (props.save ?? ((base, next) => UpdateBodyIfUnchanged(props.kind, props.id, base, next)))(e.base, e.text)
     delete edits[key.value]
   } catch (err) {
     error.value = String(err)
@@ -121,7 +128,9 @@ function onKeydown(event: KeyboardEvent): void {
       <DialogHeader>
         <DialogTitle>Delete comment?</DialogTitle>
       </DialogHeader>
-      <p class="text-sm text-muted-foreground">This deletes the comment on GitHub and cannot be undone.</p>
+      <p class="text-sm text-muted-foreground">
+        {{ kind === 'draft' ? 'This removes the comment from your pending review.' : 'This deletes the comment on GitHub and cannot be undone.' }}
+      </p>
       <p v-if="deleteError" class="text-sm text-destructive">{{ deleteError }}</p>
       <DialogFooter>
         <Button variant="ghost" :disabled="deleting" @click="confirmingDelete = false">Cancel</Button>

@@ -14,6 +14,8 @@ export function CommitSuggestion(arg1:number,arg2:string):Promise<model.Suggesti
 
 export function DeleteComment(arg1:string,arg2:number):Promise<void>;
 
+export function DeleteDraftComment(arg1:number,arg2:string):Promise<model.PendingReviewDTO>;
+
 export function DiscardPendingReview():Promise<void>;
 
 export function GetAuthState():Promise<model.AuthState>;
@@ -79,3 +81,5 @@ export function SyncPendingReview():Promise<model.PendingReviewDTO>;
 export function UnresolveThread(arg1:number):Promise<void>;
 
 export function UpdateBodyIfUnchanged(arg1:string,arg2:number,arg3:string,arg4:string):Promise<string>;
+
+export function UpdateDraftComment(arg1:number,arg2:string,arg3:string):Promise<model.PendingReviewDTO>;

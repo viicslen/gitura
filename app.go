@@ -1181,6 +1181,44 @@ func (a *App) AddDraftComment(comment model.DraftCommentDTO) (model.PendingRevie
 	}, nil
 }
 
+// UpdateDraftComment replaces the body of the pending draft at index, provided it still reads expected.
+// Error prefixes: "validation:" — empty body; "conflict:" — draft moved or changed.
+func (a *App) UpdateDraftComment(index int, expected, body string) (model.PendingReviewDTO, error) {
+	if strings.TrimSpace(body) == "" {
+		return model.PendingReviewDTO{}, fmt.Errorf("validation: comment body is empty")
+	}
+	if err := a.checkDraft(index, expected); err != nil {
+		return model.PendingReviewDTO{}, err
+	}
+	a.pendingComments[index].Body = body
+	return a.GetPendingReview()
+}
+
+// DeleteDraftComment removes the pending draft at index, provided it still reads expected.
+// Removing the last draft discards the whole pending review.
+// Error prefixes: "conflict:" — draft moved or changed; "github:" — API error.
+func (a *App) DeleteDraftComment(index int, expected string) (model.PendingReviewDTO, error) {
+	if err := a.checkDraft(index, expected); err != nil {
+		return model.PendingReviewDTO{}, err
+	}
+	if len(a.pendingComments) == 1 {
+		// Otherwise a synced GitHub pending review would be restored, comment and all, on the next sync.
+		if err := a.DiscardPendingReview(); err != nil {
+			return model.PendingReviewDTO{}, err
+		}
+		return model.PendingReviewDTO{}, nil
+	}
+	a.pendingComments = slices.Delete(a.pendingComments, index, index+1)
+	return a.GetPendingReview()
+}
+
+func (a *App) checkDraft(index int, expected string) error {
+	if index < 0 || index >= len(a.pendingComments) || a.pendingComments[index].Body != expected {
+		return fmt.Errorf("conflict: pending comment changed; reload and try again")
+	}
+	return nil
+}
+
 // PostImmediateComment posts a standalone inline comment immediately (not as a
 // draft review comment). The comment is immediately visible on GitHub.
 // Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
