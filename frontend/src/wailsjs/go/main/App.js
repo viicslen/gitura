@@ -18,6 +18,10 @@ export function CancelRun(arg1) {
   return window['go']['main']['App']['CancelRun'](arg1);
 }
 
+export function ClosePR() {
+  return window['go']['main']['App']['ClosePR']();
+}
+
 export function CommitSuggestion(arg1, arg2) {
   return window['go']['main']['App']['CommitSuggestion'](arg1, arg2);
 }
@@ -104,6 +108,10 @@ export function LoadPullRequest(arg1, arg2, arg3) {
 
 export function Logout() {
   return window['go']['main']['App']['Logout']();
+}
+
+export function MergePR(arg1) {
+  return window['go']['main']['App']['MergePR'](arg1);
 }
 
 export function OpenFolderPicker(arg1, arg2) {

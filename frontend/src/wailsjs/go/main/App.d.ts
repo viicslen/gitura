@@ -10,6 +10,8 @@ export function AddIgnoredCommenter(arg1:string):Promise<void>;
 
 export function CancelRun(arg1:string):Promise<void>;
 
+export function ClosePR():Promise<void>;
+
 export function CommitSuggestion(arg1:number,arg2:string):Promise<model.SuggestionCommitResult>;
 
 export function DeleteComment(arg1:string,arg2:number):Promise<void>;
@@ -53,6 +55,8 @@ export function ListSystemFonts():Promise<Array<string>>;
 export function LoadPullRequest(arg1:string,arg2:string,arg3:number):Promise<model.PullRequestSummary>;
 
 export function Logout():Promise<void>;
+
+export function MergePR(arg1:string):Promise<void>;
 
 export function OpenFolderPicker(arg1:string,arg2:string):Promise<string>;
 
