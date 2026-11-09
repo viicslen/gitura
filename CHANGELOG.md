@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/viicslen/gitura/compare/v0.7.0...v0.8.0) (2026-11-09)
+
+
+### Features
+
+* **files:** leave left/right arrows to the page in the file tree ([76df86a](https://github.com/viicslen/gitura/commit/76df86a42feff287623503644251a24c5295f09b))
+* **settings:** rebind file and thread navigation keys ([c91db38](https://github.com/viicslen/gitura/commit/c91db386fa05808b6e8766cede77f6e7854f8dda))
+* **settings:** rebind the keys that move between files and threads ([#22](https://github.com/viicslen/gitura/issues/22)) ([bf1b133](https://github.com/viicslen/gitura/commit/bf1b133dbd71d81cec2c3bf09056690b6eabbc1f))
+* **ui:** back arrow in the title strip while reviewing a PR ([eb21d07](https://github.com/viicslen/gitura/commit/eb21d072a0cb713ed09de69d26267b4ca11643eb))
+* **ui:** count badges on the review view buttons in the side rail ([a7089bc](https://github.com/viicslen/gitura/commit/a7089bcd2b44f4a3f7e9d10af95e257d11748d14))
+* **ui:** edit and delete pending draft comments in place ([ba09af3](https://github.com/viicslen/gitura/commit/ba09af38726fcd3af57a9e5a60d449abc25f46ef))
+* **ui:** readable default fonts and an Appearance setting ([56eb6e6](https://github.com/viicslen/gitura/commit/56eb6e6cd13333f41535cb86689051fac9db2bc2))
+
 ## [0.7.0](https://github.com/viicslen/gitura/compare/v0.6.1...v0.7.0) (2026-11-09)
 
 
