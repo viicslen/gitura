@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/viicslen/gitura/compare/v0.8.0...v0.9.0) (2026-11-09)
+
+
+### Features
+
+* **settings:** sidebar layout with card rows in a smaller dialog ([f42f3fb](https://github.com/viicslen/gitura/commit/f42f3fb8131266a59245b2ff79ae1951b7e6fded))
+
 ## [0.8.0](https://github.com/viicslen/gitura/compare/v0.7.0...v0.8.0) (2026-11-09)
 
 
