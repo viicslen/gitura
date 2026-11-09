@@ -83,6 +83,7 @@
             vendorHash = "sha256-eXiweO0wcLLC4A0yi0tL5y8Q3XsrM5bqCeXbfieRos4=";
 
             inherit nativeBuildInputs buildInputs;
+            nativeCheckInputs = [ pkgs.git ];
 
             # Copy the pre-built frontend assets so //go:embed picks them up.
             preBuild = ''
