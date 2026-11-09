@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.12.0](https://github.com/viicslen/gitura/compare/v0.11.0...v0.12.0) (2026-11-09)
+
+
+### Features
+
+* **frontend:** review local changes and send comments to a command ([e040de5](https://github.com/viicslen/gitura/commit/e040de55207be276599229bc829db19d0d614e6d))
+* **local-review:** review local changes before they're a PR and send comments to your agent ([#28](https://github.com/viicslen/gitura/issues/28)) ([fd83267](https://github.com/viicslen/gitura/commit/fd83267a4f9ca220a74e33e677c9bacc0b1abd98))
+* **local-review:** serve local git changes through the PR file and draft APIs ([85bad9a](https://github.com/viicslen/gitura/commit/85bad9ab864f544788c7faeebaf0246e8ab99d9b))
+
 ## [0.11.0](https://github.com/viicslen/gitura/compare/v0.10.0...v0.11.0) (2026-11-09)
 
 
