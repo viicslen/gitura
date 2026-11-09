@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/viicslen/gitura/compare/v0.6.0...v0.6.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **nix:** pass desktop and production build tags required by Wails ([e8dfbe4](https://github.com/viicslen/gitura/commit/e8dfbe41c76a8bd6d7959db107ccda36e6022498))
+
 ## [0.6.0](https://github.com/viicslen/gitura/compare/v0.5.1...v0.6.0) (2026-11-06)
 
 
