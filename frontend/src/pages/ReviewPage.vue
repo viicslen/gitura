@@ -22,6 +22,7 @@ import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, Ope
 import { toast } from 'vue-sonner'
 import { prView as sharedPrView, viewBadges } from '@/components/shell/reviewView'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
+import { useKeybindings, keyLabel } from '@/composables/useKeybindings'
 import type { UnsentComments } from '@/lib/diffLayout'
 
 const props = defineProps<{
@@ -106,7 +107,8 @@ function handleSelect(index: number): void {
   currentIndex.value = index
 }
 
-useViewShortcuts(() => prView.value === 'conversation', { ArrowRight: goNext, ArrowLeft: goPrev })
+const { bindings } = useKeybindings()
+useViewShortcuts(() => prView.value === 'conversation', () => ({ [bindings.value.nextThread]: goNext, [bindings.value.prevThread]: goPrev }))
 
 watchEffect(() => {
   viewBadges.overview = overview.value?.reviews.filter((r) => r.has_threads && !r.all_threads_resolved).length ?? 0
@@ -326,7 +328,7 @@ watch(
           <div v-if="queue.length > 0" class="h-10 shrink-0 border-b border-border px-4 flex items-center gap-1 text-xs">
             <span class="text-muted-foreground tabular-nums">Thread {{ currentIndex + 1 }} of {{ queue.length }}</span>
             <span class="flex-1" />
-            <span class="hidden lg:inline text-muted-foreground/70 mr-2"><kbd class="font-sans">←</kbd> <kbd class="font-sans">→</kbd> to move</span>
+            <span class="hidden lg:inline text-muted-foreground/70 mr-2"><kbd class="font-sans">{{ keyLabel(bindings.prevThread) }}</kbd> <kbd class="font-sans">{{ keyLabel(bindings.nextThread) }}</kbd> to move</span>
             <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="!canGoBack" @click="goPrev()">
               <ChevronLeft class="h-3.5 w-3.5" /> Previous
             </Button>

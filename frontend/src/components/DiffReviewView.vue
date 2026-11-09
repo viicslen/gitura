@@ -19,6 +19,7 @@ import type { DraftActions } from './DiffPendingComment.vue'
 import { useDiffReview } from '@/composables/useDiffReview'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
 import { viewBadges } from '@/components/shell/reviewView'
+import { useKeybindings, keyLabel } from '@/composables/useKeybindings'
 import type { model } from '@/wailsjs/go/models'
 import type { UnsentComments } from '@/lib/diffLayout'
 import { toast } from 'vue-sonner'
@@ -259,7 +260,8 @@ watch(() => props.active, (active) => {
 })
 
 // ── Keyboard nav ──────────────────────────────────────────────────────────
-useViewShortcuts(() => props.active, { ']': nextFile, '[': prevFile })
+const { bindings } = useKeybindings()
+useViewShortcuts(() => props.active, () => ({ [bindings.value.nextFile]: nextFile, [bindings.value.prevFile]: prevFile }))
 
 // ── Exposed interface for parent ──────────────────────────────────────────
 defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
@@ -272,16 +274,16 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
     <!-- ── Top toolbar ────────────────────────────────────────────────────── -->
     <div class="flex h-10 items-center gap-2 px-3 border-b border-border shrink-0">
       <div class="flex items-center shrink-0">
-        <Button variant="ghost" size="sm" class="h-7 gap-1 px-2 text-xs" :disabled="!canGoPrev" aria-label="Previous file" title="Previous file ([)" @click="prevFile">
+        <Button variant="ghost" size="sm" class="h-7 gap-1 px-2 text-xs" :disabled="!canGoPrev" aria-label="Previous file" :title="`Previous file (${keyLabel(bindings.prevFile)})`" @click="prevFile">
           <ChevronLeft class="h-4 w-4" /><span class="hidden xl:inline">Previous</span>
         </Button>
-        <Button variant="ghost" size="sm" class="h-7 gap-1 px-2 text-xs" :disabled="!canGoNext" aria-label="Next file" title="Next file (])" @click="nextFile">
+        <Button variant="ghost" size="sm" class="h-7 gap-1 px-2 text-xs" :disabled="!canGoNext" aria-label="Next file" :title="`Next file (${keyLabel(bindings.nextFile)})`" @click="nextFile">
           <span class="hidden xl:inline">Next</span><ChevronRight class="h-4 w-4" />
         </Button>
       </div>
       <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
         {{ currentFilePosition > 0 ? `File ${currentFilePosition} of ${files.length}` : 'Select a file' }}
-        <span class="ml-2 hidden text-muted-foreground/70 lg:inline">[ ] to move</span>
+        <span class="ml-2 hidden text-muted-foreground/70 lg:inline">{{ keyLabel(bindings.prevFile) }} {{ keyLabel(bindings.nextFile) }} to move</span>
       </span>
 
       <DropdownMenu>

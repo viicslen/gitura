@@ -32,6 +32,8 @@ export function GetFileDiff(arg1:string):Promise<model.ParsedDiffDTO>;
 
 export function GetIgnoredCommenters():Promise<Array<model.IgnoredCommenterDTO>>;
 
+export function GetKeybindings():Promise<Record<string, string>>;
+
 export function GetPRFiles():Promise<Array<model.PRFileDTO>>;
 
 export function GetPRLocalPath(arg1:string,arg2:string,arg3:number):Promise<string>;
@@ -73,6 +75,8 @@ export function SetAppearance(arg1:model.AppearanceDTO):Promise<void>;
 export function SetDefaultCommandName(arg1:string):Promise<void>;
 
 export function SetFileViewed(arg1:string,arg2:boolean):Promise<void>;
+
+export function SetKeybindings(arg1:Record<string, string>):Promise<void>;
 
 export function SetPRLocalPath(arg1:string,arg2:string,arg3:number,arg4:string):Promise<void>;
 

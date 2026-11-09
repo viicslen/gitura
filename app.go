@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -67,6 +68,8 @@ type App struct {
 	defaultCommandName string
 
 	appearance model.AppearanceDTO
+	// keybindings maps shortcut action ids to keys; see settings.Config.Keybindings.
+	keybindings map[string]string
 
 	// runCancels maps run IDs to their context cancel functions, allowing
 	// in-flight commands to be stopped via CancelRun.
@@ -131,6 +134,7 @@ func (a *App) loadConfig() error {
 	a.commands = cfg.Commands
 	a.defaultCommandName = cfg.DefaultCommandName
 	a.appearance = cfg.Appearance
+	a.keybindings = cfg.Keybindings
 	logger.L.Debug("config loaded",
 		"ignored_commenters", len(a.ignoredCommenters),
 		"commands", len(a.commands),
@@ -897,7 +901,7 @@ func (a *App) AddIgnoredCommenter(login string) error {
 	a.ignoredCommenters = append(a.ignoredCommenters, model.IgnoredCommenterDTO{
 		Login: login,
 	})
-	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters, Commands: a.commands, DefaultCommandName: a.defaultCommandName, Appearance: a.appearance}); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters, Commands: a.commands, DefaultCommandName: a.defaultCommandName, Appearance: a.appearance, Keybindings: a.keybindings}); err != nil {
 		// Roll back in-memory change.
 		a.ignoredCommenters = a.ignoredCommenters[:len(a.ignoredCommenters)-1]
 		return fmt.Errorf("settings: save: %w", err)
@@ -926,7 +930,7 @@ func (a *App) RemoveIgnoredCommenter(login string) error {
 	updated := make([]model.IgnoredCommenterDTO, 0, len(a.ignoredCommenters)-1)
 	updated = append(updated, a.ignoredCommenters[:idx]...)
 	updated = append(updated, a.ignoredCommenters[idx+1:]...)
-	if err := settings.Save(settings.Config{IgnoredCommenters: updated, Commands: a.commands, DefaultCommandName: a.defaultCommandName, Appearance: a.appearance}); err != nil {
+	if err := settings.Save(settings.Config{IgnoredCommenters: updated, Commands: a.commands, DefaultCommandName: a.defaultCommandName, Appearance: a.appearance, Keybindings: a.keybindings}); err != nil {
 		return fmt.Errorf("settings: save: %w", err)
 	}
 	a.ignoredCommenters = updated
@@ -1401,6 +1405,7 @@ func (a *App) AddCommand(cmd model.CommandDTO) ([]model.CommandDTO, error) {
 		Commands:           a.commands,
 		DefaultCommandName: a.defaultCommandName,
 		Appearance:         a.appearance,
+		Keybindings:        a.keybindings,
 	}); err != nil {
 		a.commands = a.commands[:len(a.commands)-1]
 		return nil, fmt.Errorf("settings: save: %w", err)
@@ -1442,6 +1447,7 @@ func (a *App) RemoveCommand(name string) ([]model.CommandDTO, error) {
 		Commands:           updated,
 		DefaultCommandName: a.defaultCommandName,
 		Appearance:         a.appearance,
+		Keybindings:        a.keybindings,
 	}); err != nil {
 		return nil, fmt.Errorf("settings: save: %w", err)
 	}
@@ -1450,6 +1456,36 @@ func (a *App) RemoveCommand(name string) ([]model.CommandDTO, error) {
 	result := make([]model.CommandDTO, len(a.commands))
 	copy(result, a.commands)
 	return result, nil
+}
+
+// GetKeybindings returns the user's shortcut overrides, keyed by action id.
+//
+// Error prefix: "settings:" — load failure.
+func (a *App) GetKeybindings() (map[string]string, error) {
+	if err := a.loadConfig(); err != nil {
+		return nil, fmt.Errorf("settings: load: %w", err)
+	}
+	return maps.Clone(a.keybindings), nil
+}
+
+// SetKeybindings replaces the user's shortcut overrides.
+//
+// Error prefix: "settings:" — load or save failure.
+func (a *App) SetKeybindings(bindings map[string]string) error {
+	if err := a.loadConfig(); err != nil {
+		return fmt.Errorf("settings: load: %w", err)
+	}
+	if err := settings.Save(settings.Config{
+		IgnoredCommenters:  a.ignoredCommenters,
+		Commands:           a.commands,
+		DefaultCommandName: a.defaultCommandName,
+		Appearance:         a.appearance,
+		Keybindings:        bindings,
+	}); err != nil {
+		return fmt.Errorf("settings: save: %w", err)
+	}
+	a.keybindings = maps.Clone(bindings)
+	return nil
 }
 
 // GetDefaultCommandName returns the name of the user's default command, or an
@@ -1489,6 +1525,7 @@ func (a *App) SetDefaultCommandName(name string) error {
 		Commands:           a.commands,
 		DefaultCommandName: a.defaultCommandName,
 		Appearance:         a.appearance,
+		Keybindings:        a.keybindings,
 	}); err != nil {
 		return err
 	}
@@ -1518,6 +1555,7 @@ func (a *App) SetAppearance(appearance model.AppearanceDTO) error {
 		Commands:           a.commands,
 		DefaultCommandName: a.defaultCommandName,
 		Appearance:         appearance,
+		Keybindings:        a.keybindings,
 	}); err != nil {
 		return fmt.Errorf("settings: save: %w", err)
 	}

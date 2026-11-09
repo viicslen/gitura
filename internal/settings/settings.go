@@ -27,6 +27,9 @@ type Config struct {
 	// in split-run buttons. Empty string means no default is set.
 	DefaultCommandName string              `toml:"default_command_name"`
 	Appearance         model.AppearanceDTO `toml:"appearance"`
+	// Keybindings maps a shortcut action id (e.g. "nextFile") to a KeyboardEvent.key value.
+	// Actions missing here use the frontend's defaults.
+	Keybindings map[string]string `toml:"keybindings"`
 }
 
 // ConfigDir returns the OS-appropriate configuration directory for gitura,
@@ -79,6 +82,7 @@ type decodedConfig struct {
 	DefaultCommandName string                      `toml:"default_command_name"`
 	DefaultCommandID   string                      `toml:"default_command_id"`
 	Appearance         model.AppearanceDTO         `toml:"appearance"`
+	Keybindings        map[string]string           `toml:"keybindings"`
 }
 
 func readSettingsFile(path string) ([]byte, error) {
@@ -109,6 +113,7 @@ func buildConfig(raw decodedConfig) Config {
 		Commands:           make([]model.CommandDTO, 0, len(raw.Commands)),
 		DefaultCommandName: raw.DefaultCommandName,
 		Appearance:         raw.Appearance,
+		Keybindings:        raw.Keybindings,
 	}
 	for _, c := range raw.Commands {
 		cfg.Commands = append(cfg.Commands, model.CommandDTO{

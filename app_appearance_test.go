@@ -49,3 +49,26 @@ func TestSetAppearance_OtherSettingsAndRestart_BothPersist(t *testing.T) {
 		t.Fatalf("appearance after restart: got %+v want %+v", got, want)
 	}
 }
+
+func TestSetAppearanceAndSetKeybindings_KeepEachOther(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	appearance := model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large"}
+	keys := map[string]string{"nextFile": "j"}
+
+	a := NewApp()
+	if err := a.SetKeybindings(keys); err != nil {
+		t.Fatalf("set keybindings: %v", err)
+	}
+	if err := a.SetAppearance(appearance); err != nil {
+		t.Fatalf("set appearance: %v", err)
+	}
+	if cfg, err := settings.Load(); err != nil || !reflect.DeepEqual(cfg.Keybindings, keys) {
+		t.Fatalf("SetAppearance dropped keybindings: %+v, %v", cfg.Keybindings, err)
+	}
+	if err := a.SetKeybindings(map[string]string{"nextFile": "k"}); err != nil {
+		t.Fatalf("set keybindings: %v", err)
+	}
+	if cfg, err := settings.Load(); err != nil || cfg.Appearance != appearance {
+		t.Fatalf("SetKeybindings dropped appearance: %+v, %v", cfg.Appearance, err)
+	}
+}

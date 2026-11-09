@@ -17,6 +17,8 @@ import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Trash2, UserX, Terminal, Plus, Star, Type } from 'lucide-vue-next'
 import { useAppearance, setAppearance, appearanceOptions, type AppearanceKey } from '@/composables/useAppearance'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
 
 // ── Appearance ─────────────────────────────────────────────────────────────
 const { appearance } = useAppearance()
@@ -84,6 +86,28 @@ async function handleRemove(login: string) {
   } finally {
     removingLogin.value = null
   }
+}
+
+// ── Keyboard ───────────────────────────────────────────────────────────────
+const { bindings, reset: resetBindings } = useKeybindings()
+const recording = ref<KeybindingAction | null>(null)
+const bindError = ref('')
+
+function startRecording(action: KeybindingAction): void {
+  recording.value = action
+  bindError.value = ''
+}
+
+async function onRecordKeydown(event: KeyboardEvent, action: KeybindingAction): Promise<void> {
+  if (recording.value !== action || ['Shift', 'Control', 'Alt', 'Meta', 'Tab'].includes(event.key)) return
+  event.preventDefault()
+  event.stopPropagation()
+  bindError.value = event.key === 'Escape' ? '' : (await bindKey(action, event)) ?? ''
+  if (!bindError.value) recording.value = null
+}
+
+async function handleResetBindings(): Promise<void> {
+  bindError.value = (await resetBindings()) ?? ''
 }
 
 // ── Commands ───────────────────────────────────────────────────────────────
@@ -160,6 +184,14 @@ async function handleRemoveCommand(name: string) {
         Manage application preferences.
       </p>
     </header>
+
+    <Tabs default-value="general">
+      <TabsList>
+        <TabsTrigger value="general">General</TabsTrigger>
+        <TabsTrigger value="keyboard">Keyboard</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="general" class="space-y-6 pt-4">
 
         <section aria-labelledby="appearance-heading">
           <h2
@@ -377,5 +409,39 @@ async function handleRemoveCommand(name: string) {
             </li>
           </ul>
         </section>
+      </TabsContent>
+
+      <TabsContent value="keyboard" class="pt-4">
+        <section aria-labelledby="keyboard-heading">
+          <div class="flex items-center justify-between mb-1">
+            <h2 id="keyboard-heading" class="text-sm font-semibold">Keyboard Shortcuts</h2>
+            <Button variant="ghost" size="sm" class="h-7 text-xs" @click="handleResetBindings">Reset to defaults</Button>
+          </div>
+          <p class="text-xs text-muted-foreground mb-3">
+            Click a shortcut, then press the new key. Escape cancels.
+          </p>
+          <ul class="divide-y divide-border">
+            <li v-for="action in KEYBINDING_ACTIONS" :key="action.id" class="flex items-center gap-3 py-2">
+              <div class="flex-1 min-w-0">
+                <p class="text-sm">{{ action.label }}</p>
+                <p class="text-xs text-muted-foreground">{{ action.view }}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                class="h-7 min-w-24 font-mono text-xs"
+                :aria-label="`Change shortcut for ${action.label}`"
+                @click="startRecording(action.id)"
+                @keydown="onRecordKeydown($event, action.id)"
+                @blur="recording === action.id && (recording = null)"
+              >
+                {{ recording === action.id ? 'Press a key…' : keyLabel(bindings[action.id]) }}
+              </Button>
+            </li>
+          </ul>
+          <p v-if="bindError" class="text-xs text-destructive mt-2" role="alert">{{ bindError }}</p>
+        </section>
+      </TabsContent>
+    </Tabs>
   </div>
 </template>

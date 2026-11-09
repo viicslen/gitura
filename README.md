@@ -47,6 +47,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Commit suggestions** — accept a GitHub suggestion block and commit it to the PR branch
 - **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch its output stream live in the run panel
 - **Ignored commenters** — filter out CI bot noise by username
+- **Configurable shortcuts** — rebind the keys that move between files and threads in Settings → Keyboard
 - **Dark, light, and system themes**
 - **Readable type** — Inter and JetBrains Mono by default; switch to Atkinson Hyperlegible or system fonts and scale the text size in Settings
 
