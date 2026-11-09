@@ -270,41 +270,61 @@ type repoFileRef struct{ ref, path string }
 // github.com/{o}/{r}/blob/{ref}/{path}?raw=true and raw.githubusercontent.com/{o}/{r}/{ref}/{path}.
 // Refs may contain "/", so every ref/path split is returned, shortest ref first.
 func repoFileFromURL(u *url.URL) (owner, repo string, candidates []repoFileRef) {
+	segs, ok := unescapePathSegments(u)
+	if ok {
+		segs, ok = repoFileSegments(u, segs)
+	}
+	if !ok || segs[0] == "" || segs[1] == "" {
+		return "", "", nil
+	}
+	return segs[0], segs[1], refPathCandidates(segs[2:])
+}
+
+// unescapePathSegments splits u's path into unescaped segments, rejecting ".." segments.
+func unescapePathSegments(u *url.URL) ([]string, bool) {
 	segs := strings.Split(strings.Trim(u.EscapedPath(), "/"), "/")
 	for i, s := range segs {
 		unescaped, err := url.PathUnescape(s)
 		if err != nil || unescaped == ".." {
-			return "", "", nil
+			return nil, false
 		}
 		segs[i] = unescaped
 	}
+	return segs, true
+}
+
+// repoFileSegments normalizes a supported host's segments to {owner}/{repo}/{ref...}/{path...}.
+func repoFileSegments(u *url.URL, segs []string) ([]string, bool) {
 	switch strings.ToLower(u.Hostname()) {
 	case "github.com":
-		if len(segs) < 5 || !(segs[2] == "raw" || (segs[2] == "blob" && u.Query().Get("raw") == "true")) {
-			return "", "", nil
+		if len(segs) < 5 {
+			return nil, false
 		}
-		segs = append(segs[:2], segs[3:]...)
+		isRaw := segs[2] == "raw" || (segs[2] == "blob" && u.Query().Get("raw") == "true")
+		if !isRaw {
+			return nil, false
+		}
+		return append(segs[:2], segs[3:]...), true
 	case "raw.githubusercontent.com":
-		if len(segs) < 4 {
-			return "", "", nil
-		}
+		return segs, len(segs) >= 4
 	default:
-		return "", "", nil
+		return nil, false
 	}
-	owner, repo, rest := segs[0], segs[1], segs[2:]
-	if owner == "" || repo == "" {
-		return "", "", nil
-	}
+}
+
+// refPathCandidates returns every ref/path split of rest, shortest ref first.
+func refPathCandidates(rest []string) []repoFileRef {
 	if len(rest) >= 4 && rest[0] == "refs" && (rest[1] == "heads" || rest[1] == "tags") {
 		rest = rest[2:]
 	}
+	var candidates []repoFileRef
 	for i := 1; i < len(rest); i++ {
 		ref := strings.Join(rest[:i], "/")
 		if path, ok := sanitizeMarkdownImagePath(strings.Join(rest[i:], "/")); ok && rest[0] != "" {
 			candidates = append(candidates, repoFileRef{ref, path})
 		}
 	}
-	return owner, repo, candidates
+	return candidates
 }
 
 func sanitizeMarkdownImagePath(raw string) (string, bool) {

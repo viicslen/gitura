@@ -14,6 +14,8 @@ const repo = ref('')
 const org = ref('')
 const author = ref('')
 const updatedAfter = ref('')
+const pickedRepo = ref('')
+const pickedOrg = ref('')
 
 // Tracks watch stop-handles so that re-mounting PRPage.vue does not accumulate
 // duplicate watchers (each call to usePRFilters tears down prior watches first).
@@ -84,9 +86,11 @@ function toggleDrafts(): void {
 
 function clearRepo(): void {
   repo.value = ''
+  pickedRepo.value = ''
 }
 function clearOrg(): void {
   org.value = ''
+  pickedOrg.value = ''
 }
 function clearAuthor(): void {
   author.value = ''
@@ -105,6 +109,8 @@ function clearAllFilters(): void {
   includeDrafts.value = false
   repo.value = ''
   org.value = ''
+  pickedRepo.value = ''
+  pickedOrg.value = ''
   author.value = ''
   updatedAfter.value = ''
 }
@@ -127,11 +133,31 @@ function toFilters(): model.PRListFilters {
   }
 }
 
+/** Case-insensitive name filter: exact for a value picked from the suggestions, substring for typed text. */
+function nameMatcher(query: string, picked: string): (name: string) => boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return () => true
+  const exact = query === picked
+  return (name) => (exact ? name.toLowerCase() === q : name.toLowerCase().includes(q))
+}
+
+function pickRepo(name: string): void {
+  repo.value = name
+  pickedRepo.value = name
+}
+function pickOrg(name: string): void {
+  org.value = name
+  pickedOrg.value = name
+}
+
 /**
  * Apply all active client-side filters to a raw list of PR items.
  * Returns a new array containing only items that match all active criteria.
  */
 function applyFilters(items: model.PRListItem[]): model.PRListItem[] {
+  const repoMatch = nameMatcher(repo.value, pickedRepo.value)
+  const orgMatch = nameMatcher(org.value, pickedOrg.value)
+
   return items.filter((pr) => {
     // Involvement: at least one active type must match (OR logic among types).
     const involvementMatch =
@@ -140,16 +166,8 @@ function applyFilters(items: model.PRListItem[]): model.PRListItem[] {
       (includeReviewer.value && pr.is_reviewer)
     if (!involvementMatch) return false
 
-    // Repo: AND logic with other filters.
-    if (repo.value.trim()) {
-      const full = `${pr.owner}/${pr.repo}`
-      if (!full.toLowerCase().includes(repo.value.trim().toLowerCase())) return false
-    }
-
-    // Org: match owner portion of the repo.
-    if (org.value.trim()) {
-      if (!pr.owner.toLowerCase().includes(org.value.trim().toLowerCase())) return false
-    }
+    if (!repoMatch(`${pr.owner}/${pr.repo}`)) return false
+    if (!orgMatch(pr.owner)) return false
 
     // Author login.
     if (author.value.trim()) {
@@ -229,6 +247,8 @@ export function usePRFilters(onFilterChange: () => void | Promise<void>) {
     toggleAssignee,
     toggleReviewer,
     toggleDrafts,
+    pickRepo,
+    pickOrg,
     clearRepo,
     clearOrg,
     clearAuthor,
