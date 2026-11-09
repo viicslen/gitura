@@ -18,6 +18,10 @@ export function CancelRun(arg1) {
   return window['go']['main']['App']['CancelRun'](arg1);
 }
 
+export function ClosePR() {
+  return window['go']['main']['App']['ClosePR']();
+}
+
 export function CommitSuggestion(arg1, arg2) {
   return window['go']['main']['App']['CommitSuggestion'](arg1, arg2);
 }
@@ -106,6 +110,10 @@ export function Logout() {
   return window['go']['main']['App']['Logout']();
 }
 
+export function MergePR(arg1) {
+  return window['go']['main']['App']['MergePR'](arg1);
+}
+
 export function OpenFolderPicker(arg1, arg2) {
   return window['go']['main']['App']['OpenFolderPicker'](arg1, arg2);
 }
@@ -192,12 +200,4 @@ export function UpdateBodyIfUnchanged(arg1, arg2, arg3, arg4) {
 
 export function UpdateDraftComment(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateDraftComment'](arg1, arg2, arg3);
-}
-
-export function ClosePR() {
-  return window['go']['main']['App']['ClosePR']();
-}
-
-export function MergePR(arg1) {
-  return window['go']['main']['App']['MergePR'](arg1);
 }
