@@ -3,19 +3,24 @@
 import { FileDiff, GitPullRequest, LayoutList, MessagesSquare } from 'lucide-vue-next'
 import logoUrl from '@/assets/images/logo.svg'
 import UserMenu from './UserMenu.vue'
-import { prView } from './reviewView'
+import { prView, viewBadges } from './reviewView'
 import type { ReviewNavMeta } from './types'
 
 defineProps<{ meta: ReviewNavMeta | null; login: string; avatarSrc?: string }>()
 const emit = defineEmits<{ (e: 'home'): void; (e: 'settings'): void; (e: 'logout'): void }>()
 
 const VIEWS = [
-  { value: 'overview', label: 'Overview', icon: LayoutList },
-  { value: 'conversation', label: 'Conversation', icon: MessagesSquare },
-  { value: 'files', label: 'Files changed', icon: FileDiff },
+  { value: 'overview', label: 'Overview', icon: LayoutList, counted: 'unresolved reviews' },
+  { value: 'conversation', label: 'Conversation', icon: MessagesSquare, counted: 'unresolved threads' },
+  { value: 'files', label: 'Files changed', icon: FileDiff, counted: 'files not viewed' },
 ] as const
 
-const item = 'grid place-items-center h-9 w-9 rounded-md'
+function viewLabel(v: (typeof VIEWS)[number]): string {
+  const count = viewBadges[v.value]
+  return count ? `${v.label} (${count} ${v.counted})` : v.label
+}
+
+const item = 'relative grid place-items-center h-9 w-9 rounded-md'
 const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 </script>
 
@@ -37,11 +42,18 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
           v-for="v in VIEWS"
           :key="v.value"
           :class="[item, prView === v.value ? 'bg-accent text-foreground' : idle]"
-          :aria-label="v.label"
+          :aria-label="viewLabel(v)"
           :aria-current="prView === v.value ? 'page' : undefined"
-          :title="v.label"
+          :title="viewLabel(v)"
           @click="prView = v.value"
-        ><component :is="v.icon" class="h-4 w-4" /></button>
+        >
+          <component :is="v.icon" class="h-4 w-4" />
+          <span
+            v-if="viewBadges[v.value]"
+            class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[0.625rem] font-semibold leading-4 text-center tabular-nums"
+            aria-hidden="true"
+          >{{ viewBadges[v.value] > 99 ? '99+' : viewBadges[v.value] }}</span>
+        </button>
       </template>
     </div>
     <div class="flex-1" />

@@ -34,7 +34,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 ## Features
 
 - **Pull request list** — everything you author, are assigned, or are asked to review, filtered by repository, organisation, author, or last-updated date
-- **Side rail and title strip** — a frameless window with a slim rail for the PR list, Overview, Conversation and Files views, and a title strip with the PR's state, Refresh and Open on GitHub
+- **Side rail and title strip** — a frameless window with a slim rail for the PR list, Overview, Conversation and Files views (badged with open reviews, unresolved threads and unviewed files), and a title strip with the PR's state, Refresh and Open on GitHub
 - **Overview** — description, labels, general comments and reviews; reviews with open conversations come first
 - **Conversation view** — step through review comments one at a time with diff hunk context and thread replies
 - **Files changed view** — JetBrains-style side-by-side diff with curved connectors mapping each changed block; added and deleted files open as a single full-width panel, and moved or renamed files say so

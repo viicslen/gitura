@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed, nextTick, provide, ref, watch } from 'vue'
+import { onMounted, computed, nextTick, provide, ref, watch, watchEffect } from 'vue'
 import { ChevronLeft, ChevronRight, Send, SlidersHorizontal, Trash2 } from 'lucide-vue-next'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -18,6 +18,7 @@ import DiffFileView from './DiffFileView.vue'
 import type { DraftActions } from './DiffPendingComment.vue'
 import { useDiffReview } from '@/composables/useDiffReview'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
+import { viewBadges } from '@/components/shell/reviewView'
 import type { model } from '@/wailsjs/go/models'
 import type { UnsentComments } from '@/lib/diffLayout'
 import { toast } from 'vue-sonner'
@@ -48,6 +49,7 @@ const {
   files,
   visibleFiles,
   startFile,
+  unviewedCount,
   viewedError,
   loadViewed,
   hideViewed,
@@ -101,6 +103,10 @@ async function toggleViewed(path: string, viewed: boolean): Promise<void> {
     toast.error(`Could not update viewed state for ${path}: ${String(err)}`)
   }
 }
+
+watchEffect(() => {
+  viewBadges.files = unviewedCount.value
+})
 
 const threadsForFile = computed(() => props.threads.filter((t) => t.path === currentFilePath.value))
 const currentFilePosition = computed(() => currentFileIndex.value + 1)

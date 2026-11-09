@@ -34,6 +34,11 @@ export function useDiffReview() {
   const isHidden = (f: model.PRFileDTO) => (hideViewed.value && f.viewed) || (hideTests.value && isTestFile(f.filename))
   const visibleFiles = computed(() => files.value.filter((f) => !isHidden(f)))
 
+  /** Files left to review; test files count only while shown, and nothing counts while viewed state is unknown. */
+  const unviewedCount = computed(() =>
+    viewedError.value ? 0 : files.value.filter((f) => !f.viewed && !(hideTests.value && isTestFile(f.filename))).length,
+  )
+
   /** Where reviewing picks up: the first shown file not yet viewed, else the first shown file. */
   const startFile = computed(() => visibleFiles.value.find((f) => !f.viewed) ?? visibleFiles.value[0] ?? files.value[0] ?? null)
 
@@ -185,6 +190,7 @@ export function useDiffReview() {
     files,
     visibleFiles,
     startFile,
+    unviewedCount,
     viewedError,
     loadViewed,
     hideViewed,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed, watch, provide } from 'vue'
+import { onMounted, reactive, ref, computed, watch, watchEffect, provide } from 'vue'
 import { RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen, ChevronUp, ChevronDown } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,7 +20,7 @@ import type { ReviewLoadInput } from '@/types/review'
 import type { model } from '../wailsjs/go/models'
 import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview } from '../wailsjs/go/main/App'
 import { toast } from 'vue-sonner'
-import { prView as sharedPrView } from '@/components/shell/reviewView'
+import { prView as sharedPrView, viewBadges } from '@/components/shell/reviewView'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
 import type { UnsentComments } from '@/lib/diffLayout'
 
@@ -107,6 +107,11 @@ function handleSelect(index: number): void {
 }
 
 useViewShortcuts(() => prView.value === 'conversation', { ArrowRight: goNext, ArrowLeft: goPrev })
+
+watchEffect(() => {
+  viewBadges.overview = overview.value?.reviews.filter((r) => r.has_threads && !r.all_threads_resolved).length ?? 0
+  viewBadges.conversation = threads.value.filter((t) => !t.resolved).length
+})
 
 // Lives here, not in DiffReviewView, because a failed refresh unmounts the Files view.
 const unsentComments: UnsentComments = reactive(new Map())

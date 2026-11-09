@@ -54,6 +54,21 @@ describe('useDiffReview.setViewed', () => {
 })
 
 describe('useDiffReview file filters', () => {
+  it('counts unviewed files, leaving out test files only while they are hidden', () => {
+    localStorage.clear()
+    const review = useDiffReview()
+    review.files.value = [
+      model.PRFileDTO.createFrom({ filename: 'a.go', viewed: false }),
+      model.PRFileDTO.createFrom({ filename: 'a_test.go', viewed: false }),
+      model.PRFileDTO.createFrom({ filename: 'b.go', viewed: true }),
+    ]
+    expect(review.unviewedCount.value).toBe(2)
+    review.hideTests.value = true
+    expect(review.unviewedCount.value).toBe(1)
+    review.viewedError.value = 'rate limited'
+    expect(review.unviewedCount.value).toBe(0)
+  })
+
   it('moves between shown files from wherever the open file sits, numbering against all files', async () => {
     localStorage.clear()
     const review = useDiffReview()
