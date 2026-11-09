@@ -22,6 +22,7 @@ const submitting = ref(false)
 const busy = computed(() => submitting.value || props.sending)
 const hasPendingReview = inject<ComputedRef<boolean>>('hasPendingReview')
 const draftsStale = inject<ComputedRef<boolean> | null>('draftsStale', null)
+const localReview = inject('localReview', false)
 
 async function submit(mode: 'draft' | 'immediate'): Promise<void> {
   if (!body.value.trim() || busy.value) return
@@ -76,6 +77,7 @@ function handleKeydown(event: KeyboardEvent): void {
         Cancel
       </Button>
       <Button
+        v-if="!localReview"
         variant="outline"
         size="sm"
         :disabled="!body.trim() || busy"

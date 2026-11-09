@@ -5,27 +5,29 @@ import PRStateBadge from './PRStateBadge.vue'
 import WindowControls from './WindowControls.vue'
 import type { ReviewNavMeta } from './types'
 
-defineProps<{ meta: ReviewNavMeta | null; fallback: string }>()
+defineProps<{ meta: ReviewNavMeta | null; fallback: string; localLabel?: string }>()
 const emit = defineEmits<{ (e: 'open-pr'): void; (e: 'back'): void }>()
 </script>
 
 <template>
   <div class="h-10 flex items-stretch shrink-0 border-b border-border select-none" style="--wails-draggable: drag">
-    <div class="flex-1 min-w-[8.5rem] flex items-center gap-2 pr-2" :class="meta ? 'pl-2' : 'pl-4'">
+    <div class="flex-1 min-w-[8.5rem] flex items-center gap-2 pr-2" :class="meta || localLabel ? 'pl-2' : 'pl-4'">
+      <button
+        v-if="meta || localLabel"
+        class="h-7 w-7 shrink-0 grid place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        style="--wails-draggable: no-drag"
+        aria-label="Back to pull requests"
+        title="Back to pull requests"
+        @click="emit('back')"
+      ><ArrowLeft class="h-4 w-4" /></button>
       <template v-if="meta">
-        <button
-          class="h-7 w-7 shrink-0 grid place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-          style="--wails-draggable: no-drag"
-          aria-label="Back to pull requests"
-          title="Back to pull requests"
-          @click="emit('back')"
-        ><ArrowLeft class="h-4 w-4" /></button>
         <span class="text-sm truncate min-w-[4rem]" :title="`${meta.owner}/${meta.repo}#${meta.number} ${meta.title}`">
           <span class="text-muted-foreground">{{ meta.repo }} #{{ meta.number }}</span>
           <span class="font-medium ml-1.5">{{ meta.title }}</span>
         </span>
         <PRStateBadge :state="meta.state" :is-draft="meta.is_draft" />
       </template>
+      <span v-else-if="localLabel" class="text-sm font-medium truncate min-w-[4rem]" :title="localLabel">{{ localLabel }}</span>
       <span v-else class="text-sm text-muted-foreground">{{ fallback }}</span>
     </div>
     <div class="flex items-center gap-0.5 pr-2" style="--wails-draggable: no-drag">

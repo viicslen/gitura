@@ -17,6 +17,7 @@
     <TitleStrip
       :meta="authState.is_authenticated && currentPage === 'review' ? reviewNavMeta : null"
       :fallback="authState.is_authenticated ? 'Pull Requests' : 'gitura'"
+      :local-label="authState.is_authenticated && currentPage === 'local' ? localLabel : undefined"
       @open-pr="openPRInBrowser"
       @back="goHome"
     />
@@ -35,6 +36,7 @@
           <PRPage
             v-if="currentPage === 'pr'"
             @open-review="handleOpenReview"
+            @open-local="handleOpenLocal"
           />
         </KeepAlive>
         <ReviewPage
@@ -42,6 +44,7 @@
           :pr-item="selectedPRItem"
           @update-pr-meta="handleUpdatePRMeta"
         />
+        <LocalReviewPage v-if="currentPage === 'local'" :path="localPath" />
       </template>
     </main>
 
@@ -60,6 +63,7 @@ import { useEventListener } from '@vueuse/core'
 import AuthPage from '@/pages/AuthPage.vue'
 import PRPage from '@/pages/PRPage.vue'
 import ReviewPage from '@/pages/ReviewPage.vue'
+import LocalReviewPage from '@/pages/LocalReviewPage.vue'
 import SettingsPage from '@/pages/SettingsPage.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
@@ -82,7 +86,9 @@ interface ReviewNavMeta {
 }
 
 const { authState, refreshAuthState, logout } = useAuth()
-const currentPage = ref<'pr' | 'review'>('pr')
+const currentPage = ref<'pr' | 'review' | 'local'>('pr')
+const localPath = ref('')
+const localLabel = computed(() => localPath.value.split(/[\\/]/).filter(Boolean).pop() ?? localPath.value)
 const selectedPRItem = ref<ReviewLoadInput | null>(null)
 const reviewNavMeta = ref<ReviewNavMeta | null>(null)
 const settingsDialogOpen = ref(false)
@@ -112,6 +118,11 @@ function handleOpenReview(item: ReviewLoadInput) {
     html_url: item.html_url,
   }
   currentPage.value = 'review'
+}
+
+function handleOpenLocal(path: string) {
+  localPath.value = path
+  currentPage.value = 'local'
 }
 
 function handleCloseReview() {

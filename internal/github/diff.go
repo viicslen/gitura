@@ -98,15 +98,15 @@ func ParseCommitFileDiff(f *github.CommitFile) model.ParsedDiffDTO {
 		TotalDeletions:   f.GetDeletions(),
 	}
 	if patch := f.GetPatch(); patch != "" {
-		dto.Hunks = parseUnifiedDiffHunks(patch)
+		dto.Hunks = ParseUnifiedDiffHunks(patch)
 	}
 	return dto
 }
 
-// parseUnifiedDiffHunks parses a raw unified diff patch string into a slice of
+// ParseUnifiedDiffHunks parses a raw unified diff patch string into a slice of
 // DiffHunkDTOs. Each hunk starts at a @@ header. "No newline" marker lines are
 // silently skipped.
-func parseUnifiedDiffHunks(patch string) []model.DiffHunkDTO {
+func ParseUnifiedDiffHunks(patch string) []model.DiffHunkDTO {
 	var hunks []model.DiffHunkDTO
 	var cur *model.DiffHunkDTO
 	oldLine, newLine := 0, 0
