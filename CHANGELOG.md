@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.0](https://github.com/viicslen/gitura/compare/v0.6.1...v0.7.0) (2026-11-09)
+
+
+### Features
+
+* **api:** PR labels, viewed files, guarded body edits and stable review numbers ([efe17de](https://github.com/viicslen/gitura/commit/efe17dec589ba8e398d1f70054111a9249c6c712))
+* **comments:** GitHub-style markdown, clickable task lists, labels and tables ([4f24c2c](https://github.com/viicslen/gitura/commit/4f24c2c4f33200acffb2a2f83137ffe4b543e9df))
+* **files:** viewed files, filters, line wrap, Vue highlighting and safer drafts ([5ffcce7](https://github.com/viicslen/gitura/commit/5ffcce7ba44b9bd88e9d6c823334b96bac35270e))
+* give the app its own icon and show it in the side rail ([408672a](https://github.com/viicslen/gitura/commit/408672a4119b8c9f239e54cf2a7ef1f849ab920b))
+* **ui:** edit and delete your own comments in place ([1724908](https://github.com/viicslen/gitura/commit/1724908f189e2b9c31adb63311070717574f4d61))
+* **ui:** frameless window with a side rail and an in-app title strip ([d2926f7](https://github.com/viicslen/gitura/commit/d2926f72a0bf3eda3aaa3efe78f4cb339ee0d17b))
+* **ui:** review a PR end to end from a side rail, with viewed files and GitHub-style comments ([#19](https://github.com/viicslen/gitura/issues/19)) ([d1134e6](https://github.com/viicslen/gitura/commit/d1134e6414723eb33e32bee8c51b2419e9e5e30a))
+
+
+### Bug Fixes
+
+* **ui:** let the window grow past the monitor it opened on ([1b1e629](https://github.com/viicslen/gitura/commit/1b1e6291ee9061d0755d05d82916a9581f050057))
+
 ## [0.6.1](https://github.com/viicslen/gitura/compare/v0.6.0...v0.6.1) (2026-11-09)
 
 
