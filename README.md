@@ -32,8 +32,13 @@ and hand a comment straight to your coding agent — without a browser tab in si
 ## Features
 
 - **Pull request list** — everything you author, are assigned, or are asked to review, filtered by repository, organisation, author, or last-updated date
+- **Side rail and title strip** — a frameless window with a slim rail for the PR list, Overview, Conversation and Files views, and a title strip with the PR's state, Refresh and Open on GitHub
+- **Overview** — description, labels, general comments and reviews; reviews with open conversations come first
 - **Conversation view** — step through review comments one at a time with diff hunk context and thread replies
-- **Files changed view** — JetBrains-style side-by-side diff with curved connectors mapping each changed block; added and deleted files open as a single full-width panel
+- **Files changed view** — JetBrains-style side-by-side diff with curved connectors mapping each changed block; added and deleted files open as a single full-width panel, and moved or renamed files say so
+- **Viewed files** — tick files as viewed (synced with GitHub), jump to the next one, and hide viewed or test files from the list
+- **Diff view options** — show or hide inline comments and toggle line wrapping; Vue and Svelte files are highlighted per template, script and style block
+- **GitHub-flavoured comments** — alerts, tables, `<picture>` images, and task lists you can tick straight from the app
 - **Review in the diff** — click or drag line numbers (Shift+click extends) to comment on either side; threads, pending drafts, replies and resolve/unresolve sit inline under their lines
 - **Batch reviews** — draft comments, then submit them together as comment, approval, or changes requested (approve and request changes are off on your own PRs)
 - **Reply, resolve, unresolve** — posted straight to GitHub with optimistic UI updates
