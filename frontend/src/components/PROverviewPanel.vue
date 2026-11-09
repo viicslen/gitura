@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { model } from '@/wailsjs/go/models'
 import StaticMarkdownBody from '@/components/StaticMarkdownBody.vue'
+import EditableComment from '@/components/EditableComment.vue'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -143,7 +144,9 @@ function avatarKey(prefix: string, id: number): string {
             </CardHeader>
             <CardContent class="px-4">
               <div :class="surfaceClass">
-                <StaticMarkdownBody :content="comment.body" :base-url="comment.html_url" :toggle-task="taskToggler('issue_comment', comment.id, comment)" />
+                <EditableComment kind="issue_comment" :id="comment.id" :target="comment">
+                  <StaticMarkdownBody :content="comment.body" :base-url="comment.html_url" :toggle-task="taskToggler('issue_comment', comment.id, comment)" />
+                </EditableComment>
               </div>
             </CardContent>
           </Card>
@@ -200,7 +203,9 @@ function avatarKey(prefix: string, id: number): string {
             </CardHeader>
             <CardContent class="px-4 space-y-3">
               <div v-if="review.body" :class="surfaceClass">
-                <StaticMarkdownBody :content="review.body" :base-url="review.html_url" :toggle-task="taskToggler('review', review.review_id, review)" />
+                <EditableComment kind="review" :id="review.review_id" :target="review">
+                  <StaticMarkdownBody :content="review.body" :base-url="review.html_url" :toggle-task="taskToggler('review', review.review_id, review)" />
+                </EditableComment>
               </div>
               <div v-else class="text-sm text-muted-foreground">No review body.</div>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed, watch } from 'vue'
+import { onMounted, reactive, ref, computed, watch, provide } from 'vue'
 import { RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen, ChevronUp, ChevronDown } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -99,6 +99,7 @@ const {
 } = useReview(props.prItem)
 
 const { authState } = useAuth()
+provide('viewerLogin', computed(() => authState.value.login))
 const isOwnPR = computed(() => !!prSummary.value?.author_login && prSummary.value.author_login === authState.value.login)
 
 function handleSelect(index: number): void {
@@ -142,6 +143,8 @@ async function handleReviewActivity(): Promise<void> {
   await reloadReviewActivity()
   await refreshOverview()
 }
+
+provide('commentDeleted', handleReviewActivity)
 
 async function refreshPRView(): Promise<void> {
   refreshing.value = true

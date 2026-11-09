@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import MarkdownBody from './MarkdownBody.vue'
 import ReplyComposer from './ReplyComposer.vue'
+import EditableComment from './EditableComment.vue'
 import DiffHunkView from './DiffHunkView.vue'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
 import { taskToggler } from '@/lib/taskList'
@@ -91,7 +92,9 @@ function toggleResolved(): void {
           <span class="font-medium">{{ comment.author_login }}</span>
           <span class="text-muted-foreground">{{ formatTimestamp(comment.created_at) }}</span>
         </div>
-        <MarkdownBody :content="comment.body" :toggle-task="taskToggler('review_comment', comment.id, comment)" />
+        <EditableComment kind="review_comment" :id="comment.id" :target="comment">
+          <MarkdownBody :content="comment.body" :toggle-task="taskToggler('review_comment', comment.id, comment)" />
+        </EditableComment>
       </div>
 
       <div class="border-t border-border bg-muted/30 px-3 py-2">

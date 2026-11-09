@@ -22,6 +22,10 @@ export function CommitSuggestion(arg1, arg2) {
   return window['go']['main']['App']['CommitSuggestion'](arg1, arg2);
 }
 
+export function DeleteComment(arg1, arg2) {
+  return window['go']['main']['App']['DeleteComment'](arg1, arg2);
+}
+
 export function DiscardPendingReview() {
   return window['go']['main']['App']['DiscardPendingReview']();
 }

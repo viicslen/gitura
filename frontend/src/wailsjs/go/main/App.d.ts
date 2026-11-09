@@ -12,6 +12,8 @@ export function CancelRun(arg1:string):Promise<void>;
 
 export function CommitSuggestion(arg1:number,arg2:string):Promise<model.SuggestionCommitResult>;
 
+export function DeleteComment(arg1:string,arg2:number):Promise<void>;
+
 export function DiscardPendingReview():Promise<void>;
 
 export function GetAuthState():Promise<model.AuthState>;

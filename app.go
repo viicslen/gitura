@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -691,6 +692,39 @@ func (a *App) updateReviewBody(id int64, expected, next string) error {
 			a.reviews[i].Body = next
 		}
 	}
+	return nil
+}
+
+// DeleteComment deletes an issue comment or review comment on the loaded PR and drops it from the cache.
+// kind is "issue_comment" or "review_comment". Submitted reviews can't be deleted on GitHub.
+// Error prefixes: "validation:" — unknown kind; "github:" — API error.
+func (a *App) DeleteComment(kind string, id int64) error {
+	if a.ghClient == nil {
+		return fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return fmt.Errorf("notfound: no PR loaded")
+	}
+
+	switch kind {
+	case "issue_comment":
+		if _, err := a.ghClient.Issues.DeleteComment(a.ctx, a.prOwner, a.prRepo, id); err != nil {
+			return fmt.Errorf("github: delete comment: %w", err)
+		}
+		a.prComments = slices.DeleteFunc(a.prComments, func(c model.PRCommentDTO) bool { return c.ID == id })
+	case "review_comment":
+		if _, err := a.ghClient.PullRequests.DeleteComment(a.ctx, a.prOwner, a.prRepo, id); err != nil {
+			return fmt.Errorf("github: delete review comment: %w", err)
+		}
+		for i := range a.threads {
+			a.threads[i].Comments = slices.DeleteFunc(a.threads[i].Comments, func(c model.CommentDTO) bool { return c.ID == id })
+		}
+		a.threads = slices.DeleteFunc(a.threads, func(t model.CommentThreadDTO) bool { return len(t.Comments) == 0 })
+	default:
+		return fmt.Errorf("validation:unknown kind %q", kind)
+	}
+
+	logger.L.Info("DeleteComment complete", "kind", kind, "id", id)
 	return nil
 }
 

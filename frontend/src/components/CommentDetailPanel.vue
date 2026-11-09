@@ -5,6 +5,7 @@ import DiffHunkView from './DiffHunkView.vue'
 import MarkdownBody from './MarkdownBody.vue'
 import CommentBody from './CommentBody.vue'
 import ReplyComposer from './ReplyComposer.vue'
+import EditableComment from './EditableComment.vue'
 import SuggestionBlock from './SuggestionBlock.vue'
 import SplitRunButton from './SplitRunButton.vue'
 import { Badge } from '@/components/ui/badge'
@@ -118,32 +119,34 @@ function replyAvatarKey(replyId: number): string {
         </div>
 
         <!-- Body -->
-        <div class="relative rounded-md bg-muted/40 px-3 py-2 group/body">
-          <CommentBody
-            :content="rootComment.body"
-            :commands="commands"
-            :default-command-name="defaultCommandName"
-            :thread-root-id="thread.root_id"
-            :comment-id="rootComment.id"
-            :toggle-task="taskToggler('review_comment', rootComment.id, rootComment)"
-            @ran="emit('ran')"
-          />
-          <!-- Run button overlay on the comment body -->
-          <div
-            v-if="commands.length > 0"
-            class="absolute top-2 right-2 opacity-0 group-hover/body:opacity-100 transition-opacity"
-          >
-            <SplitRunButton
+        <EditableComment kind="review_comment" :id="rootComment.id" :target="rootComment">
+          <div class="relative rounded-md bg-muted/40 px-3 py-2 group/body">
+            <CommentBody
+              :content="rootComment.body"
               :commands="commands"
               :default-command-name="defaultCommandName"
-              :input="rootComment.body"
               :thread-root-id="thread.root_id"
               :comment-id="rootComment.id"
-              size="sm"
+              :toggle-task="taskToggler('review_comment', rootComment.id, rootComment)"
               @ran="emit('ran')"
             />
+            <!-- Run button overlay on the comment body -->
+            <div
+              v-if="commands.length > 0"
+              class="absolute top-2 right-2 opacity-0 group-hover/body:opacity-100 transition-opacity"
+            >
+              <SplitRunButton
+                :commands="commands"
+                :default-command-name="defaultCommandName"
+                :input="rootComment.body"
+                :thread-root-id="thread.root_id"
+                :comment-id="rootComment.id"
+                size="sm"
+                @ran="emit('ran')"
+              />
+            </div>
           </div>
-        </div>
+        </EditableComment>
 
         <!-- Diff hunk -->
         <DiffHunkView
@@ -184,7 +187,9 @@ function replyAvatarKey(replyId: number): string {
             <span class="text-xs text-muted-foreground">{{ formatTimestamp(reply.created_at) }}</span>
           </div>
           <div class="rounded-md bg-muted/30 px-3 py-2">
-            <MarkdownBody :content="reply.body" :toggle-task="taskToggler('review_comment', reply.id, reply)" />
+            <EditableComment kind="review_comment" :id="reply.id" :target="reply">
+              <MarkdownBody :content="reply.body" :toggle-task="taskToggler('review_comment', reply.id, reply)" />
+            </EditableComment>
           </div>
         </div>
       </div>

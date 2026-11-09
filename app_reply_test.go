@@ -41,3 +41,33 @@ func TestReplyToComment_SurvivesThreadReloadDuringRequest(t *testing.T) {
 	require.Len(t, app.threads, 1)
 	assert.Len(t, app.threads[0].Comments, 1)
 }
+
+func TestDeleteComment_DropsReviewCommentAndEmptyThread(t *testing.T) {
+	app := &App{
+		ctx:      context.Background(),
+		prOwner:  "o",
+		prRepo:   "r",
+		prNumber: 1,
+		prCache:  &model.PullRequestSummary{},
+		threads: []model.CommentThreadDTO{
+			{RootID: 5, Comments: []model.CommentDTO{{ID: 5}}},
+			{RootID: 10, Comments: []model.CommentDTO{{ID: 10}, {ID: 11}}},
+		},
+	}
+	var deleted []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deleted = append(deleted, r.Method+" "+r.URL.Path)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	app.ghClient = github.NewClient(nil)
+	app.ghClient.BaseURL, _ = url.Parse(srv.URL + "/")
+
+	require.NoError(t, app.DeleteComment("review_comment", 5))
+	require.NoError(t, app.DeleteComment("review_comment", 11))
+
+	assert.Equal(t, []string{"DELETE /repos/o/r/pulls/comments/5", "DELETE /repos/o/r/pulls/comments/11"}, deleted)
+	require.Len(t, app.threads, 1)
+	assert.Equal(t, []model.CommentDTO{{ID: 10}}, app.threads[0].Comments)
+	assert.ErrorContains(t, app.DeleteComment("review", 1), "validation:")
+}
