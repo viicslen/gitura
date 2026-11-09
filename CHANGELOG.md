@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/viicslen/gitura/compare/v0.9.1...v0.10.0) (2026-11-09)
+
+
+### Features
+
+* **settings:** allow choosing installed system fonts ([b4dd028](https://github.com/viicslen/gitura/commit/b4dd0282666ef45f10c686f9f315589c00389c64))
+
 ## [0.9.1](https://github.com/viicslen/gitura/compare/v0.9.0...v0.9.1) (2026-11-09)
 
 
