@@ -8,21 +8,17 @@ const files = ['src/a.ts', 'src/b.ts', 'README.md'].map(
 )
 
 describe('DiffFileSidebar tree keyboard', () => {
-  it('has one tab stop and moves with arrows, collapsing and expanding folders', async () => {
+  it('has one tab stop and moves with up/down, leaving left/right to the page', async () => {
     const wrapper = mount(DiffFileSidebar, { props: { files, selectedPath: 'src/b.ts' }, attachTo: document.body })
     const items = () => wrapper.findAll('[role="treeitem"]')
     expect(items().map((i) => i.attributes('tabindex'))).toEqual(['-1', '-1', '0', '-1'])
 
     ;(items()[2].element as HTMLElement).focus()
-    await items()[2].trigger('keydown', { key: 'ArrowLeft' })
-    expect(document.activeElement).toBe(items()[0].element)
+    await items()[2].trigger('keydown', { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(items()[1].element)
 
     await items()[0].trigger('keydown', { key: 'ArrowLeft' })
-    expect(items()).toHaveLength(2)
-    await items()[0].trigger('keydown', { key: 'ArrowRight' })
     expect(items()).toHaveLength(4)
-    await items()[0].trigger('keydown', { key: 'ArrowDown' })
-    expect(document.activeElement).toBe(items()[1].element)
     wrapper.unmount()
   })
 })
