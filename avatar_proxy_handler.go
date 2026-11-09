@@ -61,6 +61,15 @@ func handleAvatarProxy(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleMarkdownImageProxy(w http.ResponseWriter, r *http.Request) {
 	if u, ok := parseMarkdownImageRequestURL(r); ok {
+		// Private-repo file URLs 404 without auth, so fetch them through the API.
+		if owner, repo, candidates := repoFileFromURL(u); len(candidates) > 0 && a.ghClient != nil {
+			logger.L.Debug("markdown image proxy repo url", "url", u.String())
+			for _, c := range candidates {
+				if streamRepositoryMarkdownImageRawAPI(w, r, a.ghClient, owner, repo, c.ref, c.path) {
+					return
+				}
+			}
+		}
 		logger.L.Debug("markdown image proxy remote", "url", u.String())
 		streamRemoteMarkdownImage(w, r, u)
 		return
@@ -253,6 +262,49 @@ func parseMarkdownImageRepoRequest(r *http.Request) (string, string, string, str
 		return "", "", "", "", false
 	}
 	return owner, repo, ref, path, true
+}
+
+type repoFileRef struct{ ref, path string }
+
+// repoFileFromURL recognizes github.com/{o}/{r}/raw/{ref}/{path},
+// github.com/{o}/{r}/blob/{ref}/{path}?raw=true and raw.githubusercontent.com/{o}/{r}/{ref}/{path}.
+// Refs may contain "/", so every ref/path split is returned, shortest ref first.
+func repoFileFromURL(u *url.URL) (owner, repo string, candidates []repoFileRef) {
+	segs := strings.Split(strings.Trim(u.EscapedPath(), "/"), "/")
+	for i, s := range segs {
+		unescaped, err := url.PathUnescape(s)
+		if err != nil || unescaped == ".." {
+			return "", "", nil
+		}
+		segs[i] = unescaped
+	}
+	switch strings.ToLower(u.Hostname()) {
+	case "github.com":
+		if len(segs) < 5 || !(segs[2] == "raw" || (segs[2] == "blob" && u.Query().Get("raw") == "true")) {
+			return "", "", nil
+		}
+		segs = append(segs[:2], segs[3:]...)
+	case "raw.githubusercontent.com":
+		if len(segs) < 4 {
+			return "", "", nil
+		}
+	default:
+		return "", "", nil
+	}
+	owner, repo, rest := segs[0], segs[1], segs[2:]
+	if owner == "" || repo == "" {
+		return "", "", nil
+	}
+	if len(rest) >= 4 && rest[0] == "refs" && (rest[1] == "heads" || rest[1] == "tags") {
+		rest = rest[2:]
+	}
+	for i := 1; i < len(rest); i++ {
+		ref := strings.Join(rest[:i], "/")
+		if path, ok := sanitizeMarkdownImagePath(strings.Join(rest[i:], "/")); ok && rest[0] != "" {
+			candidates = append(candidates, repoFileRef{ref, path})
+		}
+	}
+	return owner, repo, candidates
 }
 
 func sanitizeMarkdownImagePath(raw string) (string, bool) {
