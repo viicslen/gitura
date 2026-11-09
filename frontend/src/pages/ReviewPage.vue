@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, computed, watch, watchEffect, provide } from 'vue'
-import { RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen, ChevronUp, ChevronDown } from 'lucide-vue-next'
+import { RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen, ChevronUp, ChevronDown, GitMerge } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import CommentSummaryList from '@/components/CommentSummaryList.vue'
 import CommentDetailPanel from '@/components/CommentDetailPanel.vue'
 import RunPanel from '@/components/RunPanel.vue'
@@ -18,7 +21,7 @@ import { useRuns } from '@/composables/useRuns'
 import { useAuth } from '@/composables/useAuth'
 import type { ReviewLoadInput } from '@/types/review'
 import type { model } from '../wailsjs/go/models'
-import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview } from '../wailsjs/go/main/App'
+import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, MergePR, ClosePR } from '../wailsjs/go/main/App'
 import { toast } from 'vue-sonner'
 import { prView as sharedPrView, viewBadges } from '@/components/shell/reviewView'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
@@ -165,6 +168,35 @@ async function refreshPRView(): Promise<void> {
   }
 }
 
+// ── Merge / close ─────────────────────────────────────────────────────────
+type PRAction = 'merge' | 'squash' | 'rebase' | 'close'
+const prActionLabels: Record<PRAction, string> = { merge: 'Merge', squash: 'Squash and merge', rebase: 'Rebase and merge', close: 'Close pull request' }
+const confirmingAction = ref<PRAction | null>(null)
+const actionRunning = ref(false)
+const actionError = ref('')
+
+function askAction(action: PRAction): void {
+  actionError.value = ''
+  confirmingAction.value = action
+}
+
+async function runAction(): Promise<void> {
+  const action = confirmingAction.value
+  if (!action) return
+  actionRunning.value = true
+  actionError.value = ''
+  try {
+    await (action === 'close' ? ClosePR() : MergePR(action))
+    confirmingAction.value = null
+    toast.success(action === 'close' ? 'Pull request closed' : 'Pull request merged')
+    await refreshPRView()
+  } catch (err) {
+    actionError.value = String(err)
+  } finally {
+    actionRunning.value = false
+  }
+}
+
 // ── Per-PR local path ─────────────────────────────────────────────────────
 const localPath = ref('')
 
@@ -256,7 +288,48 @@ watch(
       >
         <RefreshCw :class="['h-3.5 w-3.5', (loading || refreshing) && 'animate-spin']" />
       </Button>
+      <DropdownMenu v-if="prSummary?.state === 'open'">
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7 text-muted-foreground hover:text-foreground"
+            aria-label="Merge or close pull request"
+            title="Merge or close pull request"
+            style="--wails-draggable: no-drag"
+          >
+            <GitMerge class="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem :disabled="prSummary.is_draft" @select="askAction('merge')">{{ prActionLabels.merge }}</DropdownMenuItem>
+          <DropdownMenuItem :disabled="prSummary.is_draft" @select="askAction('squash')">{{ prActionLabels.squash }}</DropdownMenuItem>
+          <DropdownMenuItem :disabled="prSummary.is_draft" @select="askAction('rebase')">{{ prActionLabels.rebase }}</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem class="text-destructive" @select="askAction('close')">{{ prActionLabels.close }}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </Teleport>
+
+    <Dialog :open="!!confirmingAction" @update:open="(open: boolean) => { if (!open && !actionRunning) confirmingAction = null }">
+      <DialogContent class="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{{ confirmingAction && prActionLabels[confirmingAction] }}?</DialogTitle>
+        </DialogHeader>
+        <p class="text-sm text-muted-foreground">
+          {{ confirmingAction === 'close'
+            ? `Close #${prSummary?.number} without merging.`
+            : `${confirmingAction && prActionLabels[confirmingAction]} ${prSummary?.head_branch} into ${prSummary?.base_branch}. Fails if new commits were pushed since this PR was loaded.` }}
+        </p>
+        <p v-if="actionError" class="text-sm text-destructive">{{ actionError }}</p>
+        <DialogFooter>
+          <Button variant="ghost" :disabled="actionRunning" @click="confirmingAction = null">Cancel</Button>
+          <Button :variant="confirmingAction === 'close' ? 'destructive' : 'default'" :disabled="actionRunning" @click="runAction()">
+            {{ actionRunning ? 'Working…' : confirmingAction && prActionLabels[confirmingAction] }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- ── Loading state ───────────────────────────────────────────────────── -->
     <div v-if="loading && !prSummary" class="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
