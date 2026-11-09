@@ -192,12 +192,12 @@
     </aside>
 
     <!-- ── PR list ──────────────────────────────────────────────────────── -->
-    <main class="flex-1 min-w-0" aria-label="Pull request list" aria-live="polite">
+    <main class="flex-1 min-w-0" aria-label="Pull request list">
       <!-- Toolbar: count + refresh -->
       <div class="flex items-center justify-between mb-4">
-        <p class="text-sm text-muted-foreground">
+        <p class="text-sm text-muted-foreground" aria-live="polite">
           <template v-if="!loading && !errorMsg">
-            {{ visibleItems.length }} pull requests
+            {{ visibleItems.length }} {{ visibleItems.length === 1 ? 'pull request' : 'pull requests' }}
             <span v-if="rawResult?.incomplete_results" class="ml-1 text-yellow-500">(incomplete)</span>
           </template>
         </p>
@@ -253,18 +253,12 @@
 
       <!-- Skeleton loading state -->
       <template v-if="loading">
-        <div class="space-y-2" aria-label="Loading pull requests">
-          <div
-            v-for="n in 6"
-            :key="n"
-            class="rounded-lg border border-border bg-card p-4"
-          >
-            <div class="flex items-start justify-between gap-4">
-              <div class="flex-1 space-y-2">
-                <Skeleton class="h-4 w-3/4" />
-                <Skeleton class="h-3 w-1/2" />
-              </div>
-              <Skeleton class="h-5 w-14 shrink-0" />
+        <div class="rounded-lg border border-border bg-card divide-y divide-border" aria-label="Loading pull requests">
+          <div v-for="n in 6" :key="n" class="flex items-start gap-3 px-4 py-3">
+            <Skeleton class="h-4 w-4 mt-0.5 shrink-0 rounded-full" />
+            <div class="flex-1 space-y-2">
+              <Skeleton class="h-4 w-3/4" />
+              <Skeleton class="h-3 w-1/2" />
             </div>
           </div>
         </div>
@@ -300,34 +294,29 @@
 
       <!-- PR rows -->
       <template v-else-if="visibleItems.length > 0">
-        <ul class="space-y-2" role="list">
-          <li
-            v-for="pr in visibleItems"
-            :key="pr.html_url"
-            role="listitem"
-          >
+        <ul class="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden" role="list">
+          <li v-for="pr in visibleItems" :key="pr.html_url">
             <button
-              class="w-full text-left rounded-lg border border-border bg-card px-4 py-3 hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-              :aria-label="`${pr.owner}/${pr.repo} #${pr.number}: ${pr.title}`"
+              class="w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring cursor-pointer"
               @click="openPR(pr)"
             >
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex-1 min-w-0">
-                  <!-- Title row -->
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-sm font-medium truncate">{{ pr.title }}</span>
-                    <Badge v-if="pr.is_draft" variant="secondary" class="shrink-0 text-xs">
-                      Draft
-                    </Badge>
-                  </div>
-                  <!-- Meta row -->
-                  <div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                    <span class="font-mono">{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
-                    <span>·</span>
-                    <span>{{ pr.author_login }}</span>
-                    <span>·</span>
-                    <span>updated {{ formatAge(pr.updated_at) }}</span>
-                  </div>
+              <GitPullRequestDraft v-if="pr.is_draft" class="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <GitPullRequest v-else class="h-4 w-4 mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-sm font-medium truncate" :title="pr.title">{{ pr.title }}</span>
+                  <Badge v-if="pr.is_draft" variant="secondary" class="shrink-0 text-xs">
+                    Draft
+                  </Badge>
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground min-w-0">
+                  <span class="truncate max-w-full" :title="`${pr.owner}/${pr.repo} #${pr.number}`">{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
+                  <span aria-hidden="true">·</span>
+                  <span class="truncate max-w-full">{{ pr.author_login }}</span>
+                  <span aria-hidden="true">·</span>
+                  <time :datetime="pr.updated_at" :title="new Date(pr.updated_at).toLocaleString()">
+                    updated {{ formatAge(pr.updated_at) }}
+                  </time>
                 </div>
               </div>
             </button>
@@ -340,7 +329,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { RefreshCw, GitPullRequest, Filter } from 'lucide-vue-next'
+import { RefreshCw, GitPullRequest, GitPullRequestDraft, Filter } from 'lucide-vue-next'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -408,7 +397,7 @@ const filteredRepoOptions = computed(() => {
 })
 
 function selectRepo(fullName: string): void {
-  filters.repo.value = fullName
+  filters.pickRepo(fullName)
   repoSearch.value = fullName
   repoDropdownOpen.value = false
 }
@@ -416,10 +405,16 @@ function selectRepo(fullName: string): void {
 function onRepoBlur(): void {
   setTimeout(() => {
     repoDropdownOpen.value = false
-    if (repoSearch.value !== filters.repo.value) {
-      filters.repo.value = repoSearch.value.trim()
-    }
+    const known = findOption(repoOptions.value, repoSearch.value)
+    if (known) selectRepo(known)
+    else if (repoSearch.value !== filters.repo.value) filters.repo.value = repoSearch.value.trim()
   }, 150)
+}
+
+/** Typed text naming a loaded option counts as picking it, so exact matching is keyboard-reachable. */
+function findOption(options: string[], typed: string): string | undefined {
+  const q = typed.trim().toLowerCase()
+  return q ? options.find((o) => o.toLowerCase() === q) : undefined
 }
 
 // Keep repoSearch in sync when filters.repo is cleared externally.
@@ -449,7 +444,7 @@ const filteredOrgOptions = computed(() => {
 })
 
 function selectOrg(name: string): void {
-  filters.org.value = name
+  filters.pickOrg(name)
   orgSearch.value = name
   orgDropdownOpen.value = false
 }
@@ -457,9 +452,9 @@ function selectOrg(name: string): void {
 function onOrgBlur(): void {
   setTimeout(() => {
     orgDropdownOpen.value = false
-    if (orgSearch.value !== filters.org.value) {
-      filters.org.value = orgSearch.value.trim()
-    }
+    const known = findOption(orgOptions.value, orgSearch.value)
+    if (known) selectOrg(known)
+    else if (orgSearch.value !== filters.org.value) filters.org.value = orgSearch.value.trim()
   }, 150)
 }
 
@@ -485,13 +480,6 @@ async function fetchPRs(): Promise<void> {
   try {
     // Only include_drafts is meaningful server-side; other filter fields are ignored.
     const res = await App.ListOpenPRs(filters.toFilters())
-
-    console.debug('[fetchPRs] thisId', thisId, 'requestId', filters.requestId.value, 'items', res?.items?.length)
-    if (res?.items?.length) {
-      const sample = res.items[0]
-      console.debug('[fetchPRs] sample item', JSON.stringify({ title: sample.title, is_author: sample.is_author, is_assignee: sample.is_assignee, is_reviewer: sample.is_reviewer }))
-    }
-    console.debug('[fetchPRs] filter state', JSON.stringify({ includeAuthor: filters.includeAuthor.value, includeAssignee: filters.includeAssignee.value, includeReviewer: filters.includeReviewer.value }))
 
     if (thisId !== filters.requestId.value) return
 
