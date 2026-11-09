@@ -25,6 +25,20 @@ build client_id=client_id:
     fi
     wails build -ldflags "-X 'main.githubClientID={{ client_id }}'"
 
+# Rebuild only the Go binary: skips the frontend build and binding generation.
+# Use `just build` after changing the frontend or any method bound to the frontend.
+build-fast client_id=client_id:
+    #!/usr/bin/env sh
+    if [ -z "{{ client_id }}" ]; then
+        echo "Error: client_id is required. Pass it as an argument or set GITHUB_CLIENT_ID."
+        exit 1
+    fi
+    wails build -s -skipbindings -ldflags "-X 'main.githubClientID={{ client_id }}'"
+
+# Type-check the frontend (not part of `build`; CI runs it).
+typecheck:
+    cd frontend && bun run typecheck
+
 # Regenerate the app icons from frontend/src/assets/images/logo.svg.
 icons:
     #!/usr/bin/env sh
