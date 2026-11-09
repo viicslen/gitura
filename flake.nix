@@ -11,7 +11,7 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        version = "0.7.0"; # x-release-please-version
+        version = "0.8.0"; # x-release-please-version
 
         # Fetch bun frontend dependencies as a fixed-output derivation.
         # After updating dependencies, recompute with:
@@ -32,7 +32,7 @@
 
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
-          outputHash = "sha256-jiiH5CY2eBa0GWljOnqDiFDpmlSkCseGKuGtsGboEzc=";
+          outputHash = "sha256-+Tf+JXQwuwSAJB7UaqXjnfKtf/vO6cFY27vCJEyXzMw=";
         };
 
         # Build the Vue/Vite frontend and expose the dist directory.
