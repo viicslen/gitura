@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useElementSize, useEventListener, useResizeObserver } from '@vueuse/core'
 import { Badge } from '@/components/ui/badge'
+import { FileSymlink } from 'lucide-vue-next'
+import { describePathChange } from '@/lib/pathChange'
 import DiffPane from './DiffPane.vue'
 import DiffInlineThread from './DiffInlineThread.vue'
 import InlineCommentForm from './InlineCommentForm.vue'
 import DiffPendingComment from './DiffPendingComment.vue'
 import type { model } from '@/wailsjs/go/models'
 import { langFromPath } from '@/lib/lang'
-import { anchorKey, buildSplitLayout, diffLineKeys, syncScrollTop, type BlockKind, type Edge, type LineSelection, type Side } from '@/lib/diffLayout'
+import { anchorKey, buildSplitLayout, diffLineKeys, syncScrollTop, type BlockKind, type CommentTarget, type Edge, type LineSelection, type Side, type UnsentComments } from '@/lib/diffLayout'
 
 const props = defineProps<{
   file: model.PRFileDTO
@@ -21,6 +23,9 @@ const props = defineProps<{
   /** Drafts were written against an older head, so their line numbers don't match this diff. */
   draftsStale?: boolean
   showThreads: boolean
+  wrapLines: boolean
+  /** Holds half-written comments per file so switching files doesn't lose them. */
+  unsentComments: UnsentComments
   /** Saves a new comment as a draft or posts it now; resolves false on failure. */
   postComment: (comment: model.DraftCommentDTO, mode: 'draft' | 'immediate') => Promise<boolean>
 }>()
@@ -32,6 +37,15 @@ const emit = defineEmits<{
 }>()
 
 const language = computed(() => langFromPath(props.file.filename))
+const pathChange = computed(() =>
+  props.file.previous_filename ? describePathChange(props.file.previous_filename, props.file.filename) : null,
+)
+const pathChangeTitle = computed(() => {
+  const kind = props.file.status === 'copied' ? 'copied' : pathChange.value?.kind ?? ''
+  return kind.charAt(0).toUpperCase() + kind.slice(1)
+})
+// Drops the joining slash next to an empty changed part (e.g. a file moved into a new folder).
+const tail = (middle: string, suffix: string) => (middle ? suffix : suffix.replace(/^\//, ''))
 const mode = computed(() =>
   props.file.status === 'added' ? 'right' : props.file.status === 'removed' ? 'left' : 'split',
 )
@@ -58,23 +72,38 @@ const unplacedDrafts = computed(() => indexedDrafts.value.filter((d) => !placedD
 
 // ── Comment form ───────────────────────────────────────────────────────────
 
-interface FormTarget {
-  side: Side
-  hunk: number
-  line: number
-  startLine?: number
-}
+type FormTarget = CommentTarget
 const form = ref<FormTarget | null>(null)
 const formBody = ref('')
-// While a comment posts, the form's target is pinned so a failed post can't be retried on another line.
-const posting = ref(false)
+
+// A comment that is sending stays in the shared map marked `sending`, so every view of the file
+// shows it locked instead of offering it again or letting a competing draft replace it.
+const sending = computed(() => !!props.unsentComments.get(props.file.filename)?.sending)
+function stashForm(path: string): void {
+  if (props.unsentComments.get(path)?.sending) return
+  if (form.value && formBody.value.trim()) props.unsentComments.set(path, { target: form.value, body: formBody.value })
+  else props.unsentComments.delete(path)
+}
+// TODO: a restored comment whose line is gone after new commits stays hidden until the file is left.
+function restoreForm(path: string): void {
+  const saved = props.unsentComments.get(path)
+  form.value = saved?.target ?? null
+  formBody.value = saved?.body ?? ''
+}
+restoreForm(props.file.filename)
+onBeforeUnmount(() => stashForm(props.file.filename))
 const drag = ref<{ side: Side; hunk: number; anchor: number; current: number } | null>(null)
-watch(() => props.file.filename, () => {
-  form.value = null
+watch(() => props.file.filename, (path, previous) => {
+  stashForm(previous)
+  restoreForm(path)
   drag.value = null
 })
 watch(form, (f) => {
   if (!f) formBody.value = ''
+})
+// A send started from an earlier view of this file succeeded: drop the locked copy shown here.
+watch(() => props.unsentComments.get(props.file.filename), (entry, previous) => {
+  if (previous?.sending && !entry) form.value = null
 })
 
 function rangeTarget(side: Side, hunk: number, a: number, b: number): FormTarget {
@@ -91,7 +120,7 @@ function extendForm(side: Side, hunk: number, line: number): boolean {
 }
 
 function onPress(side: Side, hunk: number, line: number, shift: boolean): void {
-  if (posting.value) return
+  if (sending.value) return
   if (shift && extendForm(side, hunk, line)) return
   drag.value = { side, hunk, anchor: line, current: line }
 }
@@ -101,7 +130,7 @@ function onHover(side: Side, hunk: number, line: number): void {
 }
 
 function onActivate(side: Side, hunk: number, line: number, shift: boolean): void {
-  if (posting.value) return
+  if (sending.value) return
   if (shift && extendForm(side, hunk, line)) return
   form.value = { side, hunk, line }
 }
@@ -122,23 +151,29 @@ const selection = computed<LineSelection | null>(() => {
 
 async function submitComment(body: string, submitMode: 'draft' | 'immediate'): Promise<boolean> {
   const t = form.value
-  if (!t) return false
+  if (!t || sending.value) return false
+  const path = props.file.filename
   const comment = {
-    path: props.file.filename,
+    path,
     body,
     line: t.line,
     side: t.side,
     start_line: t.startLine,
     start_side: t.startLine ? t.side : undefined,
   } as model.DraftCommentDTO
-  posting.value = true
+  props.unsentComments.set(path, { target: t, body: formBody.value, sending: true })
+  const entry = props.unsentComments.get(path)
+  let ok = false
   try {
-    const ok = await props.postComment(comment, submitMode)
-    if (ok && form.value === t) form.value = null
-    return ok
+    ok = await props.postComment(comment, submitMode)
   } finally {
-    posting.value = false
+    if (entry && props.unsentComments.get(path) === entry) {
+      if (ok) props.unsentComments.delete(path)
+      else entry.sending = false
+    }
   }
+  if (ok && form.value === t) form.value = null
+  return ok
 }
 
 // ── Inline rows ────────────────────────────────────────────────────────────
@@ -173,6 +208,9 @@ const setGutterEl = (el: unknown) => (gutterEl.value = el as HTMLElement | null)
 const { width: gutterW, height: gutterH } = useElementSize(gutterEl)
 const master = ref<Side>('RIGHT')
 const scrollTop = reactive<Record<Side, number>>({ LEFT: 0, RIGHT: 0 })
+const scrollLeft: Record<Side, number> = { LEFT: 0, RIGHT: 0 }
+const dirName = computed(() => props.file.filename.split('/').slice(0, -1).join('/'))
+const baseName = computed(() => props.file.filename.split('/').pop() ?? props.file.filename)
 
 interface PaneMetrics {
   top: number[]
@@ -223,14 +261,21 @@ const syncPoints = computed<[number, number][]>(() => {
   ]
 })
 
-
 function onScroll(side: Side): void {
   const el = scrollEls[side].value
   if (!el) return
   scrollTop[side] = el.scrollTop
+  // Only follow sideways moves: a shorter pane clamps scrollLeft, and copying it on every
+  // vertical scroll would yank the other pane back.
+  const movedSideways = el.scrollLeft !== scrollLeft[side]
+  scrollLeft[side] = el.scrollLeft
   if (side !== master.value) return
   const other: Side = side === 'LEFT' ? 'RIGHT' : 'LEFT'
   const target = scrollEls[other].value
+  if (target && movedSideways) {
+    target.scrollLeft = el.scrollLeft
+    scrollLeft[other] = target.scrollLeft
+  }
   if (!target || !syncPoints.value.length) return
   const points = side === 'LEFT' ? syncPoints.value : syncPoints.value.map(([l, r]): [number, number] => [r, l])
   target.scrollTop = syncScrollTop(
@@ -283,6 +328,7 @@ function statusLabel(status: string): string {
     case 'added': return 'Added'
     case 'removed': return 'Deleted'
     case 'renamed': return 'Renamed'
+    case 'copied': return 'Copied'
     default: return 'Modified'
   }
 }
@@ -291,7 +337,8 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
   switch (status) {
     case 'added': return 'default'
     case 'removed': return 'destructive'
-    case 'renamed': return 'secondary'
+    case 'renamed':
+    case 'copied': return 'secondary'
     default: return 'outline'
   }
 }
@@ -303,18 +350,43 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
       <Badge :variant="statusVariant(file.status)" class="text-[10px]">
         {{ statusLabel(file.status) }}
       </Badge>
-      <span v-if="file.previous_filename" class="truncate font-mono text-xs text-muted-foreground">
-        {{ file.previous_filename }}<span class="mx-1">→</span>
+      <span class="flex min-w-0 flex-1 font-mono text-xs font-medium" :title="file.filename">
+        <span v-if="dirName" class="min-w-0 truncate text-muted-foreground">{{ dirName }}/</span>
+        <span class="max-w-full shrink-0 truncate">{{ baseName }}</span>
       </span>
-      <span class="flex-1 truncate font-mono text-xs font-medium">{{ file.filename }}</span>
-      <span v-if="!file.is_binary" class="flex shrink-0 gap-2 text-xs">
+      <span v-if="!file.is_binary && file.changes > 0" class="flex shrink-0 gap-2 text-xs">
         <span class="text-green-600 dark:text-green-400">+{{ file.additions }}</span>
         <span class="text-red-500 dark:text-red-400">-{{ file.deletions }}</span>
       </span>
+      <slot name="header-actions" />
     </div>
 
     <div v-if="file.is_binary" class="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
       Binary file — diff not available
+    </div>
+
+    <div v-else-if="pathChange && diff && hunks.length === 0" class="flex flex-1 items-center justify-center p-6">
+      <div class="w-full max-w-2xl rounded-lg border border-border bg-muted/30 p-5">
+        <div class="flex items-center gap-3">
+          <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400">
+            <FileSymlink class="size-4.5" />
+          </span>
+          <div>
+            <p class="text-sm font-semibold">{{ pathChangeTitle }} without changes</p>
+            <p class="text-xs text-muted-foreground">The content is identical; only the path changed.</p>
+          </div>
+        </div>
+        <dl class="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 font-mono text-xs">
+          <dt class="text-muted-foreground">from</dt>
+          <dd class="break-all text-muted-foreground">
+            {{ pathChange.prefix }}<mark v-if="pathChange.from" class="rounded-sm bg-rose-500/20 px-0.5 text-rose-700 dark:text-rose-300">{{ pathChange.from }}</mark>{{ tail(pathChange.from, pathChange.suffix) }}
+          </dd>
+          <dt class="text-muted-foreground">to</dt>
+          <dd class="break-all">
+            {{ pathChange.prefix }}<mark v-if="pathChange.to" class="rounded-sm bg-emerald-500/20 px-0.5 text-emerald-700 dark:text-emerald-300">{{ pathChange.to }}</mark>{{ tail(pathChange.to, pathChange.suffix) }}
+          </dd>
+        </dl>
+      </div>
     </div>
 
     <div v-else-if="!diff || hunks.length === 0" class="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -322,6 +394,10 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
     </div>
 
     <template v-else>
+      <p v-if="pathChange" class="shrink-0 truncate border-b border-border bg-sky-500/5 px-4 py-1.5 font-mono text-xs text-muted-foreground" :title="`${file.previous_filename} → ${file.filename}`">
+        <span class="font-sans">{{ pathChangeTitle }}</span> from
+        {{ pathChange.prefix }}<mark v-if="pathChange.from" class="rounded-sm bg-rose-500/20 px-0.5 text-rose-700 dark:text-rose-300">{{ pathChange.from }}</mark>{{ tail(pathChange.from, pathChange.suffix) }}
+      </p>
       <div v-if="unplacedThreads.length || unplacedDrafts.length" class="max-h-[40%] shrink-0 overflow-y-auto border-b border-border bg-muted/20 py-1">
         <p v-if="unplacedThreads.length" class="px-4 pt-1 text-xs text-muted-foreground">
           {{ unplacedThreads.length }} comment{{ unplacedThreads.length === 1 ? '' : 's' }} outside the visible diff
@@ -351,11 +427,11 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
       >
         <template v-if="mode === 'split'">
           <span class="truncate border-b border-border px-3 py-1 font-mono text-[11px] text-muted-foreground">
-            Base · {{ file.previous_filename || file.filename }}
+            Base
           </span>
           <span class="border-b border-border bg-muted/30" />
           <span class="truncate border-b border-border px-3 py-1 font-mono text-[11px] text-muted-foreground">
-            Head · {{ file.filename }}
+            Head
           </span>
         </template>
 
@@ -372,8 +448,11 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
           </div>
           <div
             :ref="(el) => setScrollEl(side, el)"
-            class="min-h-0 overflow-y-auto overflow-x-hidden"
-            :class="mode === 'split' && side === 'LEFT' ? 'border-r border-border/60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : ''"
+            class="@container min-h-0 overflow-y-auto"
+            :class="[
+              wrapLines ? 'overflow-x-hidden' : 'overflow-x-auto',
+              mode === 'split' && side === 'LEFT' ? 'border-r border-border/60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : '',
+            ]"
             @scroll.passive="onScroll(side)"
             @wheel.passive="master = side"
             @touchstart.passive="master = side"
@@ -390,6 +469,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
               :commentable="commentable"
               :selection="selection"
               :inline-keys="inlineKeys"
+              :wrap="wrapLines"
               @press="(hunk, line, shift) => onPress(side, hunk, line, shift)"
               @hover="(hunk, line) => onHover(side, hunk, line)"
               @activate="(hunk, line, shift) => onActivate(side, hunk, line, shift)"
@@ -410,6 +490,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                       v-model:body="formBody"
                       :target="{ path: file.filename, side: form.side, line: form.line, startLine: form.startLine }"
                       :post="submitComment"
+                      :sending="sending"
                       @cancel="form = null"
                     />
                   </div>

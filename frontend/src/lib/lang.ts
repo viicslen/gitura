@@ -1,7 +1,7 @@
 /** Maps common file extensions to highlight.js language identifiers. */
 const EXT_LANG: Record<string, string> = {
   ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
-  vue: 'xml', py: 'python', rb: 'ruby', go: 'go', rs: 'rust',
+  vue: 'vue', svelte: 'vue', py: 'python', rb: 'ruby', go: 'go', rs: 'rust',
   java: 'java', cs: 'csharp', cpp: 'cpp', c: 'c', h: 'c',
   php: 'php', html: 'html', css: 'css', scss: 'scss',
   json: 'json', yaml: 'yaml', yml: 'yaml', sh: 'bash', bash: 'bash',

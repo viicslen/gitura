@@ -41,5 +41,8 @@ func FetchPR(ctx context.Context, client *github.Client, owner, repo string, num
 		Owner:       owner,
 		Repo:        repo,
 	}
+	for _, l := range pr.Labels {
+		summary.Labels = append(summary.Labels, model.LabelDTO{Name: l.GetName(), Color: l.GetColor(), Description: l.GetDescription()})
+	}
 	return summary, nil
 }

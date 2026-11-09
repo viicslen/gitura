@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { highlightLine } from '@/lib/highlight'
+import { highlightLine, lineLanguages } from '@/lib/highlight'
 import { anchorKey, type BlockKind, type LineSelection, type PaneItem, type Side } from '@/lib/diffLayout'
 
 const props = defineProps<{
@@ -15,6 +15,8 @@ const props = defineProps<{
   selection?: LineSelection | null
   /** Anchor keys that have inline rows (threads, drafts, comment form) under their line. */
   inlineKeys: Set<string>
+  /** Wrap long lines; otherwise the pane scrolls sideways. */
+  wrap: boolean
 }>()
 
 const emit = defineEmits<{
@@ -27,12 +29,40 @@ const emit = defineEmits<{
 
 defineSlots<{ inline(props: { no: number }): unknown }>()
 
-const html = computed(() => props.items.map((it) => (it.type === 'line' ? highlightLine(it.content, props.language) : '')))
+// Lines between two gaps are one contiguous slice of the file, which mixed-language files need.
+const html = computed(() => {
+  const out = props.items.map(() => '')
+  const carry = {}
+  let run: number[] = []
+  const flush = () => {
+    const contents = run.map((i) => (props.items[i] as Extract<PaneItem, { type: 'line' }>).content)
+    const langs = lineLanguages(contents, props.language, carry)
+    run.forEach((i, k) => (out[i] = highlightLine(contents[k], langs[k])))
+    run = []
+  }
+  props.items.forEach((it, i) => {
+    if (it.type === 'gap') flush()
+    else if (it.type === 'line') run.push(i)
+  })
+  flush()
+  return out
+})
 
 const LINE_BG: Record<BlockKind, string> = {
   added: 'bg-emerald-500/15',
   deleted: 'bg-rose-500/15',
   modified: 'bg-sky-500/15',
+}
+// The selection bar sits on the line-number side of the row.
+const SELECTED_BAR = {
+  left: 'shadow-[inset_3px_0_0_var(--color-primary)]',
+  right: 'shadow-[inset_-3px_0_0_var(--color-primary)]',
+}
+// Sticky line numbers need an opaque cell; the tint is repeated underneath the number.
+const STICKY_TINT: Record<BlockKind, string> = {
+  added: 'before:bg-emerald-500/15',
+  deleted: 'before:bg-rose-500/15',
+  modified: 'before:bg-sky-500/15',
 }
 const MARK_BG: Record<BlockKind, string> = {
   added: 'bg-emerald-500/70',
@@ -59,11 +89,12 @@ const numbersRight = computed(() => props.split && props.side === 'LEFT')
 </script>
 
 <template>
-  <div class="relative font-mono text-xs leading-5">
+  <div class="relative font-mono text-xs leading-5" :class="wrap ? '' : 'w-max min-w-full'">
     <template v-for="(item, i) in items" :key="item.key">
       <div
         v-if="item.type === 'gap'"
         class="select-none border-y border-border/60 bg-muted/50 py-0.5 text-center text-[11px] text-muted-foreground"
+        :class="wrap ? '' : 'sticky left-0 w-[100cqw]'"
       >
         ⋯ {{ item.hidden }} unchanged line{{ item.hidden === 1 ? '' : 's' }}
       </div>
@@ -74,14 +105,21 @@ const numbersRight = computed(() => props.split && props.side === 'LEFT')
           :class="[
             kindOf(item.block) ? LINE_BG[kindOf(item.block)!] : '',
             numbersRight ? 'flex-row-reverse' : '',
-            isSelected(item.no) ? 'shadow-[inset_3px_0_0_var(--color-primary)] bg-primary/15!' : '',
+            isSelected(item.no) ? [SELECTED_BAR[numbersRight ? 'right' : 'left'], 'bg-primary/15!'] : '',
           ]"
         >
           <button
             type="button"
-            class="w-12 shrink-0 select-none px-2 text-[11px] text-muted-foreground/80 tabular-nums"
+            class="w-12 shrink-0 self-start select-none px-2 text-[11px] text-muted-foreground/80 tabular-nums"
             :class="[
               numbersRight ? 'text-left' : 'text-right',
+              wrap ? '' : [
+                'sticky z-[1] bg-background before:absolute before:inset-0 before:-z-10 before:content-[\'\']',
+                numbersRight ? 'right-0' : 'left-0',
+                isSelected(item.no)
+                  ? ['before:bg-primary/15', SELECTED_BAR[numbersRight ? 'right' : 'left']]
+                  : kindOf(item.block) ? STICKY_TINT[kindOf(item.block)!] : '',
+              ],
               commentable ? 'cursor-pointer hover:bg-primary hover:text-primary-foreground' : 'cursor-default',
             ]"
             :tabindex="commentable ? 0 : -1"
@@ -93,9 +131,9 @@ const numbersRight = computed(() => props.split && props.side === 'LEFT')
           >
             {{ item.no }}
           </button>
-          <code class="min-w-0 flex-1 whitespace-pre-wrap break-words px-2" v-html="html[i]" />
+          <code class="min-w-0 flex-1 px-2" :class="wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'" v-html="html[i]" />
         </div>
-        <div v-if="inlineKeys.has(anchorKey(side, item.no))" class="font-sans">
+        <div v-if="inlineKeys.has(anchorKey(side, item.no))" class="font-sans" :class="wrap ? '' : 'sticky left-0 w-[100cqw]'">
           <slot name="inline" :no="item.no" />
         </div>
       </div>

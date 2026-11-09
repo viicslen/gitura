@@ -17,11 +17,16 @@ func main() {
 	assetMiddleware := assetserver.Middleware(assetProxyMiddleware(app))
 
 	err := wails.Run(&options.App{
-		Title:            "gitura",
-		Width:            1280,
-		Height:           800,
-		MinWidth:         900,
-		MinHeight:        600,
+		Title:     "gitura",
+		Width:     1280,
+		Height:    800,
+		MinWidth:  900,
+		MinHeight: 600,
+		// Wails on Linux caps an unset max size at the monitor the window opened on, which
+		// blocks widening it on a larger monitor.
+		MaxWidth:         16384,
+		MaxHeight:        16384,
+		Frameless:        true, // the app draws its own title strip and window controls
 		AssetServer:      &assetserver.Options{Assets: assets, Middleware: assetMiddleware},
 		BackgroundColour: &options.RGBA{R: 9, G: 9, B: 11, A: 1},
 		OnStartup:        app.startup,

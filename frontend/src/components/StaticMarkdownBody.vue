@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
+import { renderGitHubMarkdown } from '@/lib/markdown'
+import { onTaskChange, type TaskToggle } from '@/lib/taskList'
 
 const props = defineProps<{
   content: string
@@ -9,118 +9,14 @@ const props = defineProps<{
   repoOwner?: string
   repoName?: string
   repoRef?: string
+  toggleTask?: TaskToggle
 }>()
 
-const MARKDOWN_IMAGE_PROXY_PATH = '/__markdown-image'
-
-function buildMarkdownImageProxyURL(params: {
-  absoluteUrl?: string
-  repoOwner?: string
-  repoName?: string
-  repoRef?: string
-  repoPath?: string
-}): string {
-  const proxied = new URL(MARKDOWN_IMAGE_PROXY_PATH, 'http://localhost')
-  if (params.absoluteUrl) {
-    proxied.searchParams.set('url', params.absoluteUrl)
-  }
-  if (params.repoOwner) {
-    proxied.searchParams.set('owner', params.repoOwner)
-  }
-  if (params.repoName) {
-    proxied.searchParams.set('repo', params.repoName)
-  }
-  if (params.repoRef) {
-    proxied.searchParams.set('ref', params.repoRef)
-  }
-  if (params.repoPath) {
-    proxied.searchParams.set('path', params.repoPath)
-  }
-  return `${proxied.pathname}${proxied.search}`
-}
-
-function isGitHubImageURL(url: URL): boolean {
-  const host = url.hostname.toLowerCase()
-  return host === 'github.com'
-    || host === 'raw.githubusercontent.com'
-    || host === 'media.githubusercontent.com'
-    || host.endsWith('.githubusercontent.com')
-}
-
-function isProxyableMarkdownAssetURL(url: URL): boolean {
-  const host = url.hostname.toLowerCase()
-  return isGitHubImageURL(url) || host === 'storage.googleapis.com'
-}
-
-function resolveRepoImagePath(url: string, baseUrl?: string): string {
-  const trimmed = url.trim()
-  if (!trimmed) return ''
-  if (trimmed.startsWith('/')) return trimmed.slice(1)
-
-  const basePath = baseUrl ? new URL(baseUrl).pathname : '/'
-  const baseDir = basePath.endsWith('/') ? basePath : `${basePath.substring(0, basePath.lastIndexOf('/') + 1)}`
-  return new URL(trimmed, `https://github.local${baseDir}`).pathname.replace(/^\//, '')
-}
-
-function resolveURL(url: string, baseUrl?: string): string {
-  if (!url) return url
-  if (!baseUrl) return url
-  if (url.startsWith('#')) return url
-
-  try {
-    return new URL(url, baseUrl).toString()
-  } catch {
-    return url
-  }
-}
-
-const html = computed(() => {
-  if (!props.content) return ''
-  const raw = marked.parse(props.content, { async: false }) as string
-  const sanitized = DOMPurify.sanitize(raw)
-  const doc = new DOMParser().parseFromString(sanitized, 'text/html')
-  doc.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
-    const rawSrc = img.getAttribute('src') ?? ''
-    if (!rawSrc) return
-
-    const resolved = resolveURL(rawSrc, props.baseUrl)
-    try {
-      const resolvedURL = new URL(resolved)
-      if (isProxyableMarkdownAssetURL(resolvedURL)) {
-        img.src = buildMarkdownImageProxyURL({ absoluteUrl: resolvedURL.toString() })
-        return
-      }
-
-      img.src = resolvedURL.toString()
-      return
-    } catch {
-      // Fall through to repo-relative handling.
-    }
-
-    if (props.repoOwner && props.repoName && props.repoRef) {
-      const repoPath = resolveRepoImagePath(rawSrc, props.baseUrl)
-      if (repoPath) {
-        img.src = buildMarkdownImageProxyURL({
-          repoOwner: props.repoOwner,
-          repoName: props.repoName,
-          repoRef: props.repoRef,
-          repoPath,
-        })
-        return
-      }
-    }
-
-    img.src = resolved
-  })
-  doc.querySelectorAll<HTMLAnchorElement>('a').forEach((link) => {
-    link.href = resolveURL(link.getAttribute('href') ?? '', props.baseUrl)
-  })
-  return doc.body.innerHTML
-})
+const html = computed(() => renderGitHubMarkdown(props.content, { ...props, tasks: !!props.toggleTask }))
 </script>
 
 <template>
-  <div class="markdown-body text-sm text-foreground" v-html="html" />
+  <div class="markdown-body text-sm text-foreground" @change="onTaskChange($event, toggleTask)" v-html="html" />
 </template>
 
 <style scoped>
@@ -145,11 +41,6 @@ const html = computed(() => {
   color: var(--color-primary);
   text-decoration: underline;
   cursor: pointer;
-}
-.markdown-body :deep(img) {
-  display: block;
-  max-width: 100%;
-  height: auto;
 }
 .markdown-body :deep(summary) {
   cursor: pointer;

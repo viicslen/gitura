@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, watch } from 'vue'
-import { RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen } from 'lucide-vue-next'
+import { onMounted, reactive, ref, computed, watch } from 'vue'
+import { RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen, ChevronUp, ChevronDown } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
@@ -13,7 +11,6 @@ import {
 import CommentSummaryList from '@/components/CommentSummaryList.vue'
 import CommentDetailPanel from '@/components/CommentDetailPanel.vue'
 import RunPanel from '@/components/RunPanel.vue'
-import ViewToggle from '@/components/ViewToggle.vue'
 import DiffReviewView from '@/components/DiffReviewView.vue'
 import PROverviewPanel from '@/components/PROverviewPanel.vue'
 import { useReview } from '@/composables/useReview'
@@ -23,6 +20,9 @@ import type { ReviewLoadInput } from '@/types/review'
 import type { model } from '../wailsjs/go/models'
 import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview } from '../wailsjs/go/main/App'
 import { toast } from 'vue-sonner'
+import { prView as sharedPrView } from '@/components/shell/reviewView'
+import { useViewShortcuts } from '@/composables/useViewShortcuts'
+import type { UnsentComments } from '@/lib/diffLayout'
 
 const props = defineProps<{
   prItem: ReviewLoadInput
@@ -41,13 +41,8 @@ const emit = defineEmits<{
   }): void
 }>()
 
-const prView = ref<'overview' | 'conversation' | 'files'>('overview')
-
-const VIEW_OPTIONS = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'conversation', label: 'Conversation' },
-  { value: 'files', label: 'Files changed' },
-]
+const prView = sharedPrView
+prView.value = 'overview'
 
 // ── Commands ────────────────────────────────────────────────────────────────
 const commands = ref<model.CommandDTO[]>([])
@@ -74,15 +69,7 @@ const pendingRunCount = computed(() => runs.value.filter((r) => r.running).lengt
 
 // ── DiffReviewView bridge ──────────────────────────────────────────────────
 const diffReviewRef = ref<InstanceType<typeof DiffReviewView> | null>(null)
-const diffCanGoPrev = computed(() => diffReviewRef.value?.canGoPrev ?? false)
-const diffCanGoNext = computed(() => diffReviewRef.value?.canGoNext ?? false)
 const showDiffThreads = ref(true)
-const diffFileCount = computed(() => diffReviewRef.value?.files?.length ?? 0)
-const diffAdded = computed(() => diffReviewRef.value?.files?.filter(f => f.status === 'added').length ?? 0)
-const diffDeleted = computed(() => diffReviewRef.value?.files?.filter(f => f.status === 'removed').length ?? 0)
-const diffModified = computed(() => diffReviewRef.value?.files?.filter(f => f.status !== 'added' && f.status !== 'removed').length ?? 0)
-function diffPrevFile(): void { diffReviewRef.value?.prevFile() }
-function diffNextFile(): void { diffReviewRef.value?.nextFile() }
 
 const refreshing = ref(false)
 const overview = ref<model.PROverviewDTO | null>(null)
@@ -118,12 +105,10 @@ function handleSelect(index: number): void {
   currentIndex.value = index
 }
 
-function handleKeydown(event: KeyboardEvent): void {
-  const tag = (event.target as HTMLElement).tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA') return
-  if (event.key === 'ArrowRight') goNext()
-  else if (event.key === 'ArrowLeft') goPrev()
-}
+useViewShortcuts(() => prView.value === 'conversation', { ArrowRight: goNext, ArrowLeft: goPrev })
+
+// Lives here, not in DiffReviewView, because a failed refresh unmounts the Files view.
+const unsentComments: UnsentComments = reactive(new Map())
 
 function handleReplySent(comment: model.CommentDTO): void {
   void addReplyToThread(comment)
@@ -138,8 +123,8 @@ function handleRan(): void {
 async function refreshOverview(): Promise<void> {
   try {
     overview.value = await GetPROverview(showResolvedReviews.value)
-  } catch {
-    // Non-fatal; the overview refreshes on the next load.
+  } catch (err) {
+    toast.error('Could not load overview: ' + String(err))
   }
 }
 
@@ -162,7 +147,6 @@ async function refreshPRView(): Promise<void> {
   refreshing.value = true
   try {
     await loadPR()
-    overview.value = await GetPROverview(showResolvedReviews.value)
     await diffReviewRef.value?.reload()
   } catch (err) {
     toast.error('Could not refresh PR data: ' + String(err))
@@ -206,9 +190,7 @@ async function browseForPath(): Promise<void> {
 }
 
 onMounted(() => {
-  void loadPR().then(async () => {
-    overview.value = await GetPROverview(showResolvedReviews.value)
-  }).catch(() => {})
+  void loadPR()
   void loadCommands()
   void loadLocalPath()
 })
@@ -226,8 +208,8 @@ watch(prSummary, async (summary) => {
   if (!summary) return
   try {
     overview.value = await GetPROverview(showResolvedReviews.value)
-  } catch {
-    // Non-fatal; handled by refresh/load error paths.
+  } catch (err) {
+    toast.error('Could not load overview: ' + String(err))
   }
 })
 
@@ -249,158 +231,25 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-col h-full" @keydown="handleKeydown" tabindex="-1">
-    <!-- ── Top bar ─────────────────────────────────────────────────────────── -->
-    <header class="flex items-center gap-3 px-4 py-2.5 border-b border-border shrink-0">
-      <!-- View toggle -->
-      <ViewToggle
-        v-model="prView"
-        :options="VIEW_OPTIONS"
-        class="shrink-0"
-      />
-
-      <!-- Sub-toggle: shown immediately after the view toggle -->
-      <div v-if="prView === 'conversation'" class="flex items-center gap-2 shrink-0">
-        <Switch
-          :model-value="showResolved"
-          aria-label="Show resolved threads"
-          @update:model-value="toggleShowResolved()"
-        />
-        <span class="text-xs text-muted-foreground select-none">Show resolved</span>
-      </div>
-      <div v-else-if="prView === 'overview'" class="flex items-center gap-2 shrink-0">
-        <Switch
-          :model-value="showResolvedReviews"
-          aria-label="Show reviews with resolved conversations"
-          @update:model-value="showResolvedReviews = !showResolvedReviews"
-        />
-        <span class="text-xs text-muted-foreground select-none">Show resolved reviews</span>
-      </div>
-      <div v-else class="flex items-center gap-2 shrink-0">
-        <Switch
-          v-model="showDiffThreads"
-          aria-label="Show comments in diff"
-        />
-        <span class="text-xs text-muted-foreground select-none">Comments</span>
-      </div>
-
-      <!-- Spacer -->
-      <div class="flex-1" />
-
-      <!-- Comment counts (conversation only) -->
-      <div v-if="prSummary && prView === 'conversation'" class="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-        <span>{{ prSummary.unresolved_count }} unresolved</span>
-        <span class="text-border">·</span>
-        <span>{{ prSummary.comment_count }} total</span>
-      </div>
-      <div v-if="overview && prView === 'overview'" class="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-        <span>{{ overview.general_comments.length }} comments</span>
-        <span class="text-border">·</span>
-        <span>{{ overview.reviews.length }} reviews</span>
-      </div>
-
-      <!-- File count (files view only) -->
-      <div v-if="prView === 'files' && diffFileCount > 0" class="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-        <template v-if="diffModified > 0">
-          <span>{{ diffModified }} modified</span>
-        </template>
-        <template v-if="diffAdded > 0">
-          <span v-if="diffModified > 0" class="text-border">·</span>
-          <span>{{ diffAdded }} added</span>
-        </template>
-        <template v-if="diffDeleted > 0">
-          <span v-if="diffModified > 0 || diffAdded > 0" class="text-border">·</span>
-          <span>{{ diffDeleted }} deleted</span>
-        </template>
-        <span class="text-border">·</span>
-        <span>{{ diffFileCount }} total</span>
-      </div>
-
-      <!-- Run history toggle (only shown when commands are configured) -->
-      <Button
-        v-if="prView === 'conversation' && commands.length > 0"
-        variant="ghost"
-        size="icon"
-        :aria-label="runPanelOpen ? 'Close run history' : 'Open run history'"
-        :class="runPanelOpen ? 'text-foreground' : 'text-muted-foreground'"
-        @click="runPanelOpen = !runPanelOpen"
-      >
-        <span class="relative">
-          <Terminal class="h-4 w-4" />
-          <span
-            v-if="pendingRunCount > 0"
-            class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary"
-            aria-hidden="true"
-          />
-        </span>
-      </Button>
-
-      <!-- Local repo path (only shown when commands are configured) -->
-      <DropdownMenu v-if="prView === 'conversation' && commands.length > 0">
-        <DropdownMenuTrigger as-child>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
-            aria-label="Open local repository path menu"
-          >
-            <FolderOpen class="h-3.5 w-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="w-80 p-2">
-          <div class="flex items-center gap-2">
-            <Input
-              :value="localPath"
-              placeholder="Local repo path..."
-              class="h-8 text-xs font-mono"
-              aria-label="Local repository path"
-              @change="(e: Event) => saveLocalPath((e.target as HTMLInputElement).value)"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              class="h-8 shrink-0"
-              aria-label="Browse for local repository folder"
-              @click="browseForPath()"
-            >
-              Browse
-            </Button>
-          </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <!-- Prev/Next (both views) -->
+  <div class="flex flex-col h-full">
+    <!-- Refresh affects the whole PR, so it lives in the title strip. -->
+    <Teleport defer to="#title-strip-actions">
       <Button
         variant="ghost"
         size="icon"
+        class="h-7 w-7 text-muted-foreground hover:text-foreground"
         :disabled="loading || refreshing"
-        aria-label="Refresh pull request data"
+        :aria-label="refreshing ? 'Refreshing pull request' : 'Refresh pull request'"
+        :title="refreshing ? 'Refreshing…' : 'Refresh pull request'"
+        style="--wails-draggable: no-drag"
         @click="refreshPRView()"
       >
-        <RefreshCw :class="['h-4 w-4', (loading || refreshing) && 'animate-spin']" />
+        <RefreshCw :class="['h-3.5 w-3.5', (loading || refreshing) && 'animate-spin']" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        :disabled="prView === 'conversation' ? !canGoBack : !diffCanGoPrev"
-        :aria-label="prView === 'conversation' ? 'Previous comment' : 'Previous file'"
-        @click="prView === 'conversation' ? goPrev() : diffPrevFile()"
-      >
-        <ChevronLeft class="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        :disabled="prView === 'conversation' ? !canGoForward : !diffCanGoNext"
-        :aria-label="prView === 'conversation' ? 'Next comment' : 'Next file'"
-        @click="prView === 'conversation' ? goNext() : diffNextFile()"
-      >
-        <ChevronRight class="h-4 w-4" />
-      </Button>
-    </header>
+    </Teleport>
 
     <!-- ── Loading state ───────────────────────────────────────────────────── -->
-    <div v-if="loading" class="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+    <div v-if="loading && !prSummary" class="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
       <RefreshCw class="h-6 w-6 animate-spin" />
       <div class="text-sm">Loading review…</div>
       <div v-if="loadProgress.loaded > 0" class="text-xs">
@@ -424,21 +273,59 @@ watch(
     <template v-else>
       <!-- Conversation view -->
       <div v-show="prView === 'conversation'" class="flex flex-1 min-h-0 overflow-hidden">
-        <!-- Left: comment summary list -->
-        <div class="w-72 shrink-0 border-r border-border overflow-y-auto">
-          <CommentSummaryList
-            :threads="queue"
-            :current-index="currentIndex"
-            :show-resolved="showResolved"
-            :commands="commands"
-            :default-command-name="defaultCommandName"
-            @select="handleSelect"
-            @ran="handleRan"
-          />
+        <!-- Left: thread list with its own filter -->
+        <div class="w-72 shrink-0 border-r border-border flex flex-col min-h-0">
+          <div class="h-10 shrink-0 border-b border-border px-3 flex items-center gap-2">
+            <span class="text-xs font-medium">Threads</span>
+            <div class="ml-auto flex shrink-0 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="Thread filter">
+              <button
+                class="rounded px-2 py-0.5"
+                :class="!showResolved ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                :aria-pressed="!showResolved"
+                @click="showResolved && toggleShowResolved()"
+              >Unresolved <span class="tabular-nums opacity-60">{{ threads.filter((t) => !t.resolved).length }}</span></button>
+              <button
+                class="rounded px-2 py-0.5"
+                :class="showResolved ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                :aria-pressed="showResolved"
+                @click="!showResolved && toggleShowResolved()"
+              >All <span class="tabular-nums opacity-60">{{ threads.length }}</span></button>
+            </div>
+          </div>
+          <div
+            v-if="!showResolved && queue.length === 0 && threads.length > 0"
+            class="flex-1 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground"
+          >
+            All {{ threads.length }} threads are resolved.
+            <Button variant="outline" size="sm" class="h-7 text-xs" @click="toggleShowResolved()">Show all threads</Button>
+          </div>
+          <div v-else class="flex-1 min-h-0 overflow-y-auto">
+            <CommentSummaryList
+              :threads="queue"
+              :review-numbers="overview?.review_numbers"
+              :current-index="currentIndex"
+              :show-resolved="showResolved"
+              :commands="commands"
+              :default-command-name="defaultCommandName"
+              @select="handleSelect"
+              @ran="handleRan"
+            />
+          </div>
         </div>
 
-        <!-- Right: detail + navigation -->
+        <!-- Right: thread pager, detail, run tools -->
         <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div v-if="queue.length > 0" class="h-10 shrink-0 border-b border-border px-4 flex items-center gap-1 text-xs">
+            <span class="text-muted-foreground tabular-nums">Thread {{ currentIndex + 1 }} of {{ queue.length }}</span>
+            <span class="flex-1" />
+            <span class="hidden lg:inline text-muted-foreground/70 mr-2"><kbd class="font-sans">←</kbd> <kbd class="font-sans">→</kbd> to move</span>
+            <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="!canGoBack" @click="goPrev()">
+              <ChevronLeft class="h-3.5 w-3.5" /> Previous
+            </Button>
+            <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="!canGoForward" @click="goNext()">
+              Next <ChevronRight class="h-3.5 w-3.5" />
+            </Button>
+          </div>
           <CommentDetailPanel
             :thread="currentThread"
             :is-at-end="isAtEnd && queue.length > 0"
@@ -457,11 +344,58 @@ watch(
             :current-thread-root-id="currentThread?.root_id"
             @close="runPanelOpen = false"
           />
+          <!-- Command tools: where commands run and what they produced -->
+          <div v-if="commands.length > 0" class="h-9 shrink-0 border-t border-border px-2 flex items-center gap-1 text-xs">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant="ghost" size="sm" class="h-7 gap-1.5 text-xs min-w-0 max-w-[60%]" aria-label="Local checkout for commands">
+                  <FolderOpen class="h-3.5 w-3.5 shrink-0" />
+                  <span class="text-muted-foreground shrink-0">Run in</span>
+                  <span class="font-mono truncate" :class="!localPath && 'text-muted-foreground italic font-sans'">{{ localPath || 'not set' }}</span>
+                  <ChevronDown class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" class="w-80 p-2">
+                <div class="flex items-center gap-2">
+                  <Input
+                    :value="localPath"
+                    placeholder="Local repo path..."
+                    class="h-8 text-xs font-mono"
+                    aria-label="Local repository path"
+                    @change="(e: Event) => saveLocalPath((e.target as HTMLInputElement).value)"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="h-8 shrink-0"
+                    aria-label="Browse for local repository folder"
+                    @click="browseForPath()"
+                  >
+                    Browse
+                  </Button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="ml-auto h-7 gap-1.5 text-xs"
+              :class="runPanelOpen ? 'text-foreground' : 'text-muted-foreground'"
+              :aria-expanded="runPanelOpen"
+              @click="runPanelOpen = !runPanelOpen"
+            >
+              <Terminal class="h-3.5 w-3.5" />
+              Run history
+              <span v-if="pendingRunCount > 0" class="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground tabular-nums">{{ pendingRunCount }}</span>
+              <ChevronUp class="h-3.5 w-3.5 transition-transform" :class="runPanelOpen && 'rotate-180'" />
+            </Button>
+          </div>
         </div>
       </div>
 
       <PROverviewPanel
-        v-if="prView === 'overview'"
+        v-show="prView === 'overview'"
+        v-model:show-resolved-reviews="showResolvedReviews"
         :overview="overview"
         class="flex-1 min-h-0 overflow-hidden"
       />
@@ -471,9 +405,11 @@ watch(
         v-show="prView === 'files'"
         ref="diffReviewRef"
         :threads="threads"
-        :show-threads="showDiffThreads"
+        v-model:show-threads="showDiffThreads"
         :is-own-pr="isOwnPR"
         :head-sha="prSummary?.head_sha ?? ''"
+        :active="prView === 'files'"
+        :unsent-comments="unsentComments"
         class="flex-1 min-h-0 overflow-hidden"
         @resolve="handleResolve"
         @unresolve="handleUnresolve"

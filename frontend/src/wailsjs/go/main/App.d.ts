@@ -36,6 +36,8 @@ export function GetPendingReview():Promise<model.PendingReviewDTO>;
 
 export function GetThread(arg1:number):Promise<model.CommentThreadDTO>;
 
+export function GetViewedFiles():Promise<Array<string>>;
+
 export function ListOpenPRs(arg1:model.PRListFilters):Promise<model.PRListResult>;
 
 export function LoadPullRequest(arg1:string,arg2:string,arg3:number):Promise<model.PullRequestSummary>;
@@ -62,6 +64,8 @@ export function RunCommands(arg1:Array<string>,arg2:string,arg3:model.RunContext
 
 export function SetDefaultCommandName(arg1:string):Promise<void>;
 
+export function SetFileViewed(arg1:string,arg2:boolean):Promise<void>;
+
 export function SetPRLocalPath(arg1:string,arg2:string,arg3:number,arg4:string):Promise<void>;
 
 export function StartDeviceFlow():Promise<model.DeviceFlowInfo>;
@@ -71,3 +75,5 @@ export function SubmitReview(arg1:model.ReviewSubmitDTO):Promise<model.ReviewSub
 export function SyncPendingReview():Promise<model.PendingReviewDTO>;
 
 export function UnresolveThread(arg1:number):Promise<void>;
+
+export function UpdateBodyIfUnchanged(arg1:string,arg2:number,arg3:string,arg4:string):Promise<string>;

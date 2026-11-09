@@ -217,6 +217,22 @@ export namespace model {
 	        this.login = source["login"];
 	    }
 	}
+	export class LabelDTO {
+	    name: string;
+	    color: string;
+	    description: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LabelDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.color = source["color"];
+	        this.description = source["description"];
+	    }
+	}
 	export class PRCommentDTO {
 	    id: number;
 	    body: string;
@@ -249,6 +265,7 @@ export namespace model {
 	    changes: number;
 	    previous_filename?: string;
 	    is_binary: boolean;
+	    viewed: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PRFileDTO(source);
@@ -263,6 +280,7 @@ export namespace model {
 	        this.changes = source["changes"];
 	        this.previous_filename = source["previous_filename"];
 	        this.is_binary = source["is_binary"];
+	        this.viewed = source["viewed"];
 	    }
 	}
 	export class PRListFilters {
@@ -412,6 +430,7 @@ export namespace model {
 	    repo: string;
 	    comment_count: number;
 	    unresolved_count: number;
+	    labels: LabelDTO[];
 	
 	    static createFrom(source: any = {}) {
 	        return new PullRequestSummary(source);
@@ -437,12 +456,32 @@ export namespace model {
 	        this.repo = source["repo"];
 	        this.comment_count = source["comment_count"];
 	        this.unresolved_count = source["unresolved_count"];
+	        this.labels = this.convertValues(source["labels"], LabelDTO);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class PROverviewDTO {
 	    summary: PullRequestSummary;
 	    general_comments: PRCommentDTO[];
 	    reviews: ReviewOverviewDTO[];
+	    review_numbers: Record<number, number>;
 	
 	    static createFrom(source: any = {}) {
 	        return new PROverviewDTO(source);
@@ -453,6 +492,7 @@ export namespace model {
 	        this.summary = this.convertValues(source["summary"], PullRequestSummary);
 	        this.general_comments = this.convertValues(source["general_comments"], PRCommentDTO);
 	        this.reviews = this.convertValues(source["reviews"], ReviewOverviewDTO);
+	        this.review_numbers = source["review_numbers"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

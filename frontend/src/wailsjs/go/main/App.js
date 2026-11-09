@@ -70,6 +70,10 @@ export function GetThread(arg1) {
   return window['go']['main']['App']['GetThread'](arg1);
 }
 
+export function GetViewedFiles() {
+  return window['go']['main']['App']['GetViewedFiles']();
+}
+
 export function ListOpenPRs(arg1) {
   return window['go']['main']['App']['ListOpenPRs'](arg1);
 }
@@ -122,6 +126,10 @@ export function SetDefaultCommandName(arg1) {
   return window['go']['main']['App']['SetDefaultCommandName'](arg1);
 }
 
+export function SetFileViewed(arg1, arg2) {
+  return window['go']['main']['App']['SetFileViewed'](arg1, arg2);
+}
+
 export function SetPRLocalPath(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SetPRLocalPath'](arg1, arg2, arg3, arg4);
 }
@@ -140,4 +148,8 @@ export function SyncPendingReview() {
 
 export function UnresolveThread(arg1) {
   return window['go']['main']['App']['UnresolveThread'](arg1);
+}
+
+export function UpdateBodyIfUnchanged(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UpdateBodyIfUnchanged'](arg1, arg2, arg3, arg4);
 }

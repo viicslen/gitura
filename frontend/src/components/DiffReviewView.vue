@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { onMounted, computed, provide, ref } from 'vue'
-import { Send, Trash2 } from 'lucide-vue-next'
+import { onMounted, computed, nextTick, provide, ref, watch } from 'vue'
+import { ChevronLeft, ChevronRight, Send, SlidersHorizontal, Trash2 } from 'lucide-vue-next'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,9 +16,11 @@ import {
 import DiffFileSidebar from './DiffFileSidebar.vue'
 import DiffFileView from './DiffFileView.vue'
 import { useDiffReview } from '@/composables/useDiffReview'
+import { useViewShortcuts } from '@/composables/useViewShortcuts'
 import type { model } from '@/wailsjs/go/models'
+import type { UnsentComments } from '@/lib/diffLayout'
 import { toast } from 'vue-sonner'
-import { useLocalStorage } from '@vueuse/core'
+import { useLocalStorage, useWindowSize } from '@vueuse/core'
 
 const props = defineProps<{
   threads: model.CommentThreadDTO[]
@@ -24,6 +28,10 @@ const props = defineProps<{
   /** GitHub rejects approve/request-changes from the PR author. */
   isOwnPr: boolean
   headSha: string
+  /** The Files view is on screen; its [ and ] shortcuts only apply then. */
+  active: boolean
+  /** Half-written inline comments; owned by the page so a refresh doesn't drop them. */
+  unsentComments: UnsentComments
 }>()
 
 const emit = defineEmits<{
@@ -32,10 +40,18 @@ const emit = defineEmits<{
   (e: 'reply-sent', comment: model.CommentDTO): void
   /** New threads were created on GitHub; the parent should re-fetch them. */
   (e: 'threads-changed'): void
+  (e: 'update:showThreads', value: boolean): void
 }>()
 
 const {
   files,
+  visibleFiles,
+  startFile,
+  viewedError,
+  loadViewed,
+  hideViewed,
+  hideTests,
+  currentFileIndex,
   filesLoading,
   filesError,
   currentFilePath,
@@ -50,6 +66,8 @@ const {
   selectFile,
   nextFile,
   prevFile,
+  setViewed,
+  viewedSaving,
   addDraftComment,
   postImmediateComment,
   submitReview,
@@ -57,7 +75,31 @@ const {
   loadPendingReview,
 } = useDiffReview()
 
+// Marking a file viewed moves on to the next shown file, while the save finishes in the background.
+async function toggleViewed(path: string, viewed: boolean): Promise<void> {
+  const keepFocus = document.activeElement?.id === 'viewed-toggle'
+  const saving = setViewed(path, viewed)
+  if (viewed && canGoNext.value) {
+    void nextFile().then(async () => {
+      if (!keepFocus) return
+      await nextTick()
+      document.getElementById('viewed-toggle')?.focus()
+    })
+  } else if (viewed) {
+    const filtered = hideViewed.value || hideTests.value
+    toast(startFile.value && !startFile.value.viewed
+      ? 'Last file reached; some earlier files are not viewed yet'
+      : filtered ? 'All shown files viewed' : 'All files viewed')
+  }
+  try {
+    await saving
+  } catch (err) {
+    toast.error(`Could not update viewed state for ${path}: ${String(err)}`)
+  }
+}
+
 const threadsForFile = computed(() => props.threads.filter((t) => t.path === currentFilePath.value))
+const currentFilePosition = computed(() => currentFileIndex.value + 1)
 const draftsForFile = computed(() =>
   (pendingReview.value?.comments ?? []).filter((c) => c.path === currentFilePath.value),
 )
@@ -69,9 +111,13 @@ const unresolvedCounts = computed(() => {
   return counts
 })
 const SIDEBAR_MIN = 180
-const SIDEBAR_MAX = 640
+const { width: windowWidth } = useWindowSize()
+// Keep at least 60% of the window for the diff, so a width saved on a wide screen can't squeeze it.
+const SIDEBAR_MAX = computed(() => Math.max(SIDEBAR_MIN, Math.min(640, Math.round(windowWidth.value * 0.4))))
 const sidebarWidth = useLocalStorage('gitura.diffSidebarWidth', 256)
-const clampWidth = (w: number) => Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w)))
+const wrapLines = useLocalStorage('gitura.diffWrapLines', true)
+
+const clampWidth = (w: number) => Math.round(Math.min(SIDEBAR_MAX.value, Math.max(SIDEBAR_MIN, w)))
 let resizeFrom: { x: number; width: number } | null = null
 
 function startResize(event: PointerEvent): void {
@@ -85,7 +131,7 @@ function resize(event: PointerEvent): void {
   if (resizeFrom) sidebarWidth.value = clampWidth(resizeFrom.width + event.clientX - resizeFrom.x)
 }
 
-const pendingCount = computed(() => pendingReview.value?.comments.length ?? 0)
+const pendingCount = computed(() => pendingReview.value?.comments?.length ?? 0)
 const draftsStale = computed(() => {
   const pinned = pendingReview.value?.head_sha
   return !!pinned && !!props.headSha && pinned !== props.headSha
@@ -181,9 +227,9 @@ async function reload(): Promise<void> {
   ])
 
   if (selectedPath && files.value.some((file) => file.filename === selectedPath)) {
-    await selectFile(selectedPath)
-  } else if (files.value.length > 0) {
-    await selectFile(files.value[0].filename)
+    await selectFile(selectedPath, true)
+  } else if (startFile.value) {
+    await selectFile(startFile.value.filename)
   }
 
   if (filesError.value) {
@@ -194,12 +240,15 @@ async function reload(): Promise<void> {
   }
 }
 
+// Coming back to Files while the open file is already viewed picks up at the first unviewed one;
+// a file still being reviewed stays open.
+watch(() => props.active, (active) => {
+  const start = startFile.value
+  if (active && currentFile.value?.viewed && start && !start.viewed) void selectFile(start.filename)
+})
+
 // ── Keyboard nav ──────────────────────────────────────────────────────────
-function handleKeydown(event: KeyboardEvent): void {
-  if ((event.target as HTMLElement).closest('input, textarea, [contenteditable]')) return
-  if (event.key === ']') nextFile()
-  else if (event.key === '[') prevFile()
-}
+useViewShortcuts(() => props.active, { ']': nextFile, '[': prevFile })
 
 // ── Exposed interface for parent ──────────────────────────────────────────
 defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
@@ -208,14 +257,42 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
 <template>
   <div
     class="flex flex-col outline-none"
-    tabindex="-1"
-    @keydown="handleKeydown"
   >
     <!-- ── Top toolbar ────────────────────────────────────────────────────── -->
-    <div class="flex items-center gap-2 px-3 py-1.5 border-b border-border shrink-0">
-      <span class="text-xs text-muted-foreground truncate flex-1 min-w-0">
-        {{ currentFile?.filename ?? 'Select a file' }}
+    <div class="flex h-10 items-center gap-2 px-3 border-b border-border shrink-0">
+      <div class="flex items-center shrink-0">
+        <Button variant="ghost" size="sm" class="h-7 gap-1 px-2 text-xs" :disabled="!canGoPrev" aria-label="Previous file" title="Previous file ([)" @click="prevFile">
+          <ChevronLeft class="h-4 w-4" /><span class="hidden xl:inline">Previous</span>
+        </Button>
+        <Button variant="ghost" size="sm" class="h-7 gap-1 px-2 text-xs" :disabled="!canGoNext" aria-label="Next file" title="Next file (])" @click="nextFile">
+          <span class="hidden xl:inline">Next</span><ChevronRight class="h-4 w-4" />
+        </Button>
+      </div>
+      <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
+        {{ currentFilePosition > 0 ? `File ${currentFilePosition} of ${files.length}` : 'Select a file' }}
+        <span class="ml-2 hidden text-muted-foreground/70 lg:inline">[ ] to move</span>
       </span>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="ghost" size="sm" class="h-7 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground" title="Diff view options">
+            <SlidersHorizontal class="h-3.5 w-3.5" />
+            View
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="w-44">
+          <DropdownMenuCheckboxItem
+            :model-value="showThreads"
+            @update:model-value="(v: boolean) => emit('update:showThreads', v)"
+            @select.prevent
+          >
+            Show comments
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem v-model="wrapLines" @select.prevent>
+            Wrap lines
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Badge v-if="pendingCount > 0" variant="secondary" class="gap-1 text-xs">
         {{ pendingCount }} pending
@@ -223,7 +300,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
       <Button
         :variant="pendingCount > 0 ? 'default' : 'outline'"
         size="sm"
-        class="gap-1.5"
+        class="h-7 gap-1.5"
         @click="submitPanelOpen = true"
       >
         <Send class="h-3.5 w-3.5" />
@@ -235,6 +312,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           size="icon"
           class="text-destructive hover:text-destructive"
           aria-label="Discard pending review"
+          title="Discard pending review"
           @click="discardDialogOpen = true"
         >
           <Trash2 class="h-4 w-4" />
@@ -256,10 +334,16 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
       <!-- Sidebar -->
       <div class="shrink-0 overflow-hidden" :style="{ width: `${clampWidth(sidebarWidth)}px` }">
         <DiffFileSidebar
+          v-model:hide-viewed="hideViewed"
+          v-model:hide-tests="hideTests"
           :files="files"
+          :visible-files="visibleFiles"
+          :viewed-error="viewedError"
+          @retry-viewed="loadViewed"
           :comment-counts="unresolvedCounts"
           :selected-path="currentFilePath"
-          :loading="filesLoading"
+          :active="active"
+          :loading="filesLoading && !files.length"
           @select="selectFile"
         />
       </div>
@@ -324,18 +408,35 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           :drafts="draftsForFile"
           :drafts-stale="draftsStale"
           :show-threads="showThreads"
+          :wrap-lines="wrapLines"
+          :unsent-comments="unsentComments"
           class="flex-1 min-h-0 overflow-hidden"
           :post-comment="postComment"
           @resolve="emit('resolve', $event)"
           @unresolve="emit('unresolve', $event)"
           @reply-sent="emit('reply-sent', $event)"
-        />
+        >
+          <template #header-actions>
+            <label
+              class="flex shrink-0 cursor-pointer select-none items-center gap-1.5 border-l border-border pl-3 text-xs text-muted-foreground"
+              :title="currentFile.viewed ? 'Mark as not viewed' : 'Mark as viewed and go to the next file'"
+            >
+              <Checkbox
+                id="viewed-toggle"
+                :model-value="currentFile.viewed"
+                :disabled="viewedSaving.has(currentFile.filename)"
+                @update:model-value="(v) => currentFile && toggleViewed(currentFile.filename, v === true)"
+              />
+              Viewed
+            </label>
+          </template>
+        </DiffFileView>
       </div>
     </div>
 
     <!-- ── Submit review panel ────────────────────────────────────────────── -->
     <Dialog :open="submitPanelOpen" @update:open="submitPanelOpen = $event">
-      <DialogContent class="max-w-md">
+      <DialogContent class="max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Submit review</DialogTitle>
         </DialogHeader>
@@ -414,8 +515,8 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           <DialogTitle>Discard pending review?</DialogTitle>
         </DialogHeader>
         <p class="text-sm text-muted-foreground">
-          This will delete all {{ pendingReview?.comments.length ?? 0 }} pending
-          comment{{ (pendingReview?.comments.length ?? 0) !== 1 ? 's' : '' }} and cannot be undone.
+          This will delete all {{ pendingReview?.comments?.length ?? 0 }} pending
+          comment{{ (pendingReview?.comments?.length ?? 0) !== 1 ? 's' : '' }} and cannot be undone.
         </p>
         <DialogFooter>
           <Button variant="ghost" @click="discardDialogOpen = false">Keep review</Button>

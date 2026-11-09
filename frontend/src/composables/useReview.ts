@@ -54,9 +54,14 @@ export function useReview(prItem: ReviewLoadInput) {
   async function loadPR(): Promise<void> {
     loading.value = true
     error.value = ''
-    showResolved.value = false
     loadProgress.value = { loaded: 0, total: -1 }
-    currentIndex.value = 0
+    // A refresh keeps the filter and the open thread.
+    const refreshing = !!prSummary.value
+    const openRootId = currentThread.value?.root_id
+    if (!refreshing) {
+      showResolved.value = false
+      currentIndex.value = 0
+    }
 
     const progressHandler = (progress: LoadProgress) => {
       loadProgress.value = progress
@@ -66,6 +71,8 @@ export function useReview(prItem: ReviewLoadInput) {
     try {
       prSummary.value = await App.LoadPullRequest(prItem.owner, prItem.repo, prItem.number)
       threads.value = await App.GetCommentThreads(true)
+      const index = refreshing ? queue.value.findIndex((t) => t.root_id === openRootId) : -1
+      if (index >= 0) currentIndex.value = index
     } catch (err) {
       error.value = String(err)
     } finally {

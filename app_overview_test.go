@@ -32,6 +32,7 @@ func TestGetPROverview_FiltersResolvedReviewsAndEmptyThreadlessReviews(t *testin
 	assert.Equal(t, int64(11), overview.Reviews[0].ReviewID)
 	assert.Equal(t, int64(13), overview.Reviews[1].ReviewID)
 	assert.Equal(t, int64(14), overview.Reviews[2].ReviewID)
+	assert.Equal(t, map[int64]int{10: 1, 11: 2, 13: 3, 14: 4}, overview.ReviewNumbers)
 }
 
 func TestRefreshReviewResolutionState_RecomputesFromThreads(t *testing.T) {

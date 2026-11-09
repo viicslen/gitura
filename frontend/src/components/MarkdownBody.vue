@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
-import DOMPurify from 'dompurify'
 import hljs from 'highlight.js/lib/common'
+import { renderGitHubMarkdown } from '@/lib/markdown'
+import { onTaskChange, type TaskToggle } from '@/lib/taskList'
 
 interface RunCommandEntry {
   name: string
@@ -19,6 +20,9 @@ const props = defineProps<{
   threadRootId?: number
   /** Comment ID to associate runs with */
   commentId?: number
+  toggleTask?: TaskToggle
+  /** Index of this part's first checkbox within the whole comment body. */
+  taskIndexOffset?: number
 }>()
 
 // Configure marked once at module level with hljs renderer
@@ -56,11 +60,7 @@ function handleDocumentClick(event: MouseEvent): void {
   closeOpenDropdowns()
 }
 
-const html = computed(() => {
-  if (!props.content) return ''
-  const raw = marked.parse(props.content, { async: false }) as string
-  return DOMPurify.sanitize(raw)
-})
+const html = computed(() => renderGitHubMarkdown(props.content, { tasks: !!props.toggleTask }))
 
 const PLAY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>`
 const CHEVRON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`
@@ -175,6 +175,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   <div
     ref="containerRef"
     class="markdown-body text-sm text-foreground"
+    @change="onTaskChange($event, toggleTask, taskIndexOffset)"
     v-html="html"
   />
 </template>
