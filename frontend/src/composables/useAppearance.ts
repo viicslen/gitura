@@ -1,6 +1,6 @@
 import { reactive, readonly, ref, watchEffect } from 'vue'
 import { toast } from 'vue-sonner'
-import { GetAppearance, SetAppearance } from '@/wailsjs/go/main/App'
+import { GetAppearance, ListSystemFonts, SetAppearance } from '@/wailsjs/go/main/App'
 import type { model } from '@/wailsjs/go/models'
 
 interface Option {
@@ -34,6 +34,18 @@ export const appearanceOptions: Record<AppearanceKey, Option[]> = {
   ],
 }
 
+/** Installed fonts are saved as this prefix plus the family name. */
+const FONT_PREFIX = 'font:'
+const fontFallbacks: Partial<Record<AppearanceKey, string>> = {
+  text_font: 'ui-sans-serif, system-ui, sans-serif',
+  code_font: 'ui-monospace, monospace',
+}
+const systemFonts = ref<string[]>([])
+
+function fontOption(key: AppearanceKey, family: string): Option {
+  return { value: FONT_PREFIX + family, label: family, css: `${JSON.stringify(family)}, ${fontFallbacks[key]}` }
+}
+
 const defaults: model.AppearanceDTO = { text_font: 'inter', code_font: 'jetbrains', text_size: 'default' }
 
 const state = reactive<model.AppearanceDTO>({ ...defaults })
@@ -41,6 +53,8 @@ const state = reactive<model.AppearanceDTO>({ ...defaults })
 const saving = ref(false)
 
 function option(key: AppearanceKey, value: string): Option | undefined {
+  const family = value.startsWith(FONT_PREFIX) ? value.slice(FONT_PREFIX.length) : ''
+  if (family && fontFallbacks[key]) return fontOption(key, family)
   return appearanceOptions[key].find((o) => o.value === value)
 }
 
@@ -64,6 +78,23 @@ export async function loadAppearance() {
   } catch {
     // Keep defaults rather than block startup on a settings read failure.
   }
+}
+
+export async function loadSystemFonts() {
+  if (systemFonts.value.length) return
+  try {
+    systemFonts.value = (await ListSystemFonts()) ?? []
+  } catch {
+    // The built-in fonts still work without the installed list.
+  }
+}
+
+/** Installed families for a font setting, plus the saved one if it is no longer installed so the select can still show it. */
+export function systemFontOptions(key: AppearanceKey): Option[] {
+  if (!fontFallbacks[key]) return []
+  const families = new Set(systemFonts.value)
+  if (state[key].startsWith(FONT_PREFIX)) families.add(state[key].slice(FONT_PREFIX.length))
+  return [...families].sort((a, b) => a.localeCompare(b)).map((f) => fontOption(key, f))
 }
 
 export async function setAppearance(key: AppearanceKey, value: string) {

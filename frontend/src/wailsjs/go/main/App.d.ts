@@ -48,6 +48,8 @@ export function GetViewedFiles():Promise<Array<string>>;
 
 export function ListOpenPRs(arg1:model.PRListFilters):Promise<model.PRListResult>;
 
+export function ListSystemFonts():Promise<Array<string>>;
+
 export function LoadPullRequest(arg1:string,arg2:string,arg3:number):Promise<model.PullRequestSummary>;
 
 export function Logout():Promise<void>;

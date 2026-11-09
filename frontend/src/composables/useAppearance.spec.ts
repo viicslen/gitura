@@ -4,6 +4,7 @@ import { nextTick } from 'vue'
 const backend = vi.hoisted(() => ({
   GetAppearance: vi.fn(),
   SetAppearance: vi.fn(),
+  ListSystemFonts: vi.fn(),
 }))
 vi.mock('@/wailsjs/go/main/App', () => backend)
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn() } }))
@@ -43,6 +44,20 @@ describe('useAppearance', () => {
     expect(useAppearance().appearance.code_font).toBe('jetbrains')
     expect(root.style.getPropertyValue('--font-sans')).toContain('Atkinson Hyperlegible Next Variable')
     expect(root.style.fontSize).toBe('112.5%')
+  })
+
+  it('applies a saved installed font and lists it even when no longer installed', async () => {
+    backend.GetAppearance.mockResolvedValue({ text_font: 'font:Fira Sans', code_font: 'font:', text_size: '' })
+    backend.ListSystemFonts.mockResolvedValue(['Noto Sans'])
+    const { applyAppearance, loadAppearance, loadSystemFonts, systemFontOptions, useAppearance } = await load()
+    applyAppearance()
+    await loadAppearance()
+    await loadSystemFonts()
+    await nextTick()
+    expect(useAppearance().appearance.code_font).toBe('jetbrains')
+    expect(root.style.getPropertyValue('--font-sans')).toBe('"Fira Sans", ui-sans-serif, system-ui, sans-serif')
+    expect(systemFontOptions('text_font').map((o) => o.label)).toEqual(['Fira Sans', 'Noto Sans'])
+    expect(systemFontOptions('text_size')).toEqual([])
   })
 
   it('keeps defaults when loading fails', async () => {

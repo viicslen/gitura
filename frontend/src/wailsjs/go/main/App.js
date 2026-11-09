@@ -94,6 +94,10 @@ export function ListOpenPRs(arg1) {
   return window['go']['main']['App']['ListOpenPRs'](arg1);
 }
 
+export function ListSystemFonts() {
+  return window['go']['main']['App']['ListSystemFonts']();
+}
+
 export function LoadPullRequest(arg1, arg2, arg3) {
   return window['go']['main']['App']['LoadPullRequest'](arg1, arg2, arg3);
 }

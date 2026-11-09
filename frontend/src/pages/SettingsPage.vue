@@ -14,9 +14,16 @@ import type { model } from '../wailsjs/go/models'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DialogTitle } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw } from 'lucide-vue-next'
-import { useAppearance, setAppearance, appearanceOptions, type AppearanceKey } from '@/composables/useAppearance'
+import {
+  useAppearance,
+  setAppearance,
+  appearanceOptions,
+  loadSystemFonts,
+  systemFontOptions,
+  type AppearanceKey,
+} from '@/composables/useAppearance'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
 
@@ -50,6 +57,7 @@ const adding = ref(false)
 const removingLogin = ref<string | null>(null)
 
 onMounted(async () => {
+  void loadSystemFonts()
   try {
     commenters.value = await GetIgnoredCommenters()
   } catch (e: unknown) {
@@ -234,6 +242,12 @@ async function handleRemoveCommand(name: string) {
                   <SelectItem v-for="option in appearanceOptions[r.key]" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </SelectItem>
+                  <SelectGroup v-if="systemFontOptions(r.key).length">
+                    <SelectLabel class="px-2 py-1.5 text-xs text-muted-foreground">Installed</SelectLabel>
+                    <SelectItem v-for="option in systemFontOptions(r.key)" :key="option.value" :value="option.value">
+                      {{ option.label }}
+                    </SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>

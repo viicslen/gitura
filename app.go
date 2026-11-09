@@ -18,6 +18,7 @@ import (
 
 	"gitura/internal/auth"
 	"gitura/internal/db"
+	"gitura/internal/fonts"
 	githubclient "gitura/internal/github"
 	"gitura/internal/keyring"
 	"gitura/internal/logger"
@@ -1561,6 +1562,13 @@ func (a *App) SetAppearance(appearance model.AppearanceDTO) error {
 	}
 	a.appearance = appearance
 	return nil
+}
+
+// ListSystemFonts returns the font families installed on the system.
+//
+// Error prefix: "fonts:" — the platform font listing failed.
+func (a *App) ListSystemFonts() ([]string, error) {
+	return fonts.List(a.ctx)
 }
 
 // RunCommands launches one or more commands in parallel against
