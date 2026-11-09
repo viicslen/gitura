@@ -46,7 +46,7 @@
     </main>
 
     <Dialog :open="settingsDialogOpen" @update:open="settingsDialogOpen = $event">
-      <DialogContent class="max-w-2xl max-h-[85vh] overflow-y-auto overflow-x-hidden p-0 border border-border">
+      <DialogContent class="flex h-[min(34rem,85vh)] gap-0 overflow-hidden p-0 border border-border sm:max-w-3xl" :aria-describedby="undefined">
         <SettingsPage />
       </DialogContent>
     </Dialog>

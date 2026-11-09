@@ -13,19 +13,30 @@ import {
 import type { model } from '../wailsjs/go/models'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
+import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Trash2, UserX, Terminal, Plus, Star, Type } from 'lucide-vue-next'
+import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw } from 'lucide-vue-next'
 import { useAppearance, setAppearance, appearanceOptions, type AppearanceKey } from '@/composables/useAppearance'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
 
+const SECTIONS = [
+  { value: 'appearance', label: 'Appearance', icon: Palette },
+  { value: 'commenters', label: 'Ignored commenters', icon: UserX },
+  { value: 'commands', label: 'Commands', icon: Terminal },
+  { value: 'keybindings', label: 'Keybindings', icon: Keyboard },
+] as const
+const section = ref<string>('appearance')
+
+const card = 'rounded-lg border border-border bg-card/40 divide-y divide-border'
+const row = 'flex items-center gap-4 px-4 py-3'
+
 // ── Appearance ─────────────────────────────────────────────────────────────
 const { appearance } = useAppearance()
-const appearanceRows: { key: AppearanceKey; label: string }[] = [
-  { key: 'text_font', label: 'Text font' },
-  { key: 'code_font', label: 'Code font' },
-  { key: 'text_size', label: 'Text size' },
+const appearanceRows: { key: AppearanceKey; label: string; hint: string }[] = [
+  { key: 'text_font', label: 'Text font', hint: 'Used for prose, comments and the interface.' },
+  { key: 'code_font', label: 'Code font', hint: 'Used for diffs and code blocks.' },
+  { key: 'text_size', label: 'Text size', hint: 'Base size for text across the app.' },
 ]
 
 // ── Ignored Commenters ─────────────────────────────────────────────────────
@@ -177,157 +188,126 @@ async function handleRemoveCommand(name: string) {
 </script>
 
 <template>
-  <div class="p-6 max-w-lg overflow-x-hidden space-y-6">
-    <header>
-      <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
-      <p class="text-sm text-muted-foreground">
-        Manage application preferences.
-      </p>
-    </header>
+  <Tabs v-model="section" orientation="vertical" class="h-full min-h-0 w-full flex-row gap-0">
+    <TabsList class="h-full w-48 shrink-0 flex-col items-stretch justify-start gap-0.5 rounded-none border-r border-border bg-muted/30 p-2">
+      <TabsTrigger
+        v-for="s in SECTIONS"
+        :key="s.value"
+        :value="s.value"
+        class="h-8 flex-none justify-start gap-2 px-2 font-normal text-muted-foreground hover:bg-accent/60 hover:text-foreground data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-accent dark:data-[state=active]:border-transparent"
+      >
+        <component :is="s.icon" aria-hidden="true" />
+        {{ s.label }}
+      </TabsTrigger>
+    </TabsList>
 
-    <Tabs default-value="general">
-      <TabsList>
-        <TabsTrigger value="general">General</TabsTrigger>
-        <TabsTrigger value="keyboard">Keyboard</TabsTrigger>
-      </TabsList>
+    <div class="flex min-w-0 flex-1 flex-col">
+      <header class="flex h-12 shrink-0 items-center gap-2 border-b border-border pl-5 pr-12 text-sm">
+        <DialogTitle class="text-sm font-normal text-muted-foreground">Settings</DialogTitle>
+        <span class="text-muted-foreground" aria-hidden="true">/</span>
+        <span class="font-medium">{{ SECTIONS.find((s) => s.value === section)?.label }}</span>
+        <Button
+          v-if="section === 'keybindings'"
+          variant="ghost"
+          size="sm"
+          class="ml-auto h-7 text-xs"
+          @click="handleResetBindings"
+        >
+          <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
+          Restore defaults
+        </Button>
+      </header>
 
-      <TabsContent value="general" class="space-y-6 pt-4">
-
-        <section aria-labelledby="appearance-heading">
-          <h2
-            id="appearance-heading"
-            class="text-sm font-semibold mb-1 flex items-center gap-2"
-          >
-            <Type class="h-4 w-4" aria-hidden="true" />
-            Appearance
-          </h2>
-          <p class="text-xs text-muted-foreground mb-3">
-            Fonts and text size across the app.
-          </p>
-          <div class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2">
-            <template v-for="row in appearanceRows" :key="row.key">
-              <span :id="`appearance-${row.key}-label`" class="text-sm">{{ row.label }}</span>
-              <Select :model-value="appearance[row.key]" @update:model-value="setAppearance(row.key, String($event))">
-                <SelectTrigger :aria-labelledby="`appearance-${row.key}-label`" class="h-8">
+      <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-5">
+        <TabsContent value="appearance">
+          <div :class="card">
+            <div v-for="r in appearanceRows" :key="r.key" :class="row">
+              <div class="min-w-0 flex-1">
+                <p :id="`appearance-${r.key}-label`" class="text-sm font-medium">{{ r.label }}</p>
+                <p class="text-xs text-muted-foreground">{{ r.hint }}</p>
+              </div>
+              <Select :model-value="appearance[r.key]" @update:model-value="setAppearance(r.key, String($event))">
+                <SelectTrigger :aria-labelledby="`appearance-${r.key}-label`" class="h-8 w-44">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem v-for="option in appearanceOptions[row.key]" :key="option.value" :value="option.value">
+                  <SelectItem v-for="option in appearanceOptions[r.key]" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </template>
+            </div>
           </div>
-        </section>
+        </TabsContent>
 
-        <Separator />
-
-        <!-- Ignored Commenters section -->
-        <section aria-labelledby="ignored-commenters-heading">
-          <h2
-            id="ignored-commenters-heading"
-            class="text-sm font-semibold mb-1"
-          >
-            Ignored Commenters
-          </h2>
-          <p class="text-xs text-muted-foreground mb-3">
-            Comments from these GitHub usernames will be hidden in the review view.
+        <TabsContent value="commenters" class="space-y-3">
+          <p class="text-xs text-muted-foreground">
+            Comments from these GitHub usernames are hidden in the review view.
           </p>
-
-          <!-- Add form -->
-          <div class="flex gap-2 mb-3">
-            <Input
-              v-model="newLogin"
-              placeholder="GitHub username"
-              class="h-8 text-sm flex-1"
-              aria-label="GitHub username to ignore"
-              :disabled="adding"
-              @keydown.enter="handleAdd"
-            />
-            <Button
-              size="sm"
-              :disabled="adding || !newLogin.trim()"
-              aria-label="Add ignored commenter"
-              @click="handleAdd"
-            >
-              Add
-            </Button>
-          </div>
-          <p v-if="addError" class="text-xs text-destructive mb-2" role="alert">{{ addError }}</p>
-
-          <Separator class="mb-3" />
-
-          <!-- Load error -->
-          <p v-if="loadError" class="text-xs text-destructive" role="alert">{{ loadError }}</p>
-
-          <!-- Empty state -->
-          <div
-            v-else-if="commenters.length === 0"
-            class="flex flex-col items-center gap-2 py-6 text-muted-foreground"
-          >
-            <UserX class="h-8 w-8 opacity-40" aria-hidden="true" />
-            <p class="text-sm">No ignored commenters.</p>
-          </div>
-
-          <!-- List -->
-          <ul
-            v-else
-            class="space-y-1"
-            aria-label="Ignored commenters list"
-          >
-            <li
-              v-for="item in commenters"
-              :key="item.login"
-              class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 group"
-            >
-              <span class="text-sm font-mono flex-1">{{ item.login }}</span>
+          <div :class="card">
+            <div :class="row">
+              <Input
+                v-model="newLogin"
+                placeholder="GitHub username"
+                class="h-8 flex-1 text-sm"
+                aria-label="GitHub username to ignore"
+                :disabled="adding"
+                @keydown.enter="handleAdd"
+              />
               <Button
-                variant="ghost"
-                size="icon"
-                class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                :disabled="removingLogin === item.login"
-                :aria-label="`Remove ${item.login} from ignored commenters`"
-                @click="handleRemove(item.login)"
+                size="sm"
+                :disabled="adding || !newLogin.trim()"
+                aria-label="Add ignored commenter"
+                @click="handleAdd"
               >
-                <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
+                <Plus class="h-3.5 w-3.5" aria-hidden="true" />
+                Add
               </Button>
-            </li>
-          </ul>
-        </section>
+            </div>
+            <p v-if="loadError" class="px-4 py-3 text-xs text-destructive" role="alert">{{ loadError }}</p>
+            <div v-else-if="commenters.length === 0" class="flex flex-col items-center gap-2 py-6 text-muted-foreground">
+              <UserX class="h-8 w-8 opacity-40" aria-hidden="true" />
+              <p class="text-sm">No ignored commenters.</p>
+            </div>
+            <ul v-else class="contents" aria-label="Ignored commenters list">
+              <li v-for="item in commenters" :key="item.login" :class="[row, 'group py-2']">
+                <span class="flex-1 font-mono text-sm">{{ item.login }}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="h-6 w-6 text-destructive opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+                  :disabled="removingLogin === item.login"
+                  :aria-label="`Remove ${item.login} from ignored commenters`"
+                  @click="handleRemove(item.login)"
+                >
+                  <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              </li>
+            </ul>
+          </div>
+          <p v-if="addError" class="text-xs text-destructive" role="alert">{{ addError }}</p>
+        </TabsContent>
 
-        <Separator />
-
-        <!-- Commands section -->
-        <section aria-labelledby="commands-heading">
-          <h2
-            id="commands-heading"
-            class="text-sm font-semibold mb-1 flex items-center gap-2"
-          >
-            <Terminal class="h-4 w-4" aria-hidden="true" />
-            Commands
-          </h2>
-          <p class="text-xs text-muted-foreground mb-3">
+        <TabsContent value="commands" class="space-y-3">
+          <p class="text-xs text-muted-foreground">
             CLI commands to run against PR comment content. Use
-            <code v-pre class="font-mono bg-muted px-1 rounded">{{instructions}}</code>
+            <code v-pre class="rounded bg-muted px-1 font-mono">{{instructions}}</code>
             as a placeholder for the comment text, or omit it to receive the text via stdin.
           </p>
-
-          <!-- Add form -->
-          <div class="space-y-2 mb-3">
-            <Input
-              v-model="newCmdName"
-              placeholder="Name (e.g. opencode)"
-              class="h-8 text-sm"
-              aria-label="Command name"
-              :disabled="addingCmd"
-              @keydown.enter="newCmdCommand ? handleAddCommand() : undefined"
-            />
-            <div class="flex gap-2">
+          <div :class="card">
+            <div :class="row">
+              <Input
+                v-model="newCmdName"
+                placeholder="Name (e.g. opencode)"
+                class="h-8 w-36 text-sm"
+                aria-label="Command name"
+                :disabled="addingCmd"
+                @keydown.enter="newCmdCommand ? handleAddCommand() : undefined"
+              />
               <Input
                 v-model="newCmdCommand"
                 placeholder="Command (e.g. opencode run --agent reviewer)"
-                class="h-8 text-sm flex-1 font-mono"
+                class="h-8 flex-1 font-mono text-sm"
                 aria-label="Command to run"
                 :disabled="addingCmd"
                 @keydown.enter="handleAddCommand"
@@ -338,92 +318,62 @@ async function handleRemoveCommand(name: string) {
                 aria-label="Add command"
                 @click="handleAddCommand"
               >
-                <Plus class="h-3.5 w-3.5 mr-1" />
+                <Plus class="h-3.5 w-3.5" aria-hidden="true" />
                 Add
               </Button>
             </div>
-          </div>
-          <p v-if="addCmdError" class="text-xs text-destructive mb-2" role="alert">{{ addCmdError }}</p>
-
-          <Separator class="mb-3" />
-
-          <!-- Load error -->
-          <p v-if="loadCmdError" class="text-xs text-destructive" role="alert">{{ loadCmdError }}</p>
-
-          <!-- Empty state -->
-          <div
-            v-else-if="commands.length === 0"
-            class="flex flex-col items-center gap-2 py-6 text-muted-foreground"
-          >
-            <Terminal class="h-8 w-8 opacity-30" aria-hidden="true" />
-            <p class="text-sm">No commands configured.</p>
-          </div>
-
-          <!-- List -->
-          <ul
-            v-else
-            class="space-y-1"
-            aria-label="Commands list"
-          >
-            <li
-              v-for="cmd in commands"
-              :key="cmd.name"
-              class="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 group"
-            >
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1.5">
-                  <p class="text-sm font-medium">{{ cmd.name }}</p>
-                  <span
-                    v-if="cmd.name === defaultCommandName"
-                    class="text-xs text-muted-foreground"
-                    title="Default command"
-                  >
-                    <Star class="h-3 w-3 fill-current text-yellow-500" aria-hidden="true" />
-                  </span>
+            <p v-if="loadCmdError" class="px-4 py-3 text-xs text-destructive" role="alert">{{ loadCmdError }}</p>
+            <div v-else-if="commands.length === 0" class="flex flex-col items-center gap-2 py-6 text-muted-foreground">
+              <Terminal class="h-8 w-8 opacity-30" aria-hidden="true" />
+              <p class="text-sm">No commands configured.</p>
+            </div>
+            <ul v-else class="contents" aria-label="Commands list">
+              <li v-for="cmd in commands" :key="cmd.name" :class="[row, 'group py-2.5']">
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5">
+                    <p class="text-sm font-medium">{{ cmd.name }}</p>
+                    <Star
+                      v-if="cmd.name === defaultCommandName"
+                      class="h-3 w-3 fill-current text-yellow-500"
+                      aria-label="Default command"
+                    />
+                  </div>
+                  <p class="truncate font-mono text-xs text-muted-foreground">{{ cmd.command }}</p>
                 </div>
-                <p class="text-xs text-muted-foreground font-mono truncate">{{ cmd.command }}</p>
-              </div>
-              <!-- Set default button -->
-              <Button
-                v-if="cmd.name !== defaultCommandName"
-                variant="ghost"
-                size="icon"
-                class="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                :disabled="settingDefaultName === cmd.name"
-                :aria-label="`Set ${cmd.name} as default command`"
-                title="Set as default"
-                @click="handleSetDefault(cmd.name)"
-              >
-                <Star class="h-3.5 w-3.5" aria-hidden="true" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                :disabled="removingCmdName === cmd.name"
-                :aria-label="`Remove command ${cmd.name}`"
-                @click="handleRemoveCommand(cmd.name)"
-              >
-                <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
-              </Button>
-            </li>
-          </ul>
-        </section>
-      </TabsContent>
-
-      <TabsContent value="keyboard" class="pt-4">
-        <section aria-labelledby="keyboard-heading">
-          <div class="flex items-center justify-between mb-1">
-            <h2 id="keyboard-heading" class="text-sm font-semibold">Keyboard Shortcuts</h2>
-            <Button variant="ghost" size="sm" class="h-7 text-xs" @click="handleResetBindings">Reset to defaults</Button>
+                <Button
+                  v-if="cmd.name !== defaultCommandName"
+                  variant="ghost"
+                  size="icon"
+                  class="h-6 w-6 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                  :disabled="settingDefaultName === cmd.name"
+                  :aria-label="`Set ${cmd.name} as default command`"
+                  title="Set as default"
+                  @click="handleSetDefault(cmd.name)"
+                >
+                  <Star class="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="h-6 w-6 shrink-0 text-destructive opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+                  :disabled="removingCmdName === cmd.name"
+                  :aria-label="`Remove command ${cmd.name}`"
+                  @click="handleRemoveCommand(cmd.name)"
+                >
+                  <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              </li>
+            </ul>
           </div>
-          <p class="text-xs text-muted-foreground mb-3">
-            Click a shortcut, then press the new key. Escape cancels.
-          </p>
-          <ul class="divide-y divide-border">
-            <li v-for="action in KEYBINDING_ACTIONS" :key="action.id" class="flex items-center gap-3 py-2">
-              <div class="flex-1 min-w-0">
-                <p class="text-sm">{{ action.label }}</p>
+          <p v-if="addCmdError" class="text-xs text-destructive" role="alert">{{ addCmdError }}</p>
+        </TabsContent>
+
+        <TabsContent value="keybindings" class="space-y-3">
+          <p class="text-xs text-muted-foreground">Click a shortcut, then press the new key. Escape cancels.</p>
+          <ul :class="card">
+            <li v-for="action in KEYBINDING_ACTIONS" :key="action.id" :class="[row, 'py-2.5']">
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium">{{ action.label }}</p>
                 <p class="text-xs text-muted-foreground">{{ action.view }}</p>
               </div>
               <Button
@@ -439,9 +389,9 @@ async function handleRemoveCommand(name: string) {
               </Button>
             </li>
           </ul>
-          <p v-if="bindError" class="text-xs text-destructive mt-2" role="alert">{{ bindError }}</p>
-        </section>
-      </TabsContent>
-    </Tabs>
-  </div>
+          <p v-if="bindError" class="text-xs text-destructive" role="alert">{{ bindError }}</p>
+        </TabsContent>
+      </div>
+    </div>
+  </Tabs>
 </template>
