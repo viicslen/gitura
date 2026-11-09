@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/viicslen/gitura/compare/v0.9.0...v0.9.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **markdown:** proxy private repo images through the GitHub API ([2833bc5](https://github.com/viicslen/gitura/commit/2833bc56dc9fa7120bb1d8c2988126b0ca8da5cd))
+
 ## [0.9.0](https://github.com/viicslen/gitura/compare/v0.8.0...v0.9.0) (2026-11-09)
 
 
