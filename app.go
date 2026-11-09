@@ -44,6 +44,8 @@ type App struct {
 	// prFilesCache holds the raw CommitFile list from the GitHub ListFiles API.
 	// Populated lazily by GetPRFiles; cleared on LoadPullRequest.
 	prFilesCache []*github.CommitFile
+	// viewedFiles holds the paths the user marked as viewed on GitHub; filled by GetViewedFiles.
+	viewedFiles map[string]bool
 
 	// Pending review state. pendingReviewID is 0 when no pending review exists.
 	pendingReviewID int64
@@ -371,6 +373,7 @@ func (a *App) LoadPullRequest(owner, repo string, number int) (model.PullRequest
 	a.prComments = filteredComments
 	a.reviews = decoratedReviews
 	a.prFilesCache = nil
+	a.viewedFiles = nil
 	// Draft comments live only in memory; a refresh of the same PR must not drop them.
 	if !samePR {
 		a.pendingReviewID = 0
@@ -439,11 +442,13 @@ func (a *App) GetPROverview(includeResolvedReviews bool) (model.PROverviewDTO, e
 	comments := make([]model.PRCommentDTO, len(a.prComments))
 	copy(comments, a.prComments)
 	reviews := make([]model.ReviewOverviewDTO, 0, len(a.reviews))
+	numbers := make(map[int64]int)
 	for _, review := range a.reviews {
 		isVerdict := review.State == "APPROVED" || review.State == "CHANGES_REQUESTED"
 		if strings.TrimSpace(review.Body) == "" && !review.HasThreads && !isVerdict {
 			continue
 		}
+		numbers[review.ReviewID] = len(numbers) + 1
 		if !includeResolvedReviews && review.AllThreadsResolved {
 			continue
 		}
@@ -453,6 +458,7 @@ func (a *App) GetPROverview(includeResolvedReviews bool) (model.PROverviewDTO, e
 		Summary:         *a.prCache,
 		GeneralComments: comments,
 		Reviews:         reviews,
+		ReviewNumbers:   numbers,
 	}, nil
 }
 
@@ -572,6 +578,120 @@ func (a *App) ReplyToComment(threadRootID int64, body string) (model.CommentDTO,
 
 	logger.L.Info("ReplyToComment complete", "thread_root_id", threadRootID, "new_comment_id", dto.ID)
 	return dto, nil
+}
+
+// UpdateBodyIfUnchanged replaces the PR description or a comment body with next, but only
+// while GitHub still holds expected, so a stale view can't overwrite someone else's edit.
+// kind is "pr_body", "issue_comment", "review_comment" or "review"; id is ignored for "pr_body".
+// Error prefixes: "conflict:" — the body changed on GitHub; "github:" — API error.
+func (a *App) UpdateBodyIfUnchanged(kind string, id int64, expected, next string) (string, error) {
+	if a.ghClient == nil {
+		return "", fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return "", fmt.Errorf("notfound: no PR loaded")
+	}
+
+	var err error
+	switch kind {
+	case "pr_body":
+		err = a.updatePRBody(expected, next)
+	case "issue_comment":
+		err = a.updateIssueCommentBody(id, expected, next)
+	case "review_comment":
+		err = a.updateReviewCommentBody(id, expected, next)
+	case "review":
+		err = a.updateReviewBody(id, expected, next)
+	default:
+		return "", fmt.Errorf("validation:unknown kind %q", kind)
+	}
+	if err != nil {
+		return "", err
+	}
+
+	logger.L.Info("UpdateBodyIfUnchanged complete", "kind", kind, "id", id)
+	return next, nil
+}
+
+func bodyConflict(current, expected string) error {
+	if current != expected {
+		return fmt.Errorf("conflict: this comment changed on GitHub; refresh to see the latest")
+	}
+	return nil
+}
+
+func (a *App) updatePRBody(expected, next string) error {
+	pr, _, err := a.ghClient.PullRequests.Get(a.ctx, a.prOwner, a.prRepo, a.prNumber)
+	if err != nil {
+		return fmt.Errorf("github: get pull request: %w", err)
+	}
+	if err := bodyConflict(pr.GetBody(), expected); err != nil {
+		return err
+	}
+	if _, _, err = a.ghClient.PullRequests.Edit(a.ctx, a.prOwner, a.prRepo, a.prNumber, &github.PullRequest{Body: &next}); err != nil {
+		return fmt.Errorf("github: edit pull request: %w", err)
+	}
+	a.prCache.Body = next
+	return nil
+}
+
+func (a *App) updateIssueCommentBody(id int64, expected, next string) error {
+	c, _, err := a.ghClient.Issues.GetComment(a.ctx, a.prOwner, a.prRepo, id)
+	if err != nil {
+		return fmt.Errorf("github: get comment: %w", err)
+	}
+	if err := bodyConflict(c.GetBody(), expected); err != nil {
+		return err
+	}
+	if _, _, err = a.ghClient.Issues.EditComment(a.ctx, a.prOwner, a.prRepo, id, &github.IssueComment{Body: &next}); err != nil {
+		return fmt.Errorf("github: edit comment: %w", err)
+	}
+	for i := range a.prComments {
+		if a.prComments[i].ID == id {
+			a.prComments[i].Body = next
+		}
+	}
+	return nil
+}
+
+func (a *App) updateReviewCommentBody(id int64, expected, next string) error {
+	c, _, err := a.ghClient.PullRequests.GetComment(a.ctx, a.prOwner, a.prRepo, id)
+	if err != nil {
+		return fmt.Errorf("github: get review comment: %w", err)
+	}
+	if err := bodyConflict(c.GetBody(), expected); err != nil {
+		return err
+	}
+	if _, _, err = a.ghClient.PullRequests.EditComment(a.ctx, a.prOwner, a.prRepo, id, &github.PullRequestComment{Body: &next}); err != nil {
+		return fmt.Errorf("github: edit review comment: %w", err)
+	}
+	for i := range a.threads {
+		for j := range a.threads[i].Comments {
+			if a.threads[i].Comments[j].ID == id {
+				a.threads[i].Comments[j].Body = next
+			}
+		}
+	}
+	return nil
+}
+
+func (a *App) updateReviewBody(id int64, expected, next string) error {
+	r, _, err := a.ghClient.PullRequests.GetReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, id)
+	if err != nil {
+		return fmt.Errorf("github: get review: %w", err)
+	}
+	if err := bodyConflict(r.GetBody(), expected); err != nil {
+		return err
+	}
+	if _, _, err = a.ghClient.PullRequests.UpdateReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, id, next); err != nil {
+		return fmt.Errorf("github: update review: %w", err)
+	}
+	for i := range a.reviews {
+		if a.reviews[i].ReviewID == id {
+			a.reviews[i].Body = next
+		}
+	}
+	return nil
 }
 
 // ResolveThread marks a review thread as resolved.
@@ -830,9 +950,53 @@ func (a *App) GetPRFiles() ([]model.PRFileDTO, error) {
 	}
 	result := make([]model.PRFileDTO, 0, len(a.prFilesCache))
 	for _, f := range a.prFilesCache {
-		result = append(result, githubclient.CommitFileToPRFileDTO(f))
+		dto := githubclient.CommitFileToPRFileDTO(f)
+		dto.Viewed = a.viewedFiles[dto.Filename]
+		result = append(result, dto)
 	}
 	return result, nil
+}
+
+// GetViewedFiles returns the paths the user has marked as viewed on GitHub for the loaded PR.
+// It is separate from GetPRFiles so the file list still loads when this lookup fails.
+func (a *App) GetViewedFiles() ([]string, error) {
+	if a.ghClient == nil {
+		return nil, fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return nil, fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+	if a.viewedFiles == nil {
+		viewed, err := githubclient.FetchViewedFiles(a.ctx, githubclient.NewHTTPClient(a.authToken), a.prOwner, a.prRepo, a.prNumber)
+		if err != nil {
+			return nil, err
+		}
+		a.viewedFiles = viewed
+	}
+	paths := make([]string, 0, len(a.viewedFiles))
+	for path, viewed := range a.viewedFiles {
+		if viewed {
+			paths = append(paths, path)
+		}
+	}
+	return paths, nil
+}
+
+// SetFileViewed marks or unmarks a file as viewed on GitHub, like the "Viewed" checkbox on github.com.
+func (a *App) SetFileViewed(path string, viewed bool) error {
+	if a.ghClient == nil {
+		return fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return fmt.Errorf("notfound: no PR loaded; call LoadPullRequest first")
+	}
+	if err := githubclient.SetFileViewed(a.ctx, githubclient.NewHTTPClient(a.authToken), a.prCache.NodeID, path, viewed); err != nil {
+		return err
+	}
+	if a.viewedFiles != nil {
+		a.viewedFiles[path] = viewed
+	}
+	return nil
 }
 
 // GetFileDiff fetches and parses the diff for a single file in the loaded PR.

@@ -11,24 +11,32 @@ type User struct {
 
 // PullRequestSummary is the top-level DTO for a loaded GitHub pull request.
 type PullRequestSummary struct {
-	ID              int64  `json:"id"`
-	Number          int    `json:"number"`
-	Title           string `json:"title"`
-	State           string `json:"state"`
-	IsDraft         bool   `json:"is_draft"`
-	Body            string `json:"body"`
-	HeadBranch      string `json:"head_branch"`
-	HeadOwner       string `json:"head_owner"`
-	HeadRepo        string `json:"head_repo"`
-	BaseBranch      string `json:"base_branch"`
-	HeadSHA         string `json:"head_sha"`
-	NodeID          string `json:"node_id"`
-	HTMLURL         string `json:"html_url"`
-	AuthorLogin     string `json:"author_login"`
-	Owner           string `json:"owner"`
-	Repo            string `json:"repo"`
-	CommentCount    int    `json:"comment_count"`
-	UnresolvedCount int    `json:"unresolved_count"`
+	ID              int64      `json:"id"`
+	Number          int        `json:"number"`
+	Title           string     `json:"title"`
+	State           string     `json:"state"`
+	IsDraft         bool       `json:"is_draft"`
+	Body            string     `json:"body"`
+	HeadBranch      string     `json:"head_branch"`
+	HeadOwner       string     `json:"head_owner"`
+	HeadRepo        string     `json:"head_repo"`
+	BaseBranch      string     `json:"base_branch"`
+	HeadSHA         string     `json:"head_sha"`
+	NodeID          string     `json:"node_id"`
+	HTMLURL         string     `json:"html_url"`
+	AuthorLogin     string     `json:"author_login"`
+	Owner           string     `json:"owner"`
+	Repo            string     `json:"repo"`
+	CommentCount    int        `json:"comment_count"`
+	UnresolvedCount int        `json:"unresolved_count"`
+	Labels          []LabelDTO `json:"labels"`
+}
+
+// LabelDTO is a PR label; Color is a 6-digit hex string without the leading "#".
+type LabelDTO struct {
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Description string `json:"description"`
 }
 
 // CommentDTO represents a single review comment as a frontend-facing DTO.
@@ -95,6 +103,9 @@ type PROverviewDTO struct {
 	Summary         PullRequestSummary  `json:"summary"`
 	GeneralComments []PRCommentDTO      `json:"general_comments"`
 	Reviews         []ReviewOverviewDTO `json:"reviews"`
+	// ReviewNumbers numbers every shown-worthy review 1..n in submission order, regardless of
+	// filters, so "Review N" labels stay stable across tabs and toggles.
+	ReviewNumbers map[int64]int `json:"review_numbers"`
 }
 
 // AuthState represents the current authentication status of the app.
@@ -194,6 +205,7 @@ type PRFileDTO struct {
 	Changes          int    `json:"changes"`
 	PreviousFilename string `json:"previous_filename,omitempty"` // non-empty for renames
 	IsBinary         bool   `json:"is_binary"`
+	Viewed           bool   `json:"viewed"` // marked as viewed by the user on GitHub
 }
 
 // DiffLineType classifies a single line in a diff hunk.

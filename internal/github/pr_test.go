@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"testing"
 
+	"gitura/internal/model"
+
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +35,7 @@ func makePRJSON(number int, title, state, nodeID, htmlURL, headRef, baseRef, hea
 		"node_id":  nodeID,
 		"html_url": htmlURL,
 		"body":     "PR body",
+		"labels":   []map[string]interface{}{{"name": "bug", "color": "d73a4a", "description": "Something isn't working"}},
 		"head": map[string]interface{}{
 			"ref": headRef,
 			"sha": headSHA,
@@ -72,6 +75,7 @@ func TestFetchPR_Success_MapsAllFields(t *testing.T) {
 	assert.Equal(t, "https://github.com/owner/repo/pull/42", summary.HTMLURL)
 	assert.Equal(t, "owner", summary.Owner)
 	assert.Equal(t, "repo", summary.Repo)
+	assert.Equal(t, []model.LabelDTO{{Name: "bug", Color: "d73a4a", Description: "Something isn't working"}}, summary.Labels)
 }
 
 // TestFetchPR_Draft_SetsDraftTrue verifies IsDraft is mapped correctly.
