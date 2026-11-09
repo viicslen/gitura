@@ -22,6 +22,7 @@ func main() {
 		Height:           800,
 		MinWidth:         900,
 		MinHeight:        600,
+		Frameless:        true, // the app draws its own title strip and window controls
 		AssetServer:      &assetserver.Options{Assets: assets, Middleware: assetMiddleware},
 		BackgroundColour: &options.RGBA{R: 9, G: 9, B: 11, A: 1},
 		OnStartup:        app.startup,

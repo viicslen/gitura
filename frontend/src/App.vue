@@ -3,82 +3,25 @@
        in WebKit (Wails) is clipped by overflow:hidden ancestors. Vue 3 fragments
        allow multiple root elements. -->
   <Toaster position="bottom-right" richColors />
-  <div class="h-screen flex flex-col overflow-hidden bg-background text-foreground">
-    <!-- Nav bar shown when authenticated -->
-    <nav v-if="authState.is_authenticated" class="h-14 border-b border-border px-6 flex items-center gap-4 shrink-0">
-      <span class="font-semibold text-sm tracking-tight">gitura</span>
-      <button
-        class="text-sm text-muted-foreground hover:text-foreground transition-colors"
-        :class="{ 'text-foreground font-medium': currentPage === 'pr' }"
-        @click="currentPage === 'review' ? handleCloseReview() : (currentPage = 'pr')"
-      >
-        Pull Requests
-      </button>
-      <template v-if="currentPage === 'review' && reviewNavMeta">
-        <ChevronRight class="h-4 w-4 text-muted-foreground/80 shrink-0" />
-        <div class="min-w-0 leading-tight">
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="text-sm font-semibold truncate max-w-[42vw]">
-              {{ reviewNavMeta.title }}
-            </span>
-            <button
-              type="button"
-              class="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Open pull request in browser"
-              @click="openPRInBrowser"
-            >
-              <ExternalLink class="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <div class="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-            <span class="truncate max-w-[42vw]">{{ reviewNavMeta.owner }}/{{ reviewNavMeta.repo }}</span>
-            <span class="shrink-0">#{{ reviewNavMeta.number }}</span>
-            <Badge v-if="reviewNavMeta.is_draft" variant="secondary" class="text-xs shrink-0">
-              Draft
-            </Badge>
-            <Badge
-              v-else-if="reviewNavMeta.state === 'merged'"
-              class="text-xs shrink-0 bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30"
-            >
-              Merged
-            </Badge>
-            <Badge v-else-if="reviewNavMeta.state === 'closed'" variant="destructive" class="text-xs shrink-0">
-              Closed
-            </Badge>
-            <Badge v-else variant="secondary" class="text-xs shrink-0">
-              Open
-            </Badge>
-          </div>
-        </div>
-      </template>
-      <div class="ml-auto flex items-center gap-3">
-        <ThemeToggle />
-        <DropdownMenu>
-          <DropdownMenuTrigger class="flex items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <img
-              v-if="authAvatarSrc"
-              :src="authAvatarSrc"
-              :alt="authState.login"
-              class="h-6 w-6 rounded-full"
-            />
-            <span class="text-sm text-muted-foreground">{{ authState.login }}</span>
-            <ChevronDown class="h-3 w-3 text-muted-foreground" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem @click="settingsDialogOpen = true">
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem @click="handleLogout">
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </nav>
+  <div class="h-screen flex overflow-hidden bg-background text-foreground" :class="railLayout ? 'flex-row' : 'flex-col'">
+    <SideRail
+      v-if="railLayout"
+      :meta="currentPage === 'review' ? reviewNavMeta : null"
+      :login="authState.login"
+      :avatar-src="authAvatarSrc"
+      @home="goHome"
+      @settings="settingsDialogOpen = true"
+      @logout="handleLogout"
+    />
+    <div class="flex-1 min-w-0 flex flex-col overflow-hidden">
+    <TitleStrip
+      :meta="authState.is_authenticated && currentPage === 'review' ? reviewNavMeta : null"
+      :fallback="authState.is_authenticated ? 'Pull Requests' : 'gitura'"
+      @open-pr="openPRInBrowser"
+    />
 
     <!-- Theme toggle shown in top-right corner when not authenticated -->
-    <div v-else-if="!authState.is_authenticated" class="fixed top-3 right-4 z-50">
+    <div v-if="!authState.is_authenticated" class="fixed top-12 right-4 z-50">
       <ThemeToggle />
     </div>
 
@@ -106,31 +49,26 @@
         <SettingsPage />
       </DialogContent>
     </Dialog>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-vue-next'
+import { useEventListener } from '@vueuse/core'
 import AuthPage from '@/pages/AuthPage.vue'
 import PRPage from '@/pages/PRPage.vue'
 import ReviewPage from '@/pages/ReviewPage.vue'
 import SettingsPage from '@/pages/SettingsPage.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
-import { Badge } from '@/components/ui/badge'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
 import { buildAvatarProxyURL } from '@/composables/useAvatarFallback'
 import type { ReviewLoadInput } from '@/types/review'
 import { BrowserOpenURL } from '../wailsjs/runtime/runtime'
+import SideRail from '@/components/shell/SideRail.vue'
+import TitleStrip from '@/components/shell/TitleStrip.vue'
 
 interface ReviewNavMeta {
   owner: string
@@ -148,6 +86,12 @@ const selectedPRItem = ref<ReviewLoadInput | null>(null)
 const reviewNavMeta = ref<ReviewNavMeta | null>(null)
 const settingsDialogOpen = ref(false)
 const authAvatarSrc = computed(() => buildAvatarProxyURL(authState.value.avatar_url))
+const railLayout = computed(() => authState.value.is_authenticated)
+
+function goHome() {
+  if (currentPage.value === 'review') handleCloseReview()
+  else currentPage.value = 'pr'
+}
 
 onMounted(async () => {
   await refreshAuthState()
@@ -184,4 +128,16 @@ function openPRInBrowser() {
   if (!url) return
   BrowserOpenURL(url)
 }
+
+// Links in rendered comments would otherwise navigate the app window itself away.
+function openExternalLink(event: MouseEvent): void {
+  const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null
+  if (!link || event.defaultPrevented) return
+  const url = new URL(link.href, location.href)
+  if (url.origin === location.origin || !/^(https?|mailto):$/.test(url.protocol)) return
+  event.preventDefault()
+  BrowserOpenURL(url.href)
+}
+useEventListener(document, 'click', openExternalLink)
+useEventListener(document, 'auxclick', openExternalLink)
 </script>
