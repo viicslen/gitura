@@ -97,3 +97,7 @@ export function UnresolveThread(arg1:number):Promise<void>;
 export function UpdateBodyIfUnchanged(arg1:string,arg2:number,arg3:string,arg4:string):Promise<string>;
 
 export function UpdateDraftComment(arg1:number,arg2:string,arg3:string):Promise<model.PendingReviewDTO>;
+
+export function ClosePR():Promise<void>;
+
+export function MergePR(arg1:string):Promise<void>;

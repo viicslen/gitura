@@ -193,3 +193,11 @@ export function UpdateBodyIfUnchanged(arg1, arg2, arg3, arg4) {
 export function UpdateDraftComment(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateDraftComment'](arg1, arg2, arg3);
 }
+
+export function ClosePR() {
+  return window['go']['main']['App']['ClosePR']();
+}
+
+export function MergePR(arg1) {
+  return window['go']['main']['App']['MergePR'](arg1);
+}

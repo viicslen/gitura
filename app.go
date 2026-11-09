@@ -884,6 +884,30 @@ done:
 	return result, nil
 }
 
+// MergePR merges the loaded PR at its loaded head with method "merge", "squash" or "rebase".
+// Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+func (a *App) MergePR(method string) error {
+	if a.ghClient == nil {
+		return fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return fmt.Errorf("notfound: no PR loaded")
+	}
+	return githubclient.MergePR(a.ctx, a.ghClient, a.prOwner, a.prRepo, a.prNumber, a.prCache.HeadSHA, method)
+}
+
+// ClosePR closes the loaded PR without merging.
+// Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+func (a *App) ClosePR() error {
+	if a.ghClient == nil {
+		return fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return fmt.Errorf("notfound: no PR loaded")
+	}
+	return githubclient.ClosePR(a.ctx, a.ghClient, a.prOwner, a.prRepo, a.prNumber)
+}
+
 // GetIgnoredCommenters returns the current list of ignored-commenter entries.
 // The list is lazily loaded from disk on the first call.
 // Error prefix: none — returns empty slice on load failure.

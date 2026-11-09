@@ -127,3 +127,56 @@ func TestFetchPR_NetworkError_ReturnsGithubError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "github:")
 }
+
+func TestFetchPR_Merged_ReportsMergedState(t *testing.T) {
+	prJSON := makePRJSON(42, "t", "closed", "n", "u", "h", "main", "sha", false)
+	prJSON["merged"] = true
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(prJSON)
+	}))
+	defer srv.Close()
+
+	summary, err := FetchPR(context.Background(), newTestClientForPR(srv), "owner", "repo", 42)
+	require.NoError(t, err)
+	assert.Equal(t, "merged", summary.State)
+}
+
+func TestMergePR_SendsMethodAndHeadSHA(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPut, r.Method)
+		assert.Equal(t, "/repos/owner/repo/pulls/42/merge", r.URL.Path)
+		var body map[string]any
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, "squash", body["merge_method"])
+		assert.Equal(t, "abc", body["sha"])
+		_, _ = fmt.Fprint(w, `{"merged":true}`)
+	}))
+	defer srv.Close()
+
+	require.NoError(t, MergePR(context.Background(), newTestClientForPR(srv), "owner", "repo", 42, "abc", "squash"))
+}
+
+func TestMergePR_HeadMoved_ReturnsGithubError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = fmt.Fprint(w, `{"message":"Head branch was modified"}`)
+	}))
+	defer srv.Close()
+
+	err := MergePR(context.Background(), newTestClientForPR(srv), "owner", "repo", 42, "abc", "merge")
+	require.ErrorContains(t, err, "github:")
+}
+
+func TestClosePR_PatchesStateClosed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPatch, r.Method)
+		assert.Equal(t, "/repos/owner/repo/pulls/42", r.URL.Path)
+		var body map[string]any
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, "closed", body["state"])
+		_, _ = fmt.Fprint(w, `{}`)
+	}))
+	defer srv.Close()
+
+	require.NoError(t, ClosePR(context.Background(), newTestClientForPR(srv), "owner", "repo", 42))
+}
