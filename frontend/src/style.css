@@ -105,9 +105,11 @@ button, [role="button"], [role="switch"], label[for], summary { cursor: pointer;
 /* GitHub-flavoured comment rendering shared by MarkdownBody and StaticMarkdownBody. */
 .markdown-body img {
   display: inline;
+  cursor: zoom-in;
   max-width: 100%;
   height: auto;
 }
+.markdown-body a[href] img { cursor: pointer; }
 .markdown-body ul { list-style: disc; }
 .markdown-body ol { list-style: decimal; }
 .markdown-body ul ul { list-style: circle; }

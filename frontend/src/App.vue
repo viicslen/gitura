@@ -53,6 +53,17 @@
         <SettingsPage />
       </DialogContent>
     </Dialog>
+
+    <Dialog :open="!!zoomedImage" @update:open="!$event && (zoomedImage = null)">
+      <DialogContent
+        class="w-auto max-w-[95vw] sm:max-w-[95vw] p-0 border-0 bg-transparent shadow-none"
+        :aria-describedby="undefined"
+        @click="zoomedImage = null"
+      >
+        <DialogTitle class="sr-only">{{ zoomedImage?.alt || 'Image' }}</DialogTitle>
+        <img v-if="zoomedImage" :src="zoomedImage.src" :alt="zoomedImage.alt" class="max-h-[90vh] max-w-[95vw] object-contain cursor-zoom-out rounded-md" />
+      </DialogContent>
+    </Dialog>
     </div>
   </div>
 </template>
@@ -67,7 +78,7 @@ import LocalReviewPage from '@/pages/LocalReviewPage.vue'
 import SettingsPage from '@/pages/SettingsPage.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
 import { buildAvatarProxyURL } from '@/composables/useAvatarFallback'
 import type { ReviewLoadInput } from '@/types/review'
@@ -152,4 +163,12 @@ function openExternalLink(event: MouseEvent): void {
 }
 useEventListener(document, 'click', openExternalLink)
 useEventListener(document, 'auxclick', openExternalLink)
+
+const zoomedImage = ref<{ src: string; alt: string } | null>(null)
+// Linked images (badges, preview buttons) keep their link behaviour.
+useEventListener(document, 'click', (event: MouseEvent) => {
+  const img = event.target instanceof Element ? event.target.closest<HTMLImageElement>('.markdown-body img') : null
+  if (!img || img.closest('a[href]')) return
+  zoomedImage.value = { src: img.currentSrc || img.src, alt: img.alt }
+})
 </script>
