@@ -67,7 +67,7 @@ in
     buildInputs = devPackages;
 
     shellHook = ''
-      ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+      ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
         # Prepend the FHS-wrapped wails so all invocations — including
         # `just dev` and `just build` — run inside the FHS environment.
         # The raw wails from devPackages remains available inside the FHS

@@ -56,7 +56,7 @@
 
         # Native build inputs required for CGO compilation.
         nativeBuildInputs = [ pkgs.pkg-config ]
-          ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
             pkgs.webkitgtk_4_1.dev
             pkgs.gtk3.dev
             pkgs.libsecret.dev
@@ -64,7 +64,7 @@
           ];
 
         # Runtime build inputs (native libraries linked into the binary).
-        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
           pkgs.webkitgtk_4_1
           pkgs.libsecret
           pkgs.gtk3
