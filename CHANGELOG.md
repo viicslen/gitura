@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.4](https://github.com/viicslen/gitura/compare/v0.13.3...v0.13.4) (2026-11-10)
+
+
+### Bug Fixes
+
+* **nix:** show gitura in app launchers ([#37](https://github.com/viicslen/gitura/issues/37)) ([1d9f70f](https://github.com/viicslen/gitura/commit/1d9f70fbc7643bede8bb7c968e2b9c1b26c0c4f9))
+
 ## [0.13.3](https://github.com/viicslen/gitura/compare/v0.13.2...v0.13.3) (2026-11-10)
 
 
