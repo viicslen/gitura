@@ -69,6 +69,8 @@
           pkgs.libsecret
           pkgs.gtk3
           pkgs.glib
+          # WebKitGTK 2.54 paints nothing when no GSettings schemas are found (e.g. launched from a desktop entry).
+          pkgs.gsettings-desktop-schemas
         ];
       in
       {
@@ -84,7 +86,7 @@
 
             inherit buildInputs;
             nativeBuildInputs = nativeBuildInputs
-              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.copyDesktopItems ];
+              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.copyDesktopItems pkgs.wrapGAppsHook3 ];
             nativeCheckInputs = [ pkgs.git ];
 
             # Copy the pre-built frontend assets so //go:embed picks them up.
