@@ -17,7 +17,15 @@ import (
 	"gitura/internal/logger"
 )
 
-var avatarHTTPClient = &http.Client{Timeout: 10 * time.Second}
+var avatarHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 || !isAllowedMarkdownImageURL(req.URL) {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	},
+}
 
 func assetProxyMiddleware(app *App) func(http.Handler) http.Handler {
 	handler := http.NewServeMux()
@@ -356,6 +364,7 @@ func githubStatusCode(resp *github.Response) int {
 }
 
 func fetchAvatarResponse(w http.ResponseWriter, r *http.Request, u *url.URL) (*http.Response, bool) {
+	// #nosec G704 -- callers only pass URLs that passed isAllowedAvatarURL/isAllowedMarkdownImageURL.
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, u.String(), nil)
 	if err != nil {
 		http.Error(w, "failed to create upstream request", http.StatusBadGateway)
@@ -364,7 +373,7 @@ func fetchAvatarResponse(w http.ResponseWriter, r *http.Request, u *url.URL) (*h
 	req.Header.Set("User-Agent", "gitura")
 	req.Header.Set("Accept", "image/*")
 
-	resp, err := avatarHTTPClient.Do(req)
+	resp, err := avatarHTTPClient.Do(req) // #nosec G704 -- allowlisted URL; redirects are re-checked by CheckRedirect.
 	if err != nil {
 		http.Error(w, "failed to fetch avatar", http.StatusBadGateway)
 		return nil, false
