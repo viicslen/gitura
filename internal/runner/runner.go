@@ -24,7 +24,7 @@ const instructionsToken = "{{instructions}}"
 
 // repoPathToken is the literal string the user places in a command template
 // to indicate where the local repository path should be injected.
-const repoPathToken = "{{repo_path}}"
+const repoPathToken = "{{repo_path}}" // #nosec G101 -- template placeholder, not a credential.
 
 // OutputChunkHandler receives raw output chunks as they are read.
 // stream is either "stdout" or "stderr".
