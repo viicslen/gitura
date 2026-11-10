@@ -191,3 +191,15 @@ export function renderGitHubMarkdown(content: string, opts: MarkdownRenderOption
 
   return doc.body.innerHTML
 }
+
+/** Plain-text one-line preview of a comment body. */
+export function markdownPreview(content: string): string {
+  // Repeat until stable so removing one tag cannot splice together another.
+  let text = content
+  let previous
+  do {
+    previous = text
+    text = text.replace(/<!--[\s\S]*?-->|<[^>]+>/g, '')
+  } while (text !== previous)
+  return text.replace(/[*_`#>]/g, '').replace(/\s+/g, ' ').trim()
+}

@@ -10,6 +10,7 @@ import EditableComment from '@/components/comment/EditableComment.vue'
 import CommentDiffHunk from '@/components/comment/CommentDiffHunk.vue'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
 import { taskToggler } from '@/lib/taskList'
+import { markdownPreview } from '@/lib/markdown'
 
 const props = defineProps<{
   thread: model.CommentThreadDTO
@@ -24,9 +25,7 @@ const emit = defineEmits<{
 
 const collapsed = ref(props.thread.resolved)
 const root = computed(() => props.thread.comments[0])
-const preview = computed(() =>
-  (root.value?.body ?? '').replace(/<!--[\s\S]*?-->|<[^>]+>|[*_`#<>]/g, '').replace(/\s+/g, ' ').trim(),
-)
+const preview = computed(() => markdownPreview(root.value?.body ?? ''))
 const { avatarSrc, handleAvatarError, avatarInitial } = useAvatarFallback()
 
 function formatTimestamp(iso: string): string {

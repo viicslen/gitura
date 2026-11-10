@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import coderabbitRateLimit from './__fixtures__/coderabbit-rate-limit.md?raw'
-import { renderGitHubMarkdown, setTaskListItem } from './markdown'
+import { markdownPreview, renderGitHubMarkdown, setTaskListItem } from './markdown'
 
 function render(md: string, opts = {}): Document {
   return new DOMParser().parseFromString(renderGitHubMarkdown(md, opts), 'text/html')
@@ -85,5 +85,16 @@ describe('setTaskListItem', () => {
   it('returns null when the box is missing or already in that state', () => {
     expect(setTaskListItem('- [x] done', 0, true)).toBeNull()
     expect(setTaskListItem('- [ ] todo', 3, true)).toBeNull()
+  })
+})
+
+describe('markdownPreview', () => {
+  it('strips tags, comments and markdown markers into one line', () => {
+    expect(markdownPreview('<!-- bot -->**Fix** this\n\n<details>`code`</details>')).toBe('Fix this code')
+  })
+
+  it('does not leave tags spliced together from nested fragments', () => {
+    expect(markdownPreview('<scr<script>ipt>alert(1)')).not.toContain('<script')
+    expect(markdownPreview('<!<!--- -->-- x -->')).not.toContain('<!--')
   })
 })
