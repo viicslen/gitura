@@ -80,7 +80,7 @@
             src = ./.;
 
             # Compute by running: nix build .#packages.<system>.default 2>&1 | grep "got:"
-            vendorHash = "sha256-eXiweO0wcLLC4A0yi0tL5y8Q3XsrM5bqCeXbfieRos4=";
+            vendorHash = "sha256-1o+/i1i+Vtftj5sttj/3Ovuz3QboW343GDDXX4wS4rs=";
 
             inherit nativeBuildInputs buildInputs;
             nativeCheckInputs = [ pkgs.git ];
