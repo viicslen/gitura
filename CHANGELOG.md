@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/viicslen/gitura/compare/v0.13.0...v0.13.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **nix:** use stdenv.hostPlatform.isLinux ([af1af95](https://github.com/viicslen/gitura/commit/af1af9555d3b14b134ee76471c69265e6eefaabc))
+
 ## [0.13.0](https://github.com/viicslen/gitura/compare/v0.12.1...v0.13.0) (2026-11-09)
 
 
