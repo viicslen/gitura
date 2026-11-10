@@ -89,7 +89,7 @@ import {
   CardContent,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BrowserOpenURL } from '../wailsjs/runtime/runtime'
+import { BrowserOpenURL } from '@/wailsjs/runtime/runtime'
 import { useAuth } from '@/composables/useAuth'
 
 const { deviceFlowInfo, polling, error, startDeviceFlow } = useAuth()

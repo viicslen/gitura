@@ -46,7 +46,7 @@ export namespace model {
 	        this.command = source["command"];
 	    }
 	}
-	export class CommentDTO {
+	export class ReviewCommentDTO {
 	    id: number;
 	    in_reply_to_id: number;
 	    review_id: number;
@@ -58,7 +58,7 @@ export namespace model {
 	    is_suggestion: boolean;
 	
 	    static createFrom(source: any = {}) {
-	        return new CommentDTO(source);
+	        return new ReviewCommentDTO(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -78,7 +78,7 @@ export namespace model {
 	    root_id: number;
 	    review_id: number;
 	    node_id: string;
-	    comments: CommentDTO[];
+	    comments: ReviewCommentDTO[];
 	    resolved: boolean;
 	    path: string;
 	    line: number;
@@ -94,7 +94,7 @@ export namespace model {
 	        this.root_id = source["root_id"];
 	        this.review_id = source["review_id"];
 	        this.node_id = source["node_id"];
-	        this.comments = this.convertValues(source["comments"], CommentDTO);
+	        this.comments = this.convertValues(source["comments"], ReviewCommentDTO);
 	        this.resolved = source["resolved"];
 	        this.path = source["path"];
 	        this.line = source["line"];
@@ -233,6 +233,30 @@ export namespace model {
 	        this.login = source["login"];
 	    }
 	}
+	export class IssueCommentDTO {
+	    id: number;
+	    body: string;
+	    author_login: string;
+	    author_avatar: string;
+	    created_at: string;
+	    updated_at: string;
+	    html_url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new IssueCommentDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.body = source["body"];
+	        this.author_login = source["author_login"];
+	        this.author_avatar = source["author_avatar"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.html_url = source["html_url"];
+	    }
+	}
 	export class LabelDTO {
 	    name: string;
 	    color: string;
@@ -247,30 +271,6 @@ export namespace model {
 	        this.name = source["name"];
 	        this.color = source["color"];
 	        this.description = source["description"];
-	    }
-	}
-	export class PRCommentDTO {
-	    id: number;
-	    body: string;
-	    author_login: string;
-	    author_avatar: string;
-	    created_at: string;
-	    updated_at: string;
-	    html_url: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PRCommentDTO(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.body = source["body"];
-	        this.author_login = source["author_login"];
-	        this.author_avatar = source["author_avatar"];
-	        this.created_at = source["created_at"];
-	        this.updated_at = source["updated_at"];
-	        this.html_url = source["html_url"];
 	    }
 	}
 	export class PRFileDTO {
@@ -395,7 +395,7 @@ export namespace model {
 		    return a;
 		}
 	}
-	export class ReviewOverviewDTO {
+	export class ReviewDTO {
 	    review_id: number;
 	    state: string;
 	    body: string;
@@ -409,7 +409,7 @@ export namespace model {
 	    total_thread_count: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new ReviewOverviewDTO(source);
+	        return new ReviewDTO(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -495,8 +495,8 @@ export namespace model {
 	}
 	export class PROverviewDTO {
 	    summary: PullRequestSummary;
-	    general_comments: PRCommentDTO[];
-	    reviews: ReviewOverviewDTO[];
+	    general_comments: IssueCommentDTO[];
+	    reviews: ReviewDTO[];
 	    review_numbers: Record<number, number>;
 	
 	    static createFrom(source: any = {}) {
@@ -506,8 +506,8 @@ export namespace model {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.summary = this.convertValues(source["summary"], PullRequestSummary);
-	        this.general_comments = this.convertValues(source["general_comments"], PRCommentDTO);
-	        this.reviews = this.convertValues(source["reviews"], ReviewOverviewDTO);
+	        this.general_comments = this.convertValues(source["general_comments"], IssueCommentDTO);
+	        this.reviews = this.convertValues(source["reviews"], ReviewDTO);
 	        this.review_numbers = source["review_numbers"];
 	    }
 	
@@ -625,12 +625,13 @@ export namespace model {
 	}
 	
 	
-	export class ReviewSubmitDTO {
+	
+	export class ReviewSubmitRequest {
 	    body?: string;
 	    verdict: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ReviewSubmitDTO(source);
+	        return new ReviewSubmitRequest(source);
 	    }
 	
 	    constructor(source: any = {}) {

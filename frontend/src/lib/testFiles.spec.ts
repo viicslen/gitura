@@ -3,7 +3,7 @@ import { isTestFile } from './testFiles'
 
 describe('isTestFile', () => {
   it.each([
-    'internal/github/pr_test.go',
+    'internal/ghapi/pr_test.go',
     'frontend/src/lib/markdown.spec.ts',
     'src/components/Button.test.tsx',
     'src/__tests__/app.js',
@@ -19,7 +19,7 @@ describe('isTestFile', () => {
     'test/my_app_test.exs',
     'lib/widget_test.dart',
     'base/strings_unittest.cc',
-    'internal/github/testdata/pr.json',
+    'internal/ghapi/testdata/pr.json',
     'frontend/src/lib/__fixtures__/coderabbit.md',
     'src/__snapshots__/view.test.ts.snap',
     'conftest.py',
@@ -46,7 +46,7 @@ describe('isTestFile', () => {
     'src/contest/ContestService.java',
     'app/Http/Controllers/LatestController.php',
     'src/attestation.ts',
-    'internal/github/pr.go',
+    'internal/ghapi/pr.go',
     'docs/testing.md',
     'src/lib/testFiles.ts',
     'config/queue.php',

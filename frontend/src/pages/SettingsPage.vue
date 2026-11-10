@@ -9,8 +9,8 @@ import {
   RemoveCommand,
   GetDefaultCommandName,
   SetDefaultCommandName,
-} from '../wailsjs/go/main/App'
-import type { model } from '../wailsjs/go/models'
+} from '@/wailsjs/go/app/App'
+import type { model } from '@/wailsjs/go/models'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DialogTitle } from '@/components/ui/dialog'

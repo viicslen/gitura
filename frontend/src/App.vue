@@ -31,15 +31,15 @@
     <main class="flex-1 overflow-hidden">
       <AuthPage v-if="!authState.is_authenticated" />
       <template v-else>
-        <!-- KeepAlive preserves PRPage scroll position and filter state when navigating to review -->
+        <!-- KeepAlive preserves PRListPage scroll position and filter state when navigating to review -->
         <KeepAlive>
-          <PRPage
-            v-if="currentPage === 'pr'"
+          <PRListPage
+            v-if="currentPage === 'prList'"
             @open-review="handleOpenReview"
             @open-local="handleOpenLocal"
           />
         </KeepAlive>
-        <ReviewPage
+        <PRReviewPage
           v-if="currentPage === 'review' && selectedPRItem"
           :pr-item="selectedPRItem"
           @update-pr-meta="handleUpdatePRMeta"
@@ -72,43 +72,33 @@
 import { computed, ref, onMounted } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import AuthPage from '@/pages/AuthPage.vue'
-import PRPage from '@/pages/PRPage.vue'
-import ReviewPage from '@/pages/ReviewPage.vue'
+import PRListPage from '@/pages/PRListPage.vue'
+import PRReviewPage from '@/pages/PRReviewPage.vue'
 import LocalReviewPage from '@/pages/LocalReviewPage.vue'
 import SettingsPage from '@/pages/SettingsPage.vue'
-import ThemeToggle from '@/components/ThemeToggle.vue'
+import ThemeToggle from '@/components/shell/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
-import { buildAvatarProxyURL } from '@/composables/useAvatarFallback'
-import type { ReviewLoadInput } from '@/types/review'
-import { BrowserOpenURL } from '../wailsjs/runtime/runtime'
+import { buildAvatarProxyURL } from '@/lib/avatar'
+import type { PRRef } from '@/types/pr'
+import { BrowserOpenURL } from '@/wailsjs/runtime/runtime'
 import SideRail from '@/components/shell/SideRail.vue'
 import TitleStrip from '@/components/shell/TitleStrip.vue'
 
-interface ReviewNavMeta {
-  owner: string
-  repo: string
-  number: number
-  title: string
-  state?: string
-  is_draft?: boolean
-  html_url?: string
-}
-
 const { authState, refreshAuthState, logout } = useAuth()
-const currentPage = ref<'pr' | 'review' | 'local'>('pr')
+const currentPage = ref<'prList' | 'review' | 'local'>('prList')
 const localPath = ref('')
 const localLabel = computed(() => localPath.value.split(/[\\/]/).filter(Boolean).pop() ?? localPath.value)
-const selectedPRItem = ref<ReviewLoadInput | null>(null)
-const reviewNavMeta = ref<ReviewNavMeta | null>(null)
+const selectedPRItem = ref<PRRef | null>(null)
+const reviewNavMeta = ref<PRRef | null>(null)
 const settingsDialogOpen = ref(false)
 const authAvatarSrc = computed(() => buildAvatarProxyURL(authState.value.avatar_url))
 const railLayout = computed(() => authState.value.is_authenticated)
 
 function goHome() {
   if (currentPage.value === 'review') handleCloseReview()
-  else currentPage.value = 'pr'
+  else currentPage.value = 'prList'
 }
 
 onMounted(async () => {
@@ -119,7 +109,7 @@ async function handleLogout() {
   await logout()
 }
 
-function handleOpenReview(item: ReviewLoadInput) {
+function handleOpenReview(item: PRRef) {
   selectedPRItem.value = item
   reviewNavMeta.value = {
     owner: item.owner,
@@ -137,12 +127,12 @@ function handleOpenLocal(path: string) {
 }
 
 function handleCloseReview() {
-  currentPage.value = 'pr'
+  currentPage.value = 'prList'
   selectedPRItem.value = null
   reviewNavMeta.value = null
 }
 
-function handleUpdatePRMeta(meta: ReviewNavMeta) {
+function handleUpdatePRMeta(meta: PRRef) {
   reviewNavMeta.value = meta
 }
 

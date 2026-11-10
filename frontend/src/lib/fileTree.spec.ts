@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildFileTree, flattenFileTree } from './fileTree'
 
-const files = ['README.md', 'frontend/src/components/A.vue', 'frontend/src/components/B.vue', 'frontend/src/lib/c.ts', 'internal/github/d.go']
+const files = ['README.md', 'frontend/src/components/A.vue', 'frontend/src/components/B.vue', 'frontend/src/lib/c.ts', 'internal/ghapi/d.go']
   .map((filename) => ({ filename }))
 
 const render = (collapsed: string[] = []) =>
@@ -17,7 +17,7 @@ describe('file tree', () => {
       '    B.vue',
       '  lib',
       '    c.ts',
-      'internal/github',
+      'internal/ghapi',
       '  d.go',
     ])
   })
@@ -29,7 +29,7 @@ describe('file tree', () => {
       '  components',
       '  lib',
       '    c.ts',
-      'internal/github',
+      'internal/ghapi',
       '  d.go',
     ])
   })

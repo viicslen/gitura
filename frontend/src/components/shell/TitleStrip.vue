@@ -1,11 +1,11 @@
 <script setup lang="ts">
-// ReviewPage teleports Refresh into #title-strip-actions.
+// PRReviewPage teleports Refresh into #title-strip-actions.
 import { ArrowLeft, ExternalLink } from 'lucide-vue-next'
 import PRStateBadge from './PRStateBadge.vue'
 import WindowControls from './WindowControls.vue'
-import type { ReviewNavMeta } from './types'
+import type { PRRef } from '@/types/pr'
 
-defineProps<{ meta: ReviewNavMeta | null; fallback: string; localLabel?: string }>()
+defineProps<{ meta: PRRef | null; fallback: string; localLabel?: string }>()
 const emit = defineEmits<{ (e: 'open-pr'): void; (e: 'back'): void }>()
 </script>
 

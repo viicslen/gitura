@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
-import { GetKeybindings, SetKeybindings } from '@/wailsjs/go/main/App'
+import { GetKeybindings, SetKeybindings } from '@/wailsjs/go/app/App'
 import { bindKey, useKeybindings } from './useKeybindings'
 
-vi.mock('@/wailsjs/go/main/App', () => ({
+vi.mock('@/wailsjs/go/app/App', () => ({
   GetKeybindings: vi.fn(async () => ({ nextFile: 'n', bogus: 'x' })),
   SetKeybindings: vi.fn(async () => {}),
 }))

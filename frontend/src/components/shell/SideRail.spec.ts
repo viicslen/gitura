@@ -1,15 +1,17 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SideRail from './SideRail.vue'
-import { viewBadges } from './reviewView'
+import { useReviewTabs } from '@/composables/useReviewTabs'
+
+const { tabBadges } = useReviewTabs()
 
 const meta = { owner: 'acme', repo: 'web', number: 1, title: 'Fix it' }
 
 describe('SideRail view badges', () => {
-  afterEach(() => Object.assign(viewBadges, { overview: 0, conversation: 0, files: 0 }))
+  afterEach(() => Object.assign(tabBadges, { overview: 0, conversation: 0, files: 0 }))
 
   it('shows counts on the review views and names them for screen readers', () => {
-    Object.assign(viewBadges, { overview: 0, conversation: 3, files: 120 })
+    Object.assign(tabBadges, { overview: 0, conversation: 3, files: 120 })
     const wrapper = mount(SideRail, { props: { meta, login: 'me' }, global: { stubs: { UserMenu: true } } })
 
     const overview = wrapper.get('[aria-label^="Overview"]')

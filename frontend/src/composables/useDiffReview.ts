@@ -1,8 +1,8 @@
 import { ref, computed } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
 import { isTestFile } from '@/lib/testFiles'
-import * as App from '../wailsjs/go/main/App'
-import type { model } from '../wailsjs/go/models'
+import * as App from '@/wailsjs/go/app/App'
+import type { model } from '@/wailsjs/go/models'
 
 /**
  * useDiffReview provides reactive state and actions for the diff review view.
@@ -152,11 +152,11 @@ export function useDiffReview() {
     }
   }
 
-  async function postImmediateComment(comment: model.DraftCommentDTO): Promise<model.CommentDTO> {
+  async function postImmediateComment(comment: model.DraftCommentDTO): Promise<model.ReviewCommentDTO> {
     return App.PostImmediateComment(comment)
   }
 
-  async function submitReview(req: model.ReviewSubmitDTO): Promise<model.ReviewSubmitResult> {
+  async function submitReview(req: model.ReviewSubmitRequest): Promise<model.ReviewSubmitResult> {
     const result = await App.SubmitReview(req)
     pendingReview.value = null
     return result

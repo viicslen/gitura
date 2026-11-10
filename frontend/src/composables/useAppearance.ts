@@ -1,6 +1,6 @@
 import { reactive, readonly, ref, watchEffect } from 'vue'
 import { toast } from 'vue-sonner'
-import { GetAppearance, ListSystemFonts, SetAppearance } from '@/wailsjs/go/main/App'
+import { GetAppearance, ListSystemFonts, SetAppearance } from '@/wailsjs/go/app/App'
 import type { model } from '@/wailsjs/go/models'
 
 interface Option {
