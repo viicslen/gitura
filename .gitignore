@@ -8,15 +8,12 @@ frontend/node_modules
 *.out
 vendor/
 
-# Wails auto-generated bindings (committed as-is after wails dev)
-# wailsjs/
-
 # OS
 .DS_Store
 Thumbs.db
 
 # Editor
-.vscode/settings.json
+.vscode/
 .idea/
 
 # Env
@@ -30,3 +27,6 @@ Thumbs.db
 # Test coverage
 coverage.out
 coverage.html
+
+# Wails package.json change cache
+frontend/package.json.md5
