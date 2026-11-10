@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2](https://github.com/viicslen/gitura/compare/v0.13.1...v0.13.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **app:** re-check asset proxy redirects against the host allowlist ([57f71ea](https://github.com/viicslen/gitura/commit/57f71ea2cb1b68ac66c17ab0a53b07f0bfd119a7))
+
 ## [0.13.1](https://github.com/viicslen/gitura/compare/v0.13.0...v0.13.1) (2026-11-10)
 
 
