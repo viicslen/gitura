@@ -60,4 +60,17 @@ describe('PRListPage org filter', () => {
 
     expect(wrapper.findAll('ul[role="list"] > li')).toHaveLength(2)
   })
+
+  it('applies review-view updates until search reflects them', async () => {
+    const prUpdates = new Map([
+      ['FmTod/app#1', { owner: 'FmTod', repo: 'app', number: 1, title: 'x', state: 'merged' }],
+      ['FmTod2/config#2', { owner: 'FmTod2', repo: 'config', number: 2, title: 'Renamed', state: 'open' }],
+      ['gone/repo#9', { owner: 'gone', repo: 'repo', number: 9, title: 'x', state: 'closed' }],
+    ])
+    const wrapper = mount(PRListPage, { props: { prUpdates } })
+    await flushPromises()
+
+    expect(wrapper.findAll('ul[role="list"] > li').map((r) => r.text())).toEqual([expect.stringContaining('Renamed')])
+    expect([...prUpdates.keys()]).toEqual(['FmTod/app#1', 'FmTod2/config#2'])
+  })
 })
