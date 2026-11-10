@@ -11,7 +11,7 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        version = "0.13.2"; # x-release-please-version
+        version = "0.13.3"; # x-release-please-version
 
         # Fetch bun frontend dependencies as a fixed-output derivation.
         # After updating dependencies, recompute with:
@@ -80,7 +80,7 @@
             src = ./.;
 
             # Compute by running: nix build .#packages.<system>.default 2>&1 | grep "got:"
-            vendorHash = "sha256-eXiweO0wcLLC4A0yi0tL5y8Q3XsrM5bqCeXbfieRos4=";
+            vendorHash = "sha256-1o+/i1i+Vtftj5sttj/3Ovuz3QboW343GDDXX4wS4rs=";
 
             inherit nativeBuildInputs buildInputs;
             nativeCheckInputs = [ pkgs.git ];

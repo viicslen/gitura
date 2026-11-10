@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.3](https://github.com/viicslen/gitura/compare/v0.13.2...v0.13.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** bump echo to v4.16.3 for Dependabot advisories ([9a8372e](https://github.com/viicslen/gitura/commit/9a8372e0adfaa71ecd3ffdf271263b254c78e147))
+* **diff:** strip comment-preview tags until stable ([21e296f](https://github.com/viicslen/gitura/commit/21e296f08472aba187de6698ff35605718d016b1))
+* **diff:** strip stray angle brackets from inline thread previews ([0e7a477](https://github.com/viicslen/gitura/commit/0e7a4777f029e39f03c85029e8189070330e0bb2))
+
+### License
+
+* relicense under AGPL-3.0; releases up to v0.13.2 remain MIT ([148e6ba](https://github.com/viicslen/gitura/commit/148e6ba68a7ba89f62a3b3a38befbd4fe8ab67e5))
+
 ## [0.13.2](https://github.com/viicslen/gitura/compare/v0.13.1...v0.13.2) (2026-11-10)
 
 
