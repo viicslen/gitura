@@ -35,6 +35,7 @@
         <KeepAlive>
           <PRListPage
             v-if="currentPage === 'prList'"
+            :pr-updates="prUpdates"
             @open-review="handleOpenReview"
             @open-local="handleOpenLocal"
           />
@@ -69,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import AuthPage from '@/pages/AuthPage.vue'
 import PRListPage from '@/pages/PRListPage.vue'
@@ -93,6 +94,7 @@ const localLabel = computed(() => localPath.value.split(/[\\/]/).filter(Boolean)
 const selectedPRItem = ref<PRRef | null>(null)
 const reviewNavMeta = ref<PRRef | null>(null)
 const settingsDialogOpen = ref(false)
+const prUpdates = reactive(new Map<string, PRRef>())
 const authAvatarSrc = computed(() => buildAvatarProxyURL(authState.value.avatar_url))
 const railLayout = computed(() => authState.value.is_authenticated)
 
@@ -134,6 +136,7 @@ function handleCloseReview() {
 
 function handleUpdatePRMeta(meta: PRRef) {
   reviewNavMeta.value = meta
+  prUpdates.set(`${meta.owner}/${meta.repo}#${meta.number}`, meta)
 }
 
 function openPRInBrowser() {

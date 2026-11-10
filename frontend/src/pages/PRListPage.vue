@@ -334,7 +334,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { RefreshCw, GitPullRequest, GitPullRequestDraft, Filter, FolderGit2 } from 'lucide-vue-next'
@@ -349,6 +349,11 @@ import { usePRFilters } from '@/composables/usePRFilters'
 import * as App from '@/wailsjs/go/app/App'
 import type { model } from '@/wailsjs/go/models'
 import type { PRRef } from '@/types/pr'
+
+const props = defineProps<{
+  /** Latest PR data seen in the review view, keyed `owner/repo#number`; overrides search results until search catches up. */
+  prUpdates?: Map<string, PRRef>
+}>()
 
 const emit = defineEmits<{
   (e: 'open-review', item: PRRef): void
@@ -394,7 +399,14 @@ const filters = usePRFilters(fetchPRs)
  */
 const visibleItems = computed<model.PRListItem[]>(() => {
   if (!rawResult.value?.items) return []
-  return filters.applyFilters(rawResult.value.items)
+  const updates = props.prUpdates
+  const items = !updates?.size ? rawResult.value.items : rawResult.value.items.flatMap((pr) => {
+    const update = updates.get(prKey(pr))
+    if (!update) return [pr]
+    if (isClosed(update)) return []
+    return [{ ...pr, title: update.title, is_draft: update.is_draft ?? pr.is_draft }]
+  })
+  return filters.applyFilters(items)
 })
 
 // ── Derived: repo options from raw result ─────────────────────────────────────
@@ -492,10 +504,10 @@ watch(filters.org, (val) => {
  * All filters except include_drafts are applied client-side after this call.
  * Uses requestId to discard stale responses from superseded requests (CHK010/CHK011).
  */
-async function fetchPRs(): Promise<void> {
+async function fetchPRs(background = false): Promise<void> {
   const thisId = filters.requestId.value
 
-  loading.value = true
+  loading.value = !background
   errorMsg.value = null
   rateLimitReset.value = null
 
@@ -506,6 +518,14 @@ async function fetchPRs(): Promise<void> {
     if (thisId !== filters.requestId.value) return
 
     rawResult.value = res
+    // GitHub's search index lags edits and merges; drop an update once search reflects it.
+    const returned = new Map(res.items?.map((pr) => [prKey(pr), pr]))
+    props.prUpdates?.forEach((update, key) => {
+      const pr = returned.get(key)
+      if (!pr || (!isClosed(update) && pr.title === update.title && pr.is_draft === (update.is_draft ?? pr.is_draft))) {
+        props.prUpdates?.delete(key)
+      }
+    })
 
     if (res.error) {
       errorMsg.value = res.error
@@ -521,6 +541,14 @@ async function fetchPRs(): Promise<void> {
       loading.value = false
     }
   }
+}
+
+function prKey(pr: { owner: string; repo: string; number: number }): string {
+  return `${pr.owner}/${pr.repo}#${pr.number}`
+}
+
+function isClosed(pr: PRRef): boolean {
+  return !!pr.state && pr.state !== 'open'
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -559,5 +587,12 @@ function formatReset(reset: string): string {
 
 onMounted(() => {
   void fetchPRs()
+})
+
+// KeepAlive also fires onActivated on first mount, which onMounted already covers.
+let activatedOnce = false
+onActivated(() => {
+  if (activatedOnce) void fetchPRs(true)
+  activatedOnce = true
 })
 </script>
