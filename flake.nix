@@ -82,7 +82,9 @@
             # Compute by running: nix build .#packages.<system>.default 2>&1 | grep "got:"
             vendorHash = "sha256-1o+/i1i+Vtftj5sttj/3Ovuz3QboW343GDDXX4wS4rs=";
 
-            inherit nativeBuildInputs buildInputs;
+            inherit buildInputs;
+            nativeBuildInputs = nativeBuildInputs
+              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.copyDesktopItems ];
             nativeCheckInputs = [ pkgs.git ];
 
             # Copy the pre-built frontend assets so //go:embed picks them up.
@@ -96,6 +98,23 @@
             tags = [ "desktop" "production" "webkit2_41" ];
 
             ldflags = [ "-s" "-w" ];
+
+            desktopItems = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+              (pkgs.makeDesktopItem {
+                name = "gitura";
+                exec = "gitura";
+                icon = "gitura";
+                desktopName = "Gitura";
+                genericName = "GitHub PR Review";
+                comment = "Review GitHub pull requests";
+                categories = [ "Development" "RevisionControl" ];
+              })
+            ];
+
+            # 1024px has no hicolor size dir; pixmaps is the loaders' fallback.
+            postInstall = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+              install -Dm644 build/appicon.png $out/share/pixmaps/gitura.png
+            '';
 
             meta = with pkgs.lib; {
               description = "GitHub PR review desktop application built with Wails + Vue 3";
