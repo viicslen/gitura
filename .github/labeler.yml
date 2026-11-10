@@ -26,7 +26,6 @@ documentation:
   - changed-files:
     - any-glob-to-any-file:
       - '*.md'
-      - 'docs/**'
 
 release:
   - changed-files:
