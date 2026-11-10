@@ -12,7 +12,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 [![CI](https://github.com/viicslen/gitura/actions/workflows/ci.yml/badge.svg)](https://github.com/viicslen/gitura/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/viicslen/gitura)](https://github.com/viicslen/gitura/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](#license)
-[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![Wails](https://img.shields.io/badge/Wails-v2-DF0000)](https://wails.io)
 
 <img src="https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-review-dark.png" alt="gitura review view" width="900">
@@ -116,7 +116,7 @@ The token lives in the OS native keychain — never on disk, never in logs.
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.26+
 - [Bun](https://bun.sh) (the frontend workspace is Bun-managed)
 - [Wails v2 CLI](https://wails.io/docs/gettingstarted/installation): `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
 - On Linux: `libwebkit2gtk-4.1-dev`, `libsecret-1-dev`, `libgtk-3-dev`

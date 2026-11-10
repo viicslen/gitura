@@ -2,7 +2,7 @@
 
 ## Technologies
 
-- **Language**: Go 1.25+
+- **Language**: Go 1.26+
 - **UI Framework**: Wails v2 (WebView-based desktop app)
 - **Frontend**: Vue 3 + TypeScript (Vite)
 - **Component Library**: shadcn-vue + Tailwind CSS v4
