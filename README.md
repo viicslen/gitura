@@ -29,7 +29,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 | Settings | Light theme |
 | -------- | ----------- |
 | ![Settings](https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-settings.png) | ![Light theme](https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-review-light.png) |
-| Fonts and text size, ignored commenters, and the CLI commands you can run on a comment | Dark, light, and system themes |
+| Fonts and text size, ignored commenters, CLI commands to run on a comment, and keybindings | Dark, light, and system themes |
 
 ## Features
 
