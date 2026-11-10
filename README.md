@@ -11,7 +11,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 
 [![CI](https://github.com/viicslen/gitura/actions/workflows/ci.yml/badge.svg)](https://github.com/viicslen/gitura/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/viicslen/gitura)](https://github.com/viicslen/gitura/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](#license)
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![Wails](https://img.shields.io/badge/Wails-v2-DF0000)](https://wails.io)
 
@@ -174,4 +174,4 @@ Go test fixtures live next to their package in `testdata/`.
 
 ## License
 
-MIT
+Copyright (C) 2026 Victor R. Licensed under [AGPL-3.0](LICENSE).
