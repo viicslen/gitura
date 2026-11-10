@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.5](https://github.com/viicslen/gitura/compare/v0.13.4...v0.13.5) (2026-11-10)
+
+
+### Bug Fixes
+
+* **nix:** stop gitura opening to a blank window from app launchers ([#39](https://github.com/viicslen/gitura/issues/39)) ([b77f9d0](https://github.com/viicslen/gitura/commit/b77f9d064715961ca913ae516d1960a67d5103c2))
+* **nix:** wrap gitura so WebKitGTK finds GSettings schemas ([0b1580f](https://github.com/viicslen/gitura/commit/0b1580f6bceb89806f634c887903632fd353fcb0))
+
 ## [0.13.4](https://github.com/viicslen/gitura/compare/v0.13.3...v0.13.4) (2026-11-10)
 
 
