@@ -3,7 +3,7 @@ import { onTaskChange, taskToggler } from './taskList'
 
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn() } }))
 const UpdateBodyIfUnchanged = vi.fn()
-vi.mock('@/wailsjs/go/main/App', () => ({ UpdateBodyIfUnchanged: (...a: unknown[]) => UpdateBodyIfUnchanged(...a) }))
+vi.mock('@/wailsjs/go/app/App', () => ({ UpdateBodyIfUnchanged: (...a: unknown[]) => UpdateBodyIfUnchanged(...a) }))
 
 function box(index: string, checked: boolean): HTMLInputElement {
   const el = document.createElement('input')

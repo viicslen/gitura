@@ -1,5 +1,5 @@
 import { ref, computed, readonly, watch } from 'vue'
-import type { model } from '../wailsjs/go/models'
+import type { model } from '@/wailsjs/go/models'
 
 // ── Module-level singleton state ─────────────────────────────────────────────
 // Declared outside the exported function so all component mounts share the same
@@ -17,7 +17,7 @@ const updatedAfter = ref('')
 const pickedRepo = ref('')
 const pickedOrg = ref('')
 
-// Tracks watch stop-handles so that re-mounting PRPage.vue does not accumulate
+// Tracks watch stop-handles so that re-mounting PRListPage.vue does not accumulate
 // duplicate watchers (each call to usePRFilters tears down prior watches first).
 let stopWatches: (() => void)[] = []
 
@@ -215,7 +215,7 @@ export function usePRFilters(onFilterChange: () => void | Promise<void>) {
   }
 
   // Tear down any watches created by a previous mount so we don't accumulate
-  // duplicate watchers when PRPage.vue is re-mounted.
+  // duplicate watchers when PRListPage.vue is re-mounted.
   stopWatches.forEach((stop) => stop())
   stopWatches = []
 

@@ -51,7 +51,7 @@ func Load() (Config, error) {
 	}
 
 	path := filepath.Join(dir, fileName)
-	data, err := readSettingsFile(path)
+	data, err := readFile(path)
 	if err != nil {
 		return Config{}, err
 	}
@@ -85,7 +85,7 @@ type decodedConfig struct {
 	Keybindings        map[string]string           `toml:"keybindings"`
 }
 
-func readSettingsFile(path string) ([]byte, error) {
+func readFile(path string) ([]byte, error) {
 	// #nosec G304 -- path is always ConfigDir()/settings.toml, never user input.
 	data, err := os.ReadFile(path)
 	if err == nil {

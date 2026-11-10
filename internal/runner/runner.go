@@ -17,16 +17,20 @@ import (
 	"gitura/internal/model"
 )
 
-// placeholderToken is the literal string the user places in a command template
+// instructionsToken is the literal string the user places in a command template
 // to indicate where the input text should be injected as a shell argument
 // instead of being piped via stdin.
-const placeholderToken = "{{instructions}}"
+const instructionsToken = "{{instructions}}"
 
 // repoPathToken is the literal string the user places in a command template
 // to indicate where the local repository path should be injected.
 const repoPathToken = "{{repo_path}}"
 
-// RunCommand executes cmd against input and returns the result.
+// OutputChunkHandler receives raw output chunks as they are read.
+// stream is either "stdout" or "stderr".
+type OutputChunkHandler func(stream string, chunk string)
+
+// Run executes cmd against input and returns the result.
 //
 // Input delivery strategy:
 //   - If cmd.Command contains "{{instructions}}", the placeholder is replaced
@@ -44,18 +48,9 @@ const repoPathToken = "{{repo_path}}"
 //
 // If ctx is cancelled before the process finishes, the process is killed and
 // the returned RunResult has Cancelled=true.
-func RunCommand(ctx context.Context, cmd model.CommandDTO, input string, localPath string) model.RunResult {
-	return RunCommandWithOutput(ctx, cmd, input, localPath, nil)
-}
-
-// OutputChunkHandler receives raw output chunks as they are read.
-// stream is either "stdout" or "stderr".
-type OutputChunkHandler func(stream string, chunk string)
-
-// RunCommandWithOutput executes cmd against input and returns the result.
 // When onChunk is non-nil, raw stdout/stderr chunks are streamed as they are
 // produced by the subprocess.
-func RunCommandWithOutput(
+func Run(
 	ctx context.Context,
 	cmd model.CommandDTO,
 	input string,
@@ -70,7 +65,7 @@ func RunCommandWithOutput(
 		StartedAt:   startedAt.Format(time.RFC3339),
 	}
 
-	usePlaceholder := strings.Contains(cmd.Command, placeholderToken)
+	usePlaceholder := strings.Contains(cmd.Command, instructionsToken)
 
 	argv, err := parseArgv(cmd.Command)
 	if err != nil {
@@ -176,7 +171,7 @@ func substitutePlaceholders(argv []string, input string, localPath string, usePl
 			arg = strings.ReplaceAll(arg, repoPathToken, localPath)
 		}
 		if usePlaceholder {
-			arg = strings.ReplaceAll(arg, placeholderToken, input)
+			arg = strings.ReplaceAll(arg, instructionsToken, input)
 		}
 		out[i] = arg
 	}

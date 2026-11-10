@@ -1,14 +1,8 @@
 # gitura Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-03-31
+## Technologies
 
-## Active Technologies
-- Go 1.25; TypeScript 5.x (strict mode) + Wails v2.11, go-github/v67 (Search.Issues), golang.org/x/oauth2, go-keyring; Vue 3, VueUse ^14.2.1, shadcn-vue (reka-ui + radix-vue), lucide-vue-next (003-pr-list-filters)
-- N/A — all data fetched live from GitHub REST API; filter state in-memory only (003-pr-list-filters)
-- Go 1.25; TypeScript 5.x (strict mode) + Wails v2.11, go-github/v67 (PR metadata + REST write ops), raw HTTP (004-pr-review-workflow)
-- `os.UserConfigDir()/gitura/ignored_commenters.json` (ignored commenters only); (004-pr-review-workflow)
-
-- **Language**: Go 1.22+
+- **Language**: Go 1.25+
 - **UI Framework**: Wails v2 (WebView-based desktop app)
 - **Frontend**: Vue 3 + TypeScript (Vite)
 - **Component Library**: shadcn-vue + Tailwind CSS v4
@@ -20,40 +14,11 @@ Auto-generated from all feature plans. Last updated: 2026-03-31
 
 ## Project Structure
 
-```text
-.
-├── build/                  # Wails build output + platform manifests
-│   ├── appicon.png
-│   ├── darwin/Info.plist
-│   └── windows/*.manifest
-├── frontend/               # Vue 3 + Vite frontend
-│   ├── src/
-│   │   ├── components/     # App-specific components
-│   │   ├── components/ui/  # shadcn-vue components (owned source)
-│   │   ├── composables/    # Vue composables
-│   │   ├── lib/utils.ts    # cn() utility
-│   │   ├── pages/          # Route-level views
-│   │   └── style.css       # Tailwind v4 import
-│   ├── vite.config.ts
-│   └── package.json
-├── wailsjs/                # Auto-generated Wails bindings (do not edit)
-│   ├── go/main/App.d.ts
-│   ├── go/main/models.ts
-│   └── runtime/runtime.d.ts
-├── internal/               # Go business logic (unexported)
-│   ├── github/             # GitHub API client wrapper
-│   ├── auth/               # OAuth device flow
-│   ├── keyring/            # Token persistence
-│   └── model/              # Shared domain types
-├── app.go                  # App struct + Wails-bound methods
-├── main.go                 # wails.Run() entry point
-├── go.mod
-├── wails.json
-└── .golangci.yml
-tests/
-├── integration/
-└── unit/
-```
+See the tree in README.md. Root holds only what tooling requires there: `main.go` and `assets*.go` (`//go:embed` cannot reach parent directories, so they must sit beside `frontend/dist` and `build/`), `wails.json`, `go.mod`, release-please, Nix, lint and just configs.
+
+- Wails-bound methods live on `App` in `internal/app`; only binding methods may be exported on `App`, since Wails exposes every exported method to the frontend.
+- Go test fixtures go in the package's `testdata/`.
+- Frontend components are grouped by feature folder under `frontend/src/components/`.
 
 ## Commands
 
@@ -81,6 +46,9 @@ wails build
 # Regenerate Wails JS bindings
 wails generate module
 
+# Regenerate sqlc queries after editing internal/db/query.sql or schema.sql
+sqlc generate -f internal/db/sqlc.yaml
+
 # Regenerate build/appicon.png and build/windows/icon.ico from frontend/src/assets/images/logo.svg
 just icons
 ```
@@ -100,12 +68,6 @@ Go: Follow idiomatic Go conventions enforced by `gofmt`, `golint`, `go vet`.
 
 Frontend: TypeScript strict mode. shadcn-vue components are the single source of
 UI primitives — no ad-hoc inline styles.
-
-## Recent Changes
-- 004-pr-review-workflow: Added Go 1.25; TypeScript 5.x (strict mode) + Wails v2.11, go-github/v67 (PR metadata + REST write ops), raw HTTP
-- 003-pr-list-filters: Added Go 1.25; TypeScript 5.x (strict mode) + Wails v2.11, go-github/v67 (Search.Issues), golang.org/x/oauth2, go-keyring; Vue 3, VueUse ^14.2.1, shadcn-vue (reka-ui + radix-vue), lucide-vue-next
-
-- 001-pr-review-ui: Added Wails+Vue+shadcn-vue stack, go-github client, device flow auth
 
 <!-- MANUAL ADDITIONS START -->
 ## App State Storage

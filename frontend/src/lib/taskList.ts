@@ -1,6 +1,6 @@
 import { nextTick } from 'vue'
 import { toast } from 'vue-sonner'
-import { UpdateBodyIfUnchanged } from '@/wailsjs/go/main/App'
+import { UpdateBodyIfUnchanged } from '@/wailsjs/go/app/App'
 import { setTaskListItem } from '@/lib/markdown'
 
 export type TaskToggle = (index: number, checked: boolean) => Promise<void>

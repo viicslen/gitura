@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { GetKeybindings, SetKeybindings } from '@/wailsjs/go/main/App'
+import { GetKeybindings, SetKeybindings } from '@/wailsjs/go/app/App'
 
 export const KEYBINDING_ACTIONS = [
   { id: 'prevFile', label: 'Previous file', view: 'Files', default: '[' },

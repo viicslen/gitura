@@ -11,7 +11,7 @@ import (
 	"gitura/internal/keyring"
 )
 
-// fakeKeyring is an in-memory Keyringer for testing.
+// fakeKeyring is an in-memory Store for testing.
 type fakeKeyring struct {
 	data map[string]string
 	err  error // if set, every operation returns this error
@@ -52,7 +52,7 @@ func (f *fakeKeyring) Delete(svc, acct string) error {
 	return nil
 }
 
-func TestSaveToken_Success(t *testing.T) {
+func TestSaveToken_StoreOK_Persists(t *testing.T) {
 	k := newFakeKeyring()
 	require.NoError(t, keyring.SaveTokenWith(k, "tok123"))
 	val, err := keyring.LoadTokenWith(k)
@@ -60,20 +60,20 @@ func TestSaveToken_Success(t *testing.T) {
 	assert.Equal(t, "tok123", val)
 }
 
-func TestSaveToken_Error(t *testing.T) {
+func TestSaveToken_StoreFails_ReturnsError(t *testing.T) {
 	k := &fakeKeyring{data: make(map[string]string), err: errors.New("disk full")}
 	err := keyring.SaveTokenWith(k, "tok")
 	require.Error(t, err)
 }
 
-func TestLoadToken_NotFound(t *testing.T) {
+func TestLoadToken_NoEntry_ReturnsErrNotFound(t *testing.T) {
 	k := newFakeKeyring()
 	_, err := keyring.LoadTokenWith(k)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, gokeyring.ErrNotFound)
 }
 
-func TestDeleteToken_Success(t *testing.T) {
+func TestDeleteToken_Saved_RemovesToken(t *testing.T) {
 	k := newFakeKeyring()
 	require.NoError(t, keyring.SaveTokenWith(k, "tok"))
 	require.NoError(t, keyring.DeleteTokenWith(k))
@@ -87,7 +87,7 @@ func TestDeleteToken_NotFound_NoError(t *testing.T) {
 	require.NoError(t, keyring.DeleteTokenWith(k))
 }
 
-func TestDeleteToken_Error(t *testing.T) {
+func TestDeleteToken_StoreFails_ReturnsError(t *testing.T) {
 	k := newFakeKeyring()
 	require.NoError(t, keyring.SaveTokenWith(k, "tok"))
 	k.err = errors.New("permission denied")

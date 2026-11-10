@@ -2,13 +2,6 @@
 // All types are used as DTOs between the Go backend and the Wails frontend.
 package model
 
-// User represents a GitHub user (commenter or authenticated user).
-type User struct {
-	Login     string `json:"login"`
-	AvatarURL string `json:"avatar_url"`
-	HTMLURL   string `json:"html_url"`
-}
-
 // PullRequestSummary is the top-level DTO for a loaded GitHub pull request.
 type PullRequestSummary struct {
 	ID              int64      `json:"id"`
@@ -39,10 +32,10 @@ type LabelDTO struct {
 	Description string `json:"description"`
 }
 
-// CommentDTO represents a single review comment as a frontend-facing DTO.
+// ReviewCommentDTO represents a single review comment as a frontend-facing DTO.
 // Author identity is flattened to string fields (no nested struct) to keep
 // the Go↔JS serialization contract stable.
-type CommentDTO struct {
+type ReviewCommentDTO struct {
 	ID           int64  `json:"id"`
 	InReplyToID  int64  `json:"in_reply_to_id"`
 	ReviewID     int64  `json:"review_id"`
@@ -56,24 +49,24 @@ type CommentDTO struct {
 
 // CommentThreadDTO groups a root ReviewComment with all its replies.
 // NodeID is the GraphQL global ID required for resolve/unresolve mutations.
-// Resolved state is tracked at the thread level only; individual CommentDTOs
+// Resolved state is tracked at the thread level only; individual ReviewCommentDTOs
 // do not carry a resolved flag.
 type CommentThreadDTO struct {
-	RootID   int64        `json:"root_id"`
-	ReviewID int64        `json:"review_id"`
-	NodeID   string       `json:"node_id"`
-	Comments []CommentDTO `json:"comments"`
-	Resolved bool         `json:"resolved"`
-	Path     string       `json:"path"`
-	Line     int          `json:"line"`
-	Side     string       `json:"side"` // "LEFT" (old file) or "RIGHT" (new file)
+	RootID   int64              `json:"root_id"`
+	ReviewID int64              `json:"review_id"`
+	NodeID   string             `json:"node_id"`
+	Comments []ReviewCommentDTO `json:"comments"`
+	Resolved bool               `json:"resolved"`
+	Path     string             `json:"path"`
+	Line     int                `json:"line"`
+	Side     string             `json:"side"` // "LEFT" (old file) or "RIGHT" (new file)
 	// Outdated is true when GitHub reports the thread's current line as null
 	// (the surrounding code changed since the comment was posted).
 	Outdated bool `json:"outdated"`
 }
 
-// PRCommentDTO represents a general comment left on the pull request itself.
-type PRCommentDTO struct {
+// IssueCommentDTO represents a general comment left on the pull request itself.
+type IssueCommentDTO struct {
 	ID           int64  `json:"id"`
 	Body         string `json:"body"`
 	AuthorLogin  string `json:"author_login"`
@@ -83,8 +76,8 @@ type PRCommentDTO struct {
 	HTMLURL      string `json:"html_url"`
 }
 
-// ReviewOverviewDTO represents a submitted pull request review in the overview view.
-type ReviewOverviewDTO struct {
+// ReviewDTO represents a submitted pull request review in the overview view.
+type ReviewDTO struct {
 	ReviewID            int64  `json:"review_id"`
 	State               string `json:"state"`
 	Body                string `json:"body"`
@@ -100,9 +93,9 @@ type ReviewOverviewDTO struct {
 
 // PROverviewDTO holds the data shown in the overview tab for a pull request.
 type PROverviewDTO struct {
-	Summary         PullRequestSummary  `json:"summary"`
-	GeneralComments []PRCommentDTO      `json:"general_comments"`
-	Reviews         []ReviewOverviewDTO `json:"reviews"`
+	Summary         PullRequestSummary `json:"summary"`
+	GeneralComments []IssueCommentDTO  `json:"general_comments"`
+	Reviews         []ReviewDTO        `json:"reviews"`
 	// ReviewNumbers numbers every shown-worthy review 1..n in submission order, regardless of
 	// filters, so "Review N" labels stay stable across tabs and toggles.
 	ReviewNumbers map[int64]int `json:"review_numbers"`
@@ -272,8 +265,8 @@ type PendingReviewDTO struct {
 	HeadSHA    string            `json:"head_sha"` // commit the comments' line numbers refer to
 }
 
-// ReviewSubmitDTO is the request payload for submitting a review verdict.
-type ReviewSubmitDTO struct {
+// ReviewSubmitRequest is the request payload for submitting a review verdict.
+type ReviewSubmitRequest struct {
 	Body    string `json:"body,omitempty"` // optional top-level review message
 	Verdict string `json:"verdict"`        // "APPROVE" | "REQUEST_CHANGES" | "COMMENT"
 }

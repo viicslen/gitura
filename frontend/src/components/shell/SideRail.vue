@@ -3,10 +3,12 @@
 import { FileDiff, GitPullRequest, LayoutList, MessagesSquare } from 'lucide-vue-next'
 import logoUrl from '@/assets/images/logo.svg'
 import UserMenu from './UserMenu.vue'
-import { prView, viewBadges } from './reviewView'
-import type { ReviewNavMeta } from './types'
+import { useReviewTabs } from '@/composables/useReviewTabs'
+import type { PRRef } from '@/types/pr'
 
-defineProps<{ meta: ReviewNavMeta | null; login: string; avatarSrc?: string }>()
+const { reviewTab, tabBadges } = useReviewTabs()
+
+defineProps<{ meta: PRRef | null; login: string; avatarSrc?: string }>()
 const emit = defineEmits<{ (e: 'home'): void; (e: 'settings'): void; (e: 'logout'): void }>()
 
 const VIEWS = [
@@ -16,7 +18,7 @@ const VIEWS = [
 ] as const
 
 function viewLabel(v: (typeof VIEWS)[number]): string {
-  const count = viewBadges[v.value]
+  const count = tabBadges[v.value]
   return count ? `${v.label} (${count} ${v.counted})` : v.label
 }
 
@@ -41,18 +43,18 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
         <button
           v-for="v in VIEWS"
           :key="v.value"
-          :class="[item, prView === v.value ? 'bg-accent text-foreground' : idle]"
+          :class="[item, reviewTab === v.value ? 'bg-accent text-foreground' : idle]"
           :aria-label="viewLabel(v)"
-          :aria-current="prView === v.value ? 'page' : undefined"
+          :aria-current="reviewTab === v.value ? 'page' : undefined"
           :title="viewLabel(v)"
-          @click="prView = v.value"
+          @click="reviewTab = v.value"
         >
           <component :is="v.icon" class="h-4 w-4" />
           <span
-            v-if="viewBadges[v.value]"
+            v-if="tabBadges[v.value]"
             class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[0.625rem] font-semibold leading-4 text-center tabular-nums"
             aria-hidden="true"
-          >{{ viewBadges[v.value] > 99 ? '99+' : viewBadges[v.value] }}</span>
+          >{{ tabBadges[v.value] > 99 ? '99+' : tabBadges[v.value] }}</span>
         </button>
       </template>
     </div>

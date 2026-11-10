@@ -5,11 +5,11 @@ import { RefreshCw, Terminal } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import DiffReviewView from '@/components/DiffReviewView.vue'
-import RunPanel from '@/components/RunPanel.vue'
+import DiffReviewView from '@/components/diff/DiffReviewView.vue'
+import RunPanel from '@/components/run/RunPanel.vue'
 import type { UnsentComments } from '@/lib/diffLayout'
-import { StartLocalReview, StopLocalReview } from '../wailsjs/go/main/App'
-import { EventsOn } from '../wailsjs/runtime/runtime'
+import { StartLocalReview, StopLocalReview } from '@/wailsjs/go/app/App'
+import { EventsOn } from '@/wailsjs/runtime/runtime'
 
 const props = defineProps<{ path: string }>()
 

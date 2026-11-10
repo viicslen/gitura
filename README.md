@@ -15,7 +15,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![Wails](https://img.shields.io/badge/Wails-v2-DF0000)](https://wails.io)
 
-<img src="docs/screenshots/review-dark.png" alt="gitura review view" width="900">
+<img src="https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-review-dark.png" alt="gitura review view" width="900">
 
 </div>
 
@@ -23,13 +23,13 @@ and hand a comment straight to your coding agent — without a browser tab in si
 
 | Pull requests | Files changed |
 | ------------- | ------------- |
-| ![Pull request list](docs/screenshots/pull-requests.png) | ![Files changed](docs/screenshots/files-changed.png) |
+| ![Pull request list](https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-pull-requests.png) | ![Files changed](https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-files-changed.png) |
 | Filter by involvement, repository, organisation, author, or date | Split diff with syntax highlighting and inline comments |
 
 | Settings | Light theme |
 | -------- | ----------- |
-| ![Settings](docs/screenshots/settings.png) | ![Light theme](docs/screenshots/review-light.png) |
-| Fonts and text size, ignored commenters, and the CLI commands you can run on a comment | Dark, light, and system themes |
+| ![Settings](https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-settings.png) | ![Light theme](https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-review-light.png) |
+| Fonts and text size, ignored commenters, CLI commands to run on a comment, and keybindings | Dark, light, and system themes |
 
 ## Features
 
@@ -145,26 +145,32 @@ cd frontend && bun run build
 
 ```text
 .
-├── app.go                  # Wails-bound App methods (auth, PRs, comments, runs, settings)
-├── main.go                 # wails.Run() entry point
+├── main.go                 # wails.Run() entry point: window options, app icon
+├── assets.go, assets_dev.go # Embedded frontend/dist (production) or none (dev, build tag)
 ├── internal/
+│   ├── app/                # Wails-bound App, one file per domain (auth, pr, threads, pending_review, …)
 │   ├── auth/               # GitHub OAuth 2.0 Device Flow
-│   ├── db/                 # SQLite app state (sqlc-generated queries)
-│   ├── github/             # GitHub REST + GraphQL API client
+│   ├── db/                 # SQLite app state (sqlc.yaml + generated queries)
+│   ├── fonts/              # System font listing
+│   ├── ghapi/              # GitHub REST + GraphQL API client
+│   ├── gitlocal/           # Local git working-tree diffs
 │   ├── keyring/            # OS keychain token storage (go-keyring)
 │   ├── logger/             # Structured slog logger (GITURA_LOG_LEVEL)
 │   ├── model/              # Shared DTO types (Go ↔ Vue boundary)
 │   ├── runner/             # CLI command execution for review comments
-│   └── settings/           # User preferences (settings.toml)
-├── frontend/
-│   └── src/
-│       ├── components/     # App-specific Vue components
-│       ├── components/ui/  # shadcn-vue primitives
-│       ├── composables/    # useAuth, usePRFilters, useReview, useRuns, useTheme
-│       └── pages/          # AuthPage, PRPage, ReviewPage, SettingsPage
-├── specs/                  # Feature specifications and contracts
-└── tests/fixtures/         # Recorded GitHub API responses for offline tests
+│   ├── settings/           # User preferences (settings.toml)
+│   └── unidiff/            # Unified-diff hunk parser
+├── frontend/src/
+│   ├── components/         # comment/, diff/, markdown/, pr/, run/, shell/, ui/ (shadcn-vue)
+│   ├── composables/        # useAuth, useCommentThreads, useDiffReview, usePRFilters, …
+│   ├── lib/                # Framework-free helpers (markdown, highlight, fileTree, …)
+│   ├── pages/              # AuthPage, PRListPage, PRReviewPage, LocalReviewPage, SettingsPage
+│   ├── types/              # Shared frontend types
+│   └── wailsjs/            # Generated Wails bindings (do not edit)
+└── build/                  # App icons and platform manifests used by `wails build`
 ```
+
+Go test fixtures live next to their package in `testdata/`.
 
 ## License
 

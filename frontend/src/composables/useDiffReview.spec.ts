@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { model } from '@/wailsjs/go/models'
-import * as App from '../wailsjs/go/main/App'
+import * as App from '@/wailsjs/go/app/App'
 
 const SetFileViewed = vi.fn()
-vi.mock('../wailsjs/go/main/App', () => ({
+vi.mock('@/wailsjs/go/app/App', () => ({
   SetFileViewed: (...a: unknown[]) => SetFileViewed(...a),
   GetFileDiff: vi.fn().mockResolvedValue({}),
   GetPRFiles: vi.fn(),

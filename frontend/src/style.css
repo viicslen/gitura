@@ -102,7 +102,7 @@
 /* Pointer cursor on all interactive elements */
 button, [role="button"], [role="switch"], label[for], summary { cursor: pointer; }
 
-/* GitHub-flavoured comment rendering shared by MarkdownBody and StaticMarkdownBody. */
+/* GitHub-flavoured comment rendering shared by MarkdownBody and PlainMarkdownBody. */
 .markdown-body img {
   display: inline;
   cursor: zoom-in;

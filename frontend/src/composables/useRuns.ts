@@ -9,9 +9,9 @@
  */
 import { ref, readonly, computed } from 'vue'
 import type { ComputedRef } from 'vue'
-import { EventsOn } from '../wailsjs/runtime/runtime'
-import { CancelRun } from '../wailsjs/go/main/App'
-import type { model } from '../wailsjs/go/models'
+import { EventsOn } from '@/wailsjs/runtime/runtime'
+import { CancelRun } from '@/wailsjs/go/app/App'
+import type { model } from '@/wailsjs/go/models'
 
 export type Run = model.RunResult
 

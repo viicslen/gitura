@@ -24,7 +24,7 @@ func write(t *testing.T, dir, name, body string) {
 	}
 }
 
-func TestDiff(t *testing.T) {
+func TestDiff_MixedWorkingTreeChanges_ReportsEveryFileStatus(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	run(t, dir, "init", "-q", "-b", "main")
@@ -88,7 +88,7 @@ func TestDiff(t *testing.T) {
 	}
 }
 
-func TestFingerprintChangesOnEdit(t *testing.T) {
+func TestFingerprint_UntrackedFileEdited_Changes(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	run(t, dir, "init", "-q")

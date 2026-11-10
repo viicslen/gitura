@@ -1,7 +1,7 @@
 import { ref, readonly } from 'vue'
-import * as App from '../wailsjs/go/main/App'
-import { EventsOn, BrowserOpenURL } from '../wailsjs/runtime/runtime'
-import type { model } from '../wailsjs/go/models'
+import * as App from '@/wailsjs/go/app/App'
+import { EventsOn, BrowserOpenURL } from '@/wailsjs/runtime/runtime'
+import type { model } from '@/wailsjs/go/models'
 
 // Shared reactive state (module-level singleton).
 const authState = ref<model.AuthState>({ is_authenticated: false, login: '', avatar_url: '' })

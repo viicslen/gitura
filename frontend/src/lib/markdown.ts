@@ -3,7 +3,7 @@ import DOMPurify from 'dompurify'
 
 export interface MarkdownRenderOptions {
   /** Page the markdown came from; relative links and images resolve against it. */
-  baseUrl?: string
+  baseURL?: string
   repoOwner?: string
   repoName?: string
   repoRef?: string
@@ -14,14 +14,14 @@ export interface MarkdownRenderOptions {
 const MARKDOWN_IMAGE_PROXY_PATH = '/__markdown-image'
 
 function buildMarkdownImageProxyURL(params: {
-  absoluteUrl?: string
+  absoluteURL?: string
   repoOwner?: string
   repoName?: string
   repoRef?: string
   repoPath?: string
 }): string {
   const proxied = new URL(MARKDOWN_IMAGE_PROXY_PATH, 'http://localhost')
-  if (params.absoluteUrl) proxied.searchParams.set('url', params.absoluteUrl)
+  if (params.absoluteURL) proxied.searchParams.set('url', params.absoluteURL)
   if (params.repoOwner) proxied.searchParams.set('owner', params.repoOwner)
   if (params.repoName) proxied.searchParams.set('repo', params.repoName)
   if (params.repoRef) proxied.searchParams.set('ref', params.repoRef)
@@ -36,20 +36,20 @@ function isProxyableMarkdownAssetURL(url: URL): boolean {
     || host === 'storage.googleapis.com'
 }
 
-function resolveRepoImagePath(url: string, baseUrl?: string): string {
+function resolveRepoImagePath(url: string, baseURL?: string): string {
   const trimmed = url.trim()
   if (!trimmed) return ''
   if (trimmed.startsWith('/')) return trimmed.slice(1)
 
-  const basePath = baseUrl ? new URL(baseUrl).pathname : '/'
+  const basePath = baseURL ? new URL(baseURL).pathname : '/'
   const baseDir = basePath.endsWith('/') ? basePath : `${basePath.substring(0, basePath.lastIndexOf('/') + 1)}`
   return new URL(trimmed, `https://github.local${baseDir}`).pathname.replace(/^\//, '')
 }
 
-function resolveURL(url: string, baseUrl?: string): string {
-  if (!url || !baseUrl || url.startsWith('#')) return url
+function resolveURL(url: string, baseURL?: string): string {
+  if (!url || !baseURL || url.startsWith('#')) return url
   try {
-    return new URL(url, baseUrl).toString()
+    return new URL(url, baseURL).toString()
   } catch {
     return url
   }
@@ -57,17 +57,17 @@ function resolveURL(url: string, baseUrl?: string): string {
 
 function imageURL(rawSrc: string, opts: MarkdownRenderOptions): string {
   if (!rawSrc) return rawSrc
-  const resolved = resolveURL(rawSrc, opts.baseUrl)
+  const resolved = resolveURL(rawSrc, opts.baseURL)
   try {
     const resolvedURL = new URL(resolved)
     return isProxyableMarkdownAssetURL(resolvedURL)
-      ? buildMarkdownImageProxyURL({ absoluteUrl: resolvedURL.toString() })
+      ? buildMarkdownImageProxyURL({ absoluteURL: resolvedURL.toString() })
       : resolvedURL.toString()
   } catch {
     // Not absolute: try repo-relative below.
   }
   if (opts.repoOwner && opts.repoName && opts.repoRef) {
-    const repoPath = resolveRepoImagePath(rawSrc, opts.baseUrl)
+    const repoPath = resolveRepoImagePath(rawSrc, opts.baseURL)
     if (repoPath) {
       return buildMarkdownImageProxyURL({
         repoOwner: opts.repoOwner,
@@ -184,7 +184,7 @@ export function renderGitHubMarkdown(content: string, opts: MarkdownRenderOption
     source.setAttribute('srcset', srcsetURLs(source.getAttribute('srcset') ?? '', opts))
   })
   doc.querySelectorAll('a[href]').forEach((link) => {
-    link.setAttribute('href', resolveURL(link.getAttribute('href') ?? '', opts.baseUrl))
+    link.setAttribute('href', resolveURL(link.getAttribute('href') ?? '', opts.baseURL))
   })
   renderAlerts(doc)
   markTaskLists(doc, !!opts.tasks)

@@ -35,10 +35,29 @@ type HTTPPoster interface {
 	Post(url, contentType string, body io.Reader) (*http.Response, error)
 }
 
+// jsonPoster is the production HTTPPoster. Without Accept: application/json
+// GitHub answers the device-flow endpoints form-encoded.
+type jsonPoster struct{}
+
+// Post sends body to url with the given content type, asking for a JSON response.
+func (jsonPoster) Post(url, contentType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Accept", "application/json")
+	return http.DefaultClient.Do(req)
+}
+
 // StartDeviceFlow initiates GitHub OAuth device flow for the given clientID.
 // It returns the DeviceFlowInfo required for the user to authenticate.
-// GitHub returns form-encoded data by default; Accept: application/json requests JSON.
 func StartDeviceFlow(clientID string) (model.DeviceFlowInfo, error) {
+	return StartDeviceFlowWith(jsonPoster{}, clientID)
+}
+
+// StartDeviceFlowWith initiates the device flow using a custom HTTPPoster.
+func StartDeviceFlowWith(poster HTTPPoster, clientID string) (model.DeviceFlowInfo, error) {
 	if clientID == "" {
 		return model.DeviceFlowInfo{}, fmt.Errorf("auth: clientID must not be empty")
 	}
@@ -49,14 +68,7 @@ func StartDeviceFlow(clientID string) (model.DeviceFlowInfo, error) {
 	form.Set("client_id", clientID)
 	form.Set("scope", requiredScope)
 
-	req, err := http.NewRequest(http.MethodPost, deviceCodeURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return model.DeviceFlowInfo{}, fmt.Errorf("auth: failed to build device code request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := poster.Post(deviceCodeURL, "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
 	if err != nil {
 		logger.L.Error("device code request failed", "err", err)
 		return model.DeviceFlowInfo{}, fmt.Errorf("auth: device code request failed: %w", err)
@@ -64,27 +76,6 @@ func StartDeviceFlow(clientID string) (model.DeviceFlowInfo, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	logger.L.Debug("device code response", "status", resp.StatusCode)
-	return decodeDeviceCodeResponse(resp)
-}
-
-// StartDeviceFlowWith initiates the device flow using a custom HTTPPoster.
-// This variant is used in tests to inject a mock HTTP client.
-// Note: tests supply JSON fixtures directly so no Accept header is needed.
-func StartDeviceFlowWith(poster HTTPPoster, clientID string) (model.DeviceFlowInfo, error) {
-	if clientID == "" {
-		return model.DeviceFlowInfo{}, fmt.Errorf("auth: clientID must not be empty")
-	}
-
-	form := url.Values{}
-	form.Set("client_id", clientID)
-	form.Set("scope", requiredScope)
-
-	resp, err := poster.Post(deviceCodeURL, "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
-	if err != nil {
-		return model.DeviceFlowInfo{}, fmt.Errorf("auth: device code request failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
 	return decodeDeviceCodeResponse(resp)
 }
 
