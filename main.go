@@ -10,7 +10,14 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
+
+	"gitura/internal/app"
 )
+
+// githubClientID is the GitHub OAuth app client ID.
+// The value is baked in at build time via -ldflags "-X main.githubClientID=...".
+// Falls back to a placeholder for local dev builds.
+var githubClientID = "Ov23liFakeClientIDDev"
 
 //go:embed build/appicon.png
 var appIcon []byte
@@ -18,10 +25,7 @@ var appIcon []byte
 func main() {
 	configureLinuxWebView()
 
-	app := NewApp()
-	assetMiddleware := assetserver.Middleware(assetProxyMiddleware(app))
-
-	err := wails.Run(&options.App{
+	opts := &options.App{
 		Title:     "gitura",
 		Width:     1280,
 		Height:    800,
@@ -32,17 +36,14 @@ func main() {
 		MaxWidth:         16384,
 		MaxHeight:        16384,
 		Frameless:        true, // the app draws its own title strip and window controls
-		AssetServer:      &assetserver.Options{Assets: assets, Middleware: assetMiddleware},
+		AssetServer:      &assetserver.Options{Assets: assets},
 		BackgroundColour: &options.RGBA{R: 9, G: 9, B: 11, A: 1},
 		// Wails only defaults the GPU policy to Never when Linux options are nil; keep it for GPUs that fail EGL/GBM.
-		Linux:         &linux.Options{Icon: appIcon, WebviewGpuPolicy: linux.WebviewGpuPolicyNever},
-		OnStartup:     app.startup,
-		OnDomReady:    app.domReady,
-		OnBeforeClose: app.beforeClose,
-		Bind:          []interface{}{app},
-	})
+		Linux: &linux.Options{Icon: appIcon, WebviewGpuPolicy: linux.WebviewGpuPolicyNever},
+	}
+	app.Configure(opts, app.New(githubClientID))
 
-	if err != nil {
+	if err := wails.Run(opts); err != nil {
 		println("Error:", err.Error())
 	}
 }

@@ -11,8 +11,8 @@ import (
 	"gitura/internal/model"
 )
 
-// TestConfigDir_ReturnsNonEmptyPath verifies ConfigDir returns a non-empty OS path.
-func TestConfigDir_ReturnsNonEmptyPath(t *testing.T) {
+// TestConfigDir_Default_ReturnsNonEmptyPath verifies ConfigDir returns a non-empty OS path.
+func TestConfigDir_Default_ReturnsNonEmptyPath(t *testing.T) {
 	dir, err := ConfigDir()
 	require.NoError(t, err)
 	assert.NotEmpty(t, dir)
@@ -69,9 +69,9 @@ func TestSave_EmptySlice_WritesEmptyConfig(t *testing.T) {
 	assert.Empty(t, got.IgnoredCommenters)
 }
 
-// TestSave_CreatesDirIfAbsent verifies that Save creates the config directory
+// TestSave_DirAbsent_CreatesDir verifies that Save creates the config directory
 // when it does not exist yet.
-func TestSave_CreatesDirIfAbsent(t *testing.T) {
+func TestSave_DirAbsent_CreatesDir(t *testing.T) {
 	tmp := t.TempDir()
 	overrideConfigDir(t, tmp)
 
@@ -138,9 +138,9 @@ func TestLoad_ReadError_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestConfigDir_ErrorWhenNoHome verifies ConfigDir returns an error when
+// TestConfigDir_NoHome_ReturnsError verifies ConfigDir returns an error when
 // os.UserConfigDir() cannot determine the directory.
-func TestConfigDir_ErrorWhenNoHome(t *testing.T) {
+func TestConfigDir_NoHome_ReturnsError(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("HOME", "")
 

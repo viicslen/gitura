@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	githubclient "gitura/internal/github"
 	"gitura/internal/model"
+	"gitura/internal/unidiff"
 )
 
 const (
@@ -122,7 +122,7 @@ func parseFile(patch string) File {
 		}
 		applyHeaderLine(&d, line)
 	}
-	d.Hunks = githubclient.ParseUnifiedDiffHunks(patch)
+	d.Hunks = unidiff.ParseHunks(patch)
 	for _, h := range d.Hunks {
 		for _, l := range h.Lines {
 			switch l.Type {

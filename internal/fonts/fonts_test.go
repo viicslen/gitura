@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestParse_TrimsDedupesAndSorts(t *testing.T) {
+func TestParse_RawFamilies_TrimsDedupesAndSorts(t *testing.T) {
 	got := parse("Noto Sans\r\n\nFira Code\nNoto Sans\n  \n")
 	want := []string{"Fira Code", "Noto Sans"}
 	if !slices.Equal(got, want) {
@@ -14,7 +14,7 @@ func TestParse_TrimsDedupesAndSorts(t *testing.T) {
 	}
 }
 
-func TestList_ReturnsInstalledFamilies(t *testing.T) {
+func TestList_InstalledFonts_ReturnsFamilies(t *testing.T) {
 	got, err := List(context.Background())
 	if err != nil {
 		t.Skipf("no font listing on this machine: %v", err)

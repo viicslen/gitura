@@ -13,16 +13,16 @@ const (
 	account = "github-token"
 )
 
-// Keyringer is the interface used for OS keychain operations.
+// Store is the interface used for OS keychain operations.
 // It is satisfied by the real keyring and by test doubles.
-type Keyringer interface {
+type Store interface {
 	Set(service, account, password string) error
 	Get(service, account string) (string, error)
 	Delete(service, account string) error
 }
 
 // osKeyring adapts the package-level functions from go-keyring to the
-// Keyringer interface so that production code can be swapped for test doubles.
+// Store interface so that production code can be swapped for test doubles.
 type osKeyring struct{}
 
 // Set stores pwd in the OS keychain under svc and acct.
@@ -41,7 +41,7 @@ func (osKeyring) Delete(svc, acct string) error {
 }
 
 // defaultKeyring is the production keyring used when no override is supplied.
-var defaultKeyring Keyringer = osKeyring{}
+var defaultKeyring Store = osKeyring{}
 
 // SaveToken persists the GitHub access token to the OS keychain.
 func SaveToken(token string) error {
@@ -60,8 +60,8 @@ func DeleteToken() error {
 	return DeleteTokenWith(defaultKeyring)
 }
 
-// SaveTokenWith persists the token using the supplied Keyringer.
-func SaveTokenWith(k Keyringer, token string) error {
+// SaveTokenWith persists the token using the supplied Store.
+func SaveTokenWith(k Store, token string) error {
 	logger.L.Debug("keyring: saving token")
 	err := k.Set(service, account, token)
 	if err != nil {
@@ -72,8 +72,8 @@ func SaveTokenWith(k Keyringer, token string) error {
 	return err
 }
 
-// LoadTokenWith retrieves the token using the supplied Keyringer.
-func LoadTokenWith(k Keyringer) (string, error) {
+// LoadTokenWith retrieves the token using the supplied Store.
+func LoadTokenWith(k Store) (string, error) {
 	logger.L.Debug("keyring: loading token")
 	token, err := k.Get(service, account)
 	if err != nil {
@@ -84,9 +84,9 @@ func LoadTokenWith(k Keyringer) (string, error) {
 	return token, err
 }
 
-// DeleteTokenWith removes the token using the supplied Keyringer.
+// DeleteTokenWith removes the token using the supplied Store.
 // A missing token is treated as a no-op (not an error).
-func DeleteTokenWith(k Keyringer) error {
+func DeleteTokenWith(k Store) error {
 	logger.L.Debug("keyring: deleting token")
 	err := k.Delete(service, account)
 	if err == keyring.ErrNotFound {

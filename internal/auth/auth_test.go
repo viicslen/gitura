@@ -44,7 +44,7 @@ func (s *staticPoster) Post(_ string, _ string, _ io.Reader) (*http.Response, er
 // --- StartDeviceFlow tests ---
 
 func TestStartDeviceFlow_Success_ReturnsDeviceFlowInfo(t *testing.T) {
-	poster := &staticPoster{resp: fixtureResponse(t, 200, "../../tests/fixtures/auth/device_code_success.json")}
+	poster := &staticPoster{resp: fixtureResponse(t, 200, "testdata/device_code_success.json")}
 	info, err := auth.StartDeviceFlowWith(poster, "test-client-id")
 	require.NoError(t, err)
 	assert.Equal(t, "WDJB-MJHT", info.UserCode)
@@ -80,7 +80,7 @@ func TestStartDeviceFlow_NonOKStatus_ReturnsError(t *testing.T) {
 // --- PollForToken tests ---
 
 func TestPollForToken_Complete_ReturnsTokenAndComplete(t *testing.T) {
-	poster := &staticPoster{resp: fixtureResponse(t, 200, "../../tests/fixtures/auth/token_complete.json")}
+	poster := &staticPoster{resp: fixtureResponse(t, 200, "testdata/token_complete.json")}
 	result, token, err := auth.PollForTokenWith(poster, "device-code-abc", "test-client-id")
 	require.NoError(t, err)
 	assert.Equal(t, "complete", result.Status)
@@ -88,7 +88,7 @@ func TestPollForToken_Complete_ReturnsTokenAndComplete(t *testing.T) {
 }
 
 func TestPollForToken_Pending_ReturnsPending(t *testing.T) {
-	poster := &staticPoster{resp: fixtureResponse(t, 200, "../../tests/fixtures/auth/token_pending.json")}
+	poster := &staticPoster{resp: fixtureResponse(t, 200, "testdata/token_pending.json")}
 	result, token, err := auth.PollForTokenWith(poster, "device-code-abc", "test-client-id")
 	require.NoError(t, err)
 	assert.Equal(t, "pending", result.Status)
@@ -96,7 +96,7 @@ func TestPollForToken_Pending_ReturnsPending(t *testing.T) {
 }
 
 func TestPollForToken_Expired_ReturnsExpired(t *testing.T) {
-	poster := &staticPoster{resp: fixtureResponse(t, 200, "../../tests/fixtures/auth/token_expired.json")}
+	poster := &staticPoster{resp: fixtureResponse(t, 200, "testdata/token_expired.json")}
 	result, token, err := auth.PollForTokenWith(poster, "device-code-abc", "test-client-id")
 	require.NoError(t, err)
 	assert.Equal(t, "expired", result.Status)
