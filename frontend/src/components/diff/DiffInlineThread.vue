@@ -25,7 +25,7 @@ const emit = defineEmits<{
 const collapsed = ref(props.thread.resolved)
 const root = computed(() => props.thread.comments[0])
 const preview = computed(() =>
-  (root.value?.body ?? '').replace(/<!--[\s\S]*?-->|<[^>]+>|[*_`#>]/g, '').replace(/\s+/g, ' ').trim(),
+  (root.value?.body ?? '').replace(/<!--[\s\S]*?-->|<[^>]+>|[*_`#<>]/g, '').replace(/\s+/g, ' ').trim(),
 )
 const { avatarSrc, handleAvatarError, avatarInitial } = useAvatarFallback()
 
