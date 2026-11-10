@@ -30,6 +30,7 @@ type File struct {
 }
 
 func git(ctx context.Context, dir string, args ...string) (string, error) {
+	// #nosec G204 -- fixed binary, no shell; callers pass literal flags, a resolved revision, and paths after "--".
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir, "-c", "core.quotePath=false"}, args...)...)
 	// Polling `git status` must not take index.lock, or the user's own git commands would fail.
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
