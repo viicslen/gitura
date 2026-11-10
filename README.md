@@ -145,26 +145,32 @@ cd frontend && bun run build
 
 ```text
 .
-├── app.go                  # Wails-bound App methods (auth, PRs, comments, runs, settings)
-├── main.go                 # wails.Run() entry point
+├── main.go                 # wails.Run() entry point: window options, app icon
+├── assets.go, assets_dev.go # Embedded frontend/dist (production) or none (dev, build tag)
 ├── internal/
+│   ├── app/                # Wails-bound App, one file per domain (auth, pr, threads, pending_review, …)
 │   ├── auth/               # GitHub OAuth 2.0 Device Flow
-│   ├── db/                 # SQLite app state (sqlc-generated queries)
-│   ├── github/             # GitHub REST + GraphQL API client
+│   ├── db/                 # SQLite app state (sqlc.yaml + generated queries)
+│   ├── fonts/              # System font listing
+│   ├── ghapi/              # GitHub REST + GraphQL API client
+│   ├── gitlocal/           # Local git working-tree diffs
 │   ├── keyring/            # OS keychain token storage (go-keyring)
 │   ├── logger/             # Structured slog logger (GITURA_LOG_LEVEL)
 │   ├── model/              # Shared DTO types (Go ↔ Vue boundary)
 │   ├── runner/             # CLI command execution for review comments
-│   └── settings/           # User preferences (settings.toml)
-├── frontend/
-│   └── src/
-│       ├── components/     # App-specific Vue components
-│       ├── components/ui/  # shadcn-vue primitives
-│       ├── composables/    # useAuth, usePRFilters, useReview, useRuns, useTheme
-│       └── pages/          # AuthPage, PRPage, ReviewPage, SettingsPage
-├── specs/                  # Feature specifications and contracts
-└── tests/fixtures/         # Recorded GitHub API responses for offline tests
+│   ├── settings/           # User preferences (settings.toml)
+│   └── unidiff/            # Unified-diff hunk parser
+├── frontend/src/
+│   ├── components/         # comment/, diff/, markdown/, pr/, run/, shell/, ui/ (shadcn-vue)
+│   ├── composables/        # useAuth, useCommentThreads, useDiffReview, usePRFilters, …
+│   ├── lib/                # Framework-free helpers (markdown, highlight, fileTree, …)
+│   ├── pages/              # AuthPage, PRListPage, PRReviewPage, LocalReviewPage, SettingsPage
+│   ├── types/              # Shared frontend types
+│   └── wailsjs/            # Generated Wails bindings (do not edit)
+└── build/                  # App icons and platform manifests used by `wails build`
 ```
+
+Go test fixtures live next to their package in `testdata/`.
 
 ## License
 
