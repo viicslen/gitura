@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.14.0](https://github.com/viicslen/gitura/compare/v0.13.5...v0.14.0) (2026-11-11)
+
+
+### Features
+
+* **cli:** open a PR from the command line, in the window you already have ([#43](https://github.com/viicslen/gitura/issues/43)) ([b710880](https://github.com/viicslen/gitura/commit/b7108805e8570cef6f9440dea0f296bb38761203))
+* **cli:** open a PR straight from the command line ([505dae5](https://github.com/viicslen/gitura/commit/505dae5ffe6e9863daee15f467d5e7ce48f48520))
+* **cli:** open local changes from the command line ([869b6b9](https://github.com/viicslen/gitura/commit/869b6b9eaa8a6609c86f9ad82ea7fbbbfc629652))
+* **cli:** open local changes from the command line, in the window you already have ([#44](https://github.com/viicslen/gitura/issues/44)) ([6af61ae](https://github.com/viicslen/gitura/commit/6af61ae0514b682763513830a5acdc1f9f33e3c6))
+
+
+### Bug Fixes
+
+* **pr-list:** drop merged PRs from the list when leaving the PR view ([#41](https://github.com/viicslen/gitura/issues/41)) ([bca408b](https://github.com/viicslen/gitura/commit/bca408b0dce1c0aea47b64271ef74d82ac0e3295))
+* **pr-list:** reflect merges and edits from the PR view in the list ([59286e6](https://github.com/viicslen/gitura/commit/59286e60ca4460327d753b5b5e39b2dd56d7219a))
+
 ## [0.13.5](https://github.com/viicslen/gitura/compare/v0.13.4...v0.13.5) (2026-11-10)
 
 
