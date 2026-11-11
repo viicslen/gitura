@@ -80,7 +80,7 @@ import SettingsPage from '@/pages/SettingsPage.vue'
 import ThemeToggle from '@/components/shell/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
-import { TakeLaunchPR } from '@/wailsjs/go/app/App'
+import { TakeLaunch } from '@/wailsjs/go/app/App'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
 import { buildAvatarProxyURL } from '@/lib/avatar'
@@ -109,18 +109,20 @@ onMounted(async () => {
   await refreshAuthState()
 })
 
-// Opens the PR passed on the command line (`gitura 123` / `gitura my-branch`) once signed in.
-async function openLaunchPR() {
+// Opens what the command line asked for (`gitura 123`, `gitura my-branch`, `gitura --local`) once signed in.
+async function openLaunch() {
   if (!authState.value.is_authenticated) return
   try {
-    const pr = await TakeLaunchPR()
+    const launch = await TakeLaunch()
+    const pr = launch?.pr
     if (pr) handleOpenReview({ owner: pr.owner, repo: pr.repo, number: pr.number, title: pr.title, state: pr.state, is_draft: pr.is_draft, html_url: pr.html_url })
+    else if (launch?.local_path) handleOpenLocal(launch.local_path)
   } catch (e) {
-    toast.error('Could not open PR: ' + String(e))
+    toast.error('Could not open: ' + String(e))
   }
 }
-watch(() => authState.value.is_authenticated, openLaunchPR)
-EventsOn('launch:pr', openLaunchPR)
+watch(() => authState.value.is_authenticated, openLaunch)
+EventsOn('launch', openLaunch)
 
 async function handleLogout() {
   await logout()

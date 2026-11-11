@@ -78,7 +78,7 @@ type App struct {
 	// local is set while reviewing a local checkout instead of a PR; see StartLocalReview.
 	local *localReview
 
-	// launch is the PR to open once signed in; a second launch sets it from another goroutine.
+	// launch is the PR or local checkout to open once signed in; a second launch sets it from another goroutine.
 	launch atomic.Pointer[launchTarget]
 
 	// Device-flow state, held in memory only during the OAuth flow.
