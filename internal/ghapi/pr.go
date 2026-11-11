@@ -66,3 +66,20 @@ func ClosePR(ctx context.Context, client *github.Client, owner, repo string, num
 	}
 	return nil
 }
+
+// FindPRByBranch returns the number of the newest PR whose head is branch in owner/repo.
+// PRs from forks are not matched. On no match the error is prefixed with "notfound:".
+func FindPRByBranch(ctx context.Context, client *github.Client, owner, repo, branch string) (int, error) {
+	prs, _, err := client.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{
+		Head:        owner + ":" + branch,
+		State:       "all",
+		ListOptions: github.ListOptions{PerPage: 1},
+	})
+	if err != nil {
+		return 0, fmt.Errorf("github: find PR for branch %s in %s/%s: %w", branch, owner, repo, err)
+	}
+	if len(prs) == 0 {
+		return 0, fmt.Errorf("notfound: no pull request for branch %s in %s/%s", branch, owner, repo)
+	}
+	return prs[0].GetNumber(), nil
+}

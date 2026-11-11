@@ -92,6 +92,8 @@ export function SubmitReview(arg1:model.ReviewSubmitRequest):Promise<model.Revie
 
 export function SyncPendingReview():Promise<model.PendingReviewDTO>;
 
+export function TakeLaunchPR():Promise<model.PullRequestSummary>;
+
 export function UnresolveThread(arg1:number):Promise<void>;
 
 export function UpdateBodyIfUnchanged(arg1:string,arg2:number,arg3:string,arg4:string):Promise<string>;

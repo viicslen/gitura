@@ -3,6 +3,8 @@ package main
 
 import (
 	_ "embed"
+	"errors"
+	"flag"
 	"os"
 	"runtime"
 
@@ -41,7 +43,14 @@ func main() {
 		// Wails only defaults the GPU policy to Never when Linux options are nil; keep it for GPUs that fail EGL/GBM.
 		Linux: &linux.Options{Icon: appIcon, WebviewGpuPolicy: linux.WebviewGpuPolicyNever},
 	}
-	app.Configure(opts, app.New(githubClientID))
+	a := app.New(githubClientID)
+	if err := app.ConfigureLaunch(opts, a, os.Args[1:], ".", os.Stderr); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
+		os.Exit(2)
+	}
+	app.Configure(opts, a)
 
 	if err := wails.Run(opts); err != nil {
 		println("Error:", err.Error())
