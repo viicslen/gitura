@@ -180,3 +180,28 @@ func Fingerprint(ctx context.Context, dir string) (string, error) {
 	}
 	return b.String(), nil
 }
+
+// OriginRepo returns the GitHub owner and repository of dir's origin remote.
+func OriginRepo(ctx context.Context, dir string) (owner, repo string, err error) {
+	out, err := git(ctx, dir, "remote", "get-url", "origin")
+	if err != nil {
+		return "", "", err
+	}
+	owner, repo, ok := ParseRemoteURL(strings.TrimSpace(out))
+	if !ok {
+		return "", "", fmt.Errorf("git: origin %q is not an owner/repo remote", strings.TrimSpace(out))
+	}
+	return owner, repo, nil
+}
+
+// ParseRemoteURL reads owner and repository from an SSH (git@host:o/r.git) or URL-style remote.
+func ParseRemoteURL(url string) (owner, repo string, ok bool) {
+	s := strings.TrimSuffix(strings.TrimSuffix(url, "/"), ".git")
+	i := strings.LastIndexAny(s, "/:")
+	if i < 0 {
+		return "", "", false
+	}
+	repo, s = s[i+1:], s[:i]
+	owner = s[strings.LastIndexAny(s, "/:")+1:]
+	return owner, repo, owner != "" && repo != ""
+}

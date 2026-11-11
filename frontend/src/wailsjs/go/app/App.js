@@ -182,6 +182,10 @@ export function SyncPendingReview() {
   return window['go']['app']['App']['SyncPendingReview']();
 }
 
+export function TakeLaunchPR() {
+  return window['go']['app']['App']['TakeLaunchPR']();
+}
+
 export function UnresolveThread(arg1) {
   return window['go']['app']['App']['UnresolveThread'](arg1);
 }

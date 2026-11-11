@@ -48,6 +48,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch its output stream live in the run panel
 - **Ignored commenters** — filter out CI bot noise by username
 - **Configurable shortcuts** — rebind the keys that move between files and threads in Settings → Keyboard
+- **Open a PR from the command line** — `gitura 123` or `gitura my-branch` opens that PR straight away; the repository comes from the current directory's `origin` remote, or pass `--repo owner/repo`. A running window is reused unless you pass `--new-window`
 - **Dark, light, and system themes**
 - **Readable type** — Inter and JetBrains Mono by default; switch to Atkinson Hyperlegible or system fonts and scale the text size in Settings
 
