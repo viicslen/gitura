@@ -52,7 +52,7 @@ async function reload(): Promise<void> {
   }
 }
 
-watch(base, async () => {
+watch([base, () => props.path], async () => {
   await start()
   if (!error.value) await reload()
 })

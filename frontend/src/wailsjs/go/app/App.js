@@ -182,8 +182,8 @@ export function SyncPendingReview() {
   return window['go']['app']['App']['SyncPendingReview']();
 }
 
-export function TakeLaunchPR() {
-  return window['go']['app']['App']['TakeLaunchPR']();
+export function TakeLaunch() {
+  return window['go']['app']['App']['TakeLaunch']();
 }
 
 export function UnresolveThread(arg1) {
