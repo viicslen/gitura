@@ -8,9 +8,17 @@ export type TaskSource = 'pr_body' | 'issue_comment' | 'review_comment' | 'revie
 
 // One queue per body, so a second click edits the body the first click produced.
 const queues = new WeakMap<object, Promise<unknown>>()
+// Callers build togglers in templates; a stable function keeps the markdown from re-rendering.
+const togglers = new WeakMap<object, TaskToggle>()
 
 /** Toggles a checkbox in `target`'s body on GitHub and writes the new body back onto it. */
 export function taskToggler(kind: TaskSource, id: number, target: { body: string }): TaskToggle {
+  let toggle = togglers.get(target)
+  if (!toggle) togglers.set(target, (toggle = makeToggler(kind, id, target)))
+  return toggle
+}
+
+function makeToggler(kind: TaskSource, id: number, target: { body: string }): TaskToggle {
   return (index, checked) => {
     const run = (queues.get(target) ?? Promise.resolve()).catch(() => {}).then(async () => {
       const next = setTaskListItem(target.body, index, checked)

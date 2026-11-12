@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DiffInlineThread from './DiffInlineThread.vue'
+import { renderGitHubMarkdown } from '@/lib/markdown'
+
+vi.mock('@/lib/markdown', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/markdown')>()
+  return { ...real, renderGitHubMarkdown: vi.fn(real.renderGitHubMarkdown) }
+})
 import { model } from '@/wailsjs/go/models'
 
 const thread = model.CommentThreadDTO.createFrom({
@@ -26,5 +32,14 @@ describe('DiffInlineThread', () => {
     await header.trigger('click')
 
     expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('draft reply')
+  })
+
+  it('does not re-render comment markdown when the thread is collapsed', async () => {
+    const wrapper = mount(DiffInlineThread, { props: { thread, language: 'typescript' } })
+    vi.mocked(renderGitHubMarkdown).mockClear()
+
+    await wrapper.find('button[aria-expanded]').trigger('click')
+
+    expect(renderGitHubMarkdown).not.toHaveBeenCalled()
   })
 })

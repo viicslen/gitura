@@ -74,21 +74,21 @@ const unplacedDrafts = computed(() => indexedDrafts.value.filter((d) => !placedD
 
 type FormTarget = CommentTarget
 const form = ref<FormTarget | null>(null)
-const formBody = ref('')
+const formDraft = reactive({ body: '' })
 
 // A comment that is sending stays in the shared map marked `sending`, so every view of the file
 // shows it locked instead of offering it again or letting a competing draft replace it.
 const sending = computed(() => !!props.unsentComments.get(props.file.filename)?.sending)
 function stashForm(path: string): void {
   if (props.unsentComments.get(path)?.sending) return
-  if (form.value && formBody.value.trim()) props.unsentComments.set(path, { target: form.value, body: formBody.value })
+  if (form.value && formDraft.body.trim()) props.unsentComments.set(path, { target: form.value, body: formDraft.body })
   else props.unsentComments.delete(path)
 }
 // TODO: a restored comment whose line is gone after new commits stays hidden until the file is left.
 function restoreForm(path: string): void {
   const saved = props.unsentComments.get(path)
   form.value = saved?.target ?? null
-  formBody.value = saved?.body ?? ''
+  formDraft.body = saved?.body ?? ''
 }
 restoreForm(props.file.filename)
 onBeforeUnmount(() => stashForm(props.file.filename))
@@ -99,7 +99,7 @@ watch(() => props.file.filename, (path, previous) => {
   drag.value = null
 })
 watch(form, (f) => {
-  if (!f) formBody.value = ''
+  if (!f) formDraft.body = ''
 })
 // A send started from an earlier view of this file succeeded: drop the locked copy shown here.
 watch(() => props.unsentComments.get(props.file.filename), (entry, previous) => {
@@ -161,7 +161,7 @@ async function submitComment(body: string, submitMode: 'draft' | 'immediate'): P
     start_line: t.startLine,
     start_side: t.startLine ? t.side : undefined,
   } as model.DraftCommentDTO
-  props.unsentComments.set(path, { target: t, body: formBody.value, sending: true })
+  props.unsentComments.set(path, { target: t, body: formDraft.body, sending: true })
   const entry = props.unsentComments.get(path)
   let ok = false
   try {
@@ -487,7 +487,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                   <DiffDraftComment v-else-if="row.type === 'draft'" :draft="row.draft" />
                   <div v-else-if="form" class="px-3 py-2">
                     <InlineCommentForm
-                      v-model:body="formBody"
+                      :draft="formDraft"
                       :target="{ path: file.filename, side: form.side, line: form.line, startLine: form.startLine }"
                       :post="submitComment"
                       :sending="sending"
