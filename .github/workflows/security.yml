@@ -36,10 +36,9 @@ jobs:
 
       # Loading the Go packages links Wails, which links GTK4 and WebKitGTK 6.0 on Linux.
       - name: Install system dependencies
-        uses: awalsh128/cache-apt-pkgs-action@v1
-        with:
-          packages: libgtk-4-dev libwebkitgtk-6.0-dev
-          version: 2.0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
       # Runs natively: the gosec container action has no GTK/WebKit libraries.
       - name: Run Gosec Security Scanner
@@ -72,10 +71,9 @@ jobs:
 
       # Loading the Go packages links Wails, which links GTK4 and WebKitGTK 6.0 on Linux.
       - name: Install system dependencies
-        uses: awalsh128/cache-apt-pkgs-action@v1
-        with:
-          packages: libgtk-4-dev libwebkitgtk-6.0-dev
-          version: 2.0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Run govulncheck
         uses: golang/govulncheck-action@v1

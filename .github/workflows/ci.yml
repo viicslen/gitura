@@ -31,10 +31,9 @@ jobs:
 
       # internal/app links Wails, which links GTK4 and WebKitGTK 6.0 on Linux.
       - name: Install system dependencies
-        uses: awalsh128/cache-apt-pkgs-action@v1
-        with:
-          packages: libgtk-4-dev libwebkitgtk-6.0-dev
-          version: 2.0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Run tests
         run: go test -race -count=1 -coverprofile=coverage.out ./internal/...
@@ -64,10 +63,9 @@ jobs:
         run: sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
 
       - name: Install system dependencies
-        uses: awalsh128/cache-apt-pkgs-action@v1
-        with:
-          packages: libgtk-4-dev libwebkitgtk-6.0-dev
-          version: 2.0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
