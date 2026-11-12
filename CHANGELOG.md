@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/viicslen/gitura/compare/v1.0.0...v1.0.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **nix:** build with Go 1.27 and GTK4/WebKitGTK 6.0 ([ffd5e48](https://github.com/viicslen/gitura/commit/ffd5e48fd3e8ba5575f42ae52aef6f0eb40c5855))
+
 ## [1.0.0](https://github.com/viicslen/gitura/compare/v0.15.0...v1.0.0) (2026-11-12)
 
 
