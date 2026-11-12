@@ -13,7 +13,7 @@ in
     name = "gitura-dev";
 
     buildInputs = with pkgs; [
-      go
+      go_1_27
       # The Taskfiles call `wails3`; run the version pinned in go.mod.
       (writeShellScriptBin "wails3" ''exec go tool wails3 "$@"'')
 

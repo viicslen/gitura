@@ -57,25 +57,25 @@
         # Native build inputs required for CGO compilation.
         nativeBuildInputs = [ pkgs.pkg-config ]
           ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
-            pkgs.webkitgtk_4_1.dev
-            pkgs.gtk3.dev
+            pkgs.webkitgtk_6_0.dev
+            pkgs.gtk4.dev
             pkgs.libsecret.dev
             pkgs.glib.dev
           ];
 
         # Runtime build inputs (native libraries linked into the binary).
         buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
-          pkgs.webkitgtk_4_1
+          pkgs.webkitgtk_6_0
           pkgs.libsecret
-          pkgs.gtk3
+          pkgs.gtk4
           pkgs.glib
-          # WebKitGTK 2.54 paints nothing when no GSettings schemas are found (e.g. launched from a desktop entry).
+          # WebKitGTK paints nothing when no GSettings schemas are found (e.g. launched from a desktop entry).
           pkgs.gsettings-desktop-schemas
         ];
       in
       {
         packages = {
-          default = pkgs.buildGoModule {
+          default = pkgs.buildGo127Module {
             pname = "gitura";
             inherit version;
 
@@ -86,7 +86,7 @@
 
             inherit buildInputs;
             nativeBuildInputs = nativeBuildInputs
-              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.copyDesktopItems pkgs.wrapGAppsHook3 ];
+              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.copyDesktopItems pkgs.wrapGAppsHook4 ];
             nativeCheckInputs = [ pkgs.git ];
 
             # Copy the pre-built frontend assets so //go:embed picks them up.
@@ -96,8 +96,7 @@
 
             env.CGO_ENABLED = "1";
 
-            # Mirrors `wails build`: desktop+production are mandatory; webkit2_41 selects webkit2gtk-4.1.
-            tags = [ "desktop" "production" "webkit2_41" ];
+            tags = [ "production" ];
 
             ldflags = [ "-s" "-w" ];
 
@@ -119,7 +118,7 @@
             '';
 
             meta = with pkgs.lib; {
-              description = "GitHub PR review desktop application built with Wails + Vue 3";
+              description = "GitHub PR review desktop application built with Wails v3 + Vue 3";
               homepage = "https://github.com/viicslen/gitura";
               mainProgram = "gitura";
               platforms = platforms.linux ++ platforms.darwin;
