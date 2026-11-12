@@ -32,7 +32,7 @@
 
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
-          outputHash = "sha256-+Tf+JXQwuwSAJB7UaqXjnfKtf/vO6cFY27vCJEyXzMw=";
+          outputHash = "sha256-N6jbjzjyuqT5LysKgJMaPX8a0MS5DsUM5GhhE5dgtd4=";
         };
 
         # Build the Vue/Vite frontend and expose the dist directory.
@@ -57,17 +57,17 @@
         # Native build inputs required for CGO compilation.
         nativeBuildInputs = [ pkgs.pkg-config ]
           ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
-            pkgs.webkitgtk_4_1.dev
-            pkgs.gtk3.dev
+            pkgs.webkitgtk_6_0.dev
+            pkgs.gtk4.dev
             pkgs.libsecret.dev
             pkgs.glib.dev
           ];
 
         # Runtime build inputs (native libraries linked into the binary).
         buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
-          pkgs.webkitgtk_4_1
+          pkgs.webkitgtk_6_0
           pkgs.libsecret
-          pkgs.gtk3
+          pkgs.gtk4
           pkgs.glib
           # WebKitGTK 2.54 paints nothing when no GSettings schemas are found (e.g. launched from a desktop entry).
           pkgs.gsettings-desktop-schemas
@@ -82,11 +82,11 @@
             src = ./.;
 
             # Compute by running: nix build .#packages.<system>.default 2>&1 | grep "got:"
-            vendorHash = "sha256-1o+/i1i+Vtftj5sttj/3Ovuz3QboW343GDDXX4wS4rs=";
+            vendorHash = "sha256-5f97Q5pNnngjdbQbur0KHaBWAEFsPWFwxoeYf6p8sUQ=";
 
             inherit buildInputs;
             nativeBuildInputs = nativeBuildInputs
-              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.copyDesktopItems pkgs.wrapGAppsHook3 ];
+              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.copyDesktopItems pkgs.wrapGAppsHook4 ];
             nativeCheckInputs = [ pkgs.git ];
 
             # Copy the pre-built frontend assets so //go:embed picks them up.
@@ -96,8 +96,8 @@
 
             env.CGO_ENABLED = "1";
 
-            # Mirrors `wails build`: desktop+production are mandatory; webkit2_41 selects webkit2gtk-4.1.
-            tags = [ "desktop" "production" "webkit2_41" ];
+            # Mirrors `wails3 build`.
+            tags = [ "production" ];
 
             ldflags = [ "-s" "-w" ];
 
