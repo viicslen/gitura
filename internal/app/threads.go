@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 
 	"gitura/internal/ghapi"
 	"gitura/internal/logger"
@@ -168,7 +168,7 @@ func (a *App) updateIssueCommentBody(id int64, expected, next string) error {
 	if err := bodyConflict(c.GetBody(), expected); err != nil {
 		return err
 	}
-	if _, _, err = a.ghClient.Issues.EditComment(a.ctx, a.prOwner, a.prRepo, id, &github.IssueComment{Body: &next}); err != nil {
+	if _, _, err = a.ghClient.Issues.UpdateComment(a.ctx, a.prOwner, a.prRepo, id, github.IssueCommentRequest{Body: next}); err != nil {
 		return fmt.Errorf("github: edit comment: %w", err)
 	}
 	for i := range a.issueComments {
@@ -187,7 +187,7 @@ func (a *App) updateReviewCommentBody(id int64, expected, next string) error {
 	if err := bodyConflict(c.GetBody(), expected); err != nil {
 		return err
 	}
-	if _, _, err = a.ghClient.PullRequests.EditComment(a.ctx, a.prOwner, a.prRepo, id, &github.PullRequestComment{Body: &next}); err != nil {
+	if _, _, err = a.ghClient.PullRequests.UpdateComment(a.ctx, a.prOwner, a.prRepo, id, github.UpdatePullRequestCommentRequest{Body: next}); err != nil {
 		return fmt.Errorf("github: edit review comment: %w", err)
 	}
 	for i := range a.threads {

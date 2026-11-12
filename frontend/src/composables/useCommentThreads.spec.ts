@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from 'vitest'
 import { nextTick } from 'vue'
 
 const GetCommentThreads = vi.fn()
-vi.mock('@/wailsjs/go/app/App', () => ({
+vi.mock('@/bindings/gitura/internal/app/app', () => ({
   LoadPR: vi.fn().mockResolvedValue({ number: 1 }),
   GetCommentThreads: (...a: unknown[]) => GetCommentThreads(...a),
 }))
-vi.mock('@/wailsjs/runtime/runtime', () => ({ EventsOn: () => () => {} }))
+vi.mock('@wailsio/runtime', () => ({ Events: { On: () => () => {} } }))
 
 const { useCommentThreads } = await import('./useCommentThreads')
 

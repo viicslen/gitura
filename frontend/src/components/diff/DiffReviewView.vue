@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { errorMessage } from '@/lib/utils'
 import { onMounted, computed, nextTick, provide, ref, watch, watchEffect } from 'vue'
-import { ChevronLeft, ChevronRight, Copy, Send, SlidersHorizontal, Trash2 } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Copy, Send, SlidersHorizontal, Trash2 } from '@lucide/vue'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
@@ -21,12 +22,12 @@ import { useDiffReview } from '@/composables/useDiffReview'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
 import { useReviewTabs } from '@/composables/useReviewTabs'
 import { useKeybindings, keyLabel } from '@/composables/useKeybindings'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 import type { UnsentComments } from '@/lib/diffLayout'
 import { toast } from 'vue-sonner'
 import { useLocalStorage, useWindowSize } from '@vueuse/core'
-import { GetCommands, GetDefaultCommandName, RunCommands } from '@/wailsjs/go/app/App'
-import { ClipboardSetText } from '@/wailsjs/runtime/runtime'
+import { GetCommands, GetDefaultCommandName, RunCommands } from '@/bindings/gitura/internal/app/app'
+import { Clipboard } from '@wailsio/runtime'
 import { formatLocalReview } from '@/lib/localReview'
 import { isTestFile } from '@/lib/testFiles'
 
@@ -113,7 +114,7 @@ async function toggleViewed(path: string, viewed: boolean): Promise<void> {
   try {
     await saving
   } catch (err) {
-    toast.error(`Could not update viewed state for ${path}: ${String(err)}`)
+    toast.error(`Could not update viewed state for ${path}: ${errorMessage(err)}`)
   }
 }
 
@@ -121,7 +122,7 @@ async function markViewed(paths: string[], viewed: boolean): Promise<void> {
   try {
     await setViewedMany(paths, viewed)
   } catch (err) {
-    toast.error(`Could not update viewed state: ${String(err)}`)
+    toast.error(`Could not update viewed state: ${errorMessage(err)}`)
   }
 }
 
@@ -220,7 +221,7 @@ async function postComment(comment: model.DraftCommentDTO, mode: 'draft' | 'imme
     }
     return true
   } catch (err) {
-    toast.error(String(err))
+    toast.error(errorMessage(err))
     return false
   }
 }
@@ -236,7 +237,7 @@ async function handleSubmitReview(): Promise<void> {
     toast('Review submitted')
     emit('threads-changed')
   } catch (err) {
-    toast.error(String(err))
+    toast.error(errorMessage(err))
   } finally {
     submitLoading.value = false
   }
@@ -256,13 +257,17 @@ async function openLocalPanel(): Promise<void> {
       commandName.value = commands.value.some((c) => c.name === fallback) ? fallback : commands.value[0]?.name ?? ''
     }
   } catch (err) {
-    toast.error('Could not load commands: ' + String(err))
+    toast.error('Could not load commands: ' + errorMessage(err))
   }
 }
 
 async function copyLocalReview(): Promise<void> {
-  if (await ClipboardSetText(localMarkdown.value)) toast('Comments copied as markdown')
-  else toast.error('Could not copy to the clipboard')
+  try {
+    await Clipboard.SetText(localMarkdown.value)
+    toast('Comments copied as markdown')
+  } catch {
+    toast.error('Could not copy to the clipboard')
+  }
 }
 
 async function sendLocalReview(): Promise<void> {
@@ -273,7 +278,7 @@ async function sendLocalReview(): Promise<void> {
     submitPanelOpen.value = false
     emit('ran')
   } catch (err) {
-    toast.error(String(err))
+    toast.error(errorMessage(err))
   } finally {
     submitLoading.value = false
   }
@@ -287,7 +292,7 @@ async function handleDiscardReview(): Promise<void> {
     discardDialogOpen.value = false
     toast('Review discarded')
   } catch (err) {
-    toast.error(String(err))
+    toast.error(errorMessage(err))
   } finally {
     discardLoading.value = false
   }

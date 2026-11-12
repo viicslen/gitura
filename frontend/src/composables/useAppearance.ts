@@ -1,7 +1,8 @@
 import { reactive, readonly, ref, watchEffect } from 'vue'
 import { toast } from 'vue-sonner'
-import { GetAppearance, ListSystemFonts, SetAppearance } from '@/wailsjs/go/app/App'
-import type { model } from '@/wailsjs/go/models'
+import { GetAppearance, ListSystemFonts, SetAppearance } from '@/bindings/gitura/internal/app/app'
+import type * as model from '@/bindings/gitura/internal/model'
+import { errorMessage } from '@/lib/utils'
 
 interface Option {
   value: string
@@ -106,7 +107,7 @@ export async function setAppearance(key: AppearanceKey, value: string) {
     await SetAppearance({ ...state })
   } catch (e: unknown) {
     state[key] = previous
-    toast.error('Could not save appearance: ' + String(e))
+    toast.error('Could not save appearance: ' + errorMessage(e))
   } finally {
     saving.value = false
   }

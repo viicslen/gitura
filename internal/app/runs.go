@@ -95,11 +95,7 @@ func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunC
 				a.runCancelsMu.Unlock()
 			}()
 			result := runner.Run(ctx, c, input, lp, func(stream string, chunk string) {
-				a.emit("command:run:output", map[string]string{
-					"run_id": rID,
-					"stream": stream,
-					"chunk":  chunk,
-				})
+				a.emit("command:run:output", model.RunOutput{RunID: rID, Stream: stream, Chunk: chunk})
 			})
 			result.RunID = rID
 			result.Running = false

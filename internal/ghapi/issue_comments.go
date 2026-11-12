@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 
 	"gitura/internal/model"
 )
@@ -13,7 +13,7 @@ import (
 // FetchIssueComments fetches all general pull request comments (issue comments).
 // Errors are prefixed with "github:".
 func FetchIssueComments(ctx context.Context, client *github.Client, owner, repo string, number int) ([]model.IssueCommentDTO, error) {
-	opts := &github.IssueListCommentsOptions{ListOptions: github.ListOptions{PerPage: 100}}
+	opts := &github.IssueListCommentsOptions{PerPage: 100}
 	var all []*github.IssueComment
 	for {
 		comments, resp, err := client.Issues.ListComments(ctx, owner, repo, number, opts)

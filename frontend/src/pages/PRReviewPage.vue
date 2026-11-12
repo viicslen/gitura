@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { errorMessage } from '@/lib/utils'
 import { onMounted, reactive, ref, computed, watch, watchEffect, provide } from 'vue'
-import { RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen, ChevronUp, ChevronDown, GitMerge } from 'lucide-vue-next'
+import { RefreshCw, ChevronLeft, ChevronRight, Terminal, FolderOpen, ChevronUp, ChevronDown, GitMerge } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -20,8 +21,8 @@ import { useCommentThreads } from '@/composables/useCommentThreads'
 import { useRuns } from '@/composables/useRuns'
 import { useAuth } from '@/composables/useAuth'
 import type { PRRef } from '@/types/pr'
-import type { model } from '@/wailsjs/go/models'
-import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, MergePR, ClosePR } from '@/wailsjs/go/app/App'
+import type * as model from '@/bindings/gitura/internal/model'
+import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
 import { toast } from 'vue-sonner'
 import { useReviewTabs } from '@/composables/useReviewTabs'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
@@ -136,7 +137,7 @@ async function refreshOverview(): Promise<void> {
   try {
     overview.value = await GetPROverview(showResolvedReviews.value)
   } catch (err) {
-    toast.error('Could not load overview: ' + String(err))
+    toast.error('Could not load overview: ' + errorMessage(err))
   }
 }
 
@@ -163,7 +164,7 @@ async function refreshPRView(): Promise<void> {
     await loadPR()
     await diffReviewRef.value?.reload()
   } catch (err) {
-    toast.error('Could not refresh PR data: ' + String(err))
+    toast.error('Could not refresh PR data: ' + errorMessage(err))
   } finally {
     refreshing.value = false
   }
@@ -192,7 +193,7 @@ async function runAction(): Promise<void> {
     toast.success(action === 'close' ? 'Pull request closed' : 'Pull request merged')
     await refreshPRView()
   } catch (err) {
-    actionError.value = String(err)
+    actionError.value = errorMessage(err)
   } finally {
     actionRunning.value = false
   }
@@ -228,7 +229,7 @@ async function browseForPath(): Promise<void> {
       await saveLocalPath(selected)
     }
   } catch (err) {
-    toast.error('Could not open folder picker: ' + String(err))
+    toast.error('Could not open folder picker: ' + errorMessage(err))
   }
 }
 
@@ -243,7 +244,7 @@ watch(showResolvedReviews, async (value) => {
   try {
     overview.value = await GetPROverview(value)
   } catch (err) {
-    toast.error('Could not update overview: ' + String(err))
+    toast.error('Could not update overview: ' + errorMessage(err))
   }
 })
 
@@ -252,7 +253,7 @@ watch(prSummary, async (summary) => {
   try {
     overview.value = await GetPROverview(showResolvedReviews.value)
   } catch (err) {
-    toast.error('Could not load overview: ' + String(err))
+    toast.error('Could not load overview: ' + errorMessage(err))
   }
 })
 

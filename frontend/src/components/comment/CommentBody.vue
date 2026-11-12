@@ -14,8 +14,8 @@ import CodeBlockWithRunner from '@/components/run/CodeBlockWithRunner.vue'
 import { parseCodeBlocks } from '@/lib/codeBlocks'
 import { countTaskListItems } from '@/lib/markdown'
 import type { TaskToggle } from '@/lib/taskList'
-import type { model } from '@/wailsjs/go/models'
-import { RunCommands } from '@/wailsjs/go/app/App'
+import type * as model from '@/bindings/gitura/internal/model'
+import { RunCommands } from '@/bindings/gitura/internal/app/app'
 
 const props = defineProps<{
   content: string

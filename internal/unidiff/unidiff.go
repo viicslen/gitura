@@ -16,7 +16,7 @@ func ParseHunks(patch string) []model.DiffHunkDTO {
 	var cur *model.DiffHunkDTO
 	oldLine, newLine := 0, 0
 
-	for _, line := range strings.Split(patch, "\n") {
+	for line := range strings.SplitSeq(patch, "\n") {
 		if strings.HasPrefix(line, "@@") {
 			if cur != nil {
 				hunks = append(hunks, *cur)

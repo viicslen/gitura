@@ -17,8 +17,8 @@ import (
 
 // makeFileContentJSON builds a minimal GitHub REST /contents response for a
 // text file encoded as standard base64.
-func makeFileContentJSON(path, sha, rawText string) map[string]interface{} {
-	return map[string]interface{}{
+func makeFileContentJSON(path, sha, rawText string) map[string]any {
+	return map[string]any{
 		"type":     "file",
 		"encoding": "base64",
 		"name":     path,
@@ -30,13 +30,13 @@ func makeFileContentJSON(path, sha, rawText string) map[string]interface{} {
 }
 
 // makeUpdateFileRespJSON builds a minimal GitHub REST /contents PUT response.
-func makeUpdateFileRespJSON(commitSHA, htmlURL string) map[string]interface{} {
-	return map[string]interface{}{
-		"commit": map[string]interface{}{
+func makeUpdateFileRespJSON(commitSHA, htmlURL string) map[string]any {
+	return map[string]any{
+		"commit": map[string]any{
 			"sha":      commitSHA,
 			"html_url": htmlURL,
 		},
-		"content": map[string]interface{}{
+		"content": map[string]any{
 			"name": "test.go",
 			"sha":  "new-content-sha",
 		},
@@ -75,7 +75,7 @@ func TestCommitSuggestion_Success_ReturnsCommitSHA(t *testing.T) {
 
 	result, err := CommitSuggestion(
 		context.Background(),
-		newTestClient(srv),
+		newTestClient(t, srv),
 		"owner", "repo", "main", "test.go",
 		comment, "Apply suggestion",
 	)
@@ -110,7 +110,7 @@ func TestCommitSuggestion_Conflict_ReturnsConflictError(t *testing.T) {
 
 	_, err := CommitSuggestion(
 		context.Background(),
-		newTestClient(srv),
+		newTestClient(t, srv),
 		"owner", "repo", "main", "test.go",
 		comment, "Apply suggestion",
 	)
@@ -183,7 +183,7 @@ func TestCommitSuggestion_MultiLineSuggestion_AppliesCorrectRange(t *testing.T) 
 
 	result, err := CommitSuggestion(
 		context.Background(),
-		newTestClient(srv),
+		newTestClient(t, srv),
 		"o", "r", "main", "file.go",
 		comment, "Apply multi-line suggestion",
 	)
@@ -227,7 +227,7 @@ func TestCommitSuggestion_FileNotFound_ReturnsNotFoundError(t *testing.T) {
 
 	_, err := CommitSuggestion(
 		context.Background(),
-		newTestClient(srv),
+		newTestClient(t, srv),
 		"owner", "repo", "main", "missing.go",
 		comment, "Apply suggestion",
 	)
@@ -261,7 +261,7 @@ func TestCommitSuggestion_UpdateFileError_ReturnsGithubError(t *testing.T) {
 
 	_, err := CommitSuggestion(
 		context.Background(),
-		newTestClient(srv),
+		newTestClient(t, srv),
 		"owner", "repo", "main", "test.go",
 		comment, "Apply suggestion",
 	)

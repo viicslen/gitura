@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 import SplitRunButton from './SplitRunButton.vue'
 import { useRuns } from '@/composables/useRuns'
 

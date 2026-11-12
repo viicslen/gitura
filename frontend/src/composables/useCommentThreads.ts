@@ -1,9 +1,10 @@
 import { ref, computed, watch } from 'vue'
-import { EventsOn } from '@/wailsjs/runtime/runtime'
-import * as App from '@/wailsjs/go/app/App'
-import type { model } from '@/wailsjs/go/models'
+import { Events } from '@wailsio/runtime'
+import * as App from '@/bindings/gitura/internal/app/app'
+import type * as model from '@/bindings/gitura/internal/model'
 import type { PRRef } from '@/types/pr'
 import { toast } from 'vue-sonner'
+import { errorMessage } from '@/lib/utils'
 
 export interface LoadProgress {
   loaded: number
@@ -64,7 +65,7 @@ export function useCommentThreads(prItem: PRRef) {
     const progressHandler = (progress: LoadProgress) => {
       loadProgress.value = progress
     }
-    const unsubscribeProgress = EventsOn('pr:load-progress', progressHandler)
+    const unsubscribeProgress = Events.On('pr:load-progress', (ev) => progressHandler(ev.data))
 
     try {
       prSummary.value = await App.LoadPR(prItem.owner, prItem.repo, prItem.number)
@@ -72,7 +73,7 @@ export function useCommentThreads(prItem: PRRef) {
       const index = refreshing ? queue.value.findIndex((t) => t.root_id === openRootId) : -1
       if (index >= 0) currentIndex.value = index
     } catch (err) {
-      error.value = String(err)
+      error.value = errorMessage(err)
     } finally {
       loading.value = false
       unsubscribeProgress()
@@ -88,7 +89,7 @@ export function useCommentThreads(prItem: PRRef) {
     try {
       threads.value = await App.ReloadReviewActivity()
     } catch (err) {
-      toast.error('Could not refresh comments: ' + String(err))
+      toast.error('Could not refresh comments: ' + errorMessage(err))
     }
   }
 
@@ -104,7 +105,7 @@ export function useCommentThreads(prItem: PRRef) {
       await App.ResolveThread(rootId)
     } catch (err) {
       thread.resolved = false
-      toast.error('Could not resolve conversation: ' + String(err))
+      toast.error('Could not resolve conversation: ' + errorMessage(err))
     }
   }
 
@@ -120,7 +121,7 @@ export function useCommentThreads(prItem: PRRef) {
       await App.UnresolveThread(rootId)
     } catch (err) {
       thread.resolved = true
-      toast.error('Could not unresolve conversation: ' + String(err))
+      toast.error('Could not unresolve conversation: ' + errorMessage(err))
     }
   }
 
@@ -140,7 +141,7 @@ export function useCommentThreads(prItem: PRRef) {
     try {
       threads.value = await App.GetCommentThreads(true)
     } catch (err) {
-      error.value = String(err)
+      error.value = errorMessage(err)
     }
   }
 

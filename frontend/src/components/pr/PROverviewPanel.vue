@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 import PlainMarkdownBody from '@/components/markdown/PlainMarkdownBody.vue'
 import EditableComment from '@/components/comment/EditableComment.vue'
 import { Badge } from '@/components/ui/badge'
@@ -66,7 +66,7 @@ function formatTimestamp(iso: string): string {
 }
 
 function reviewLabel(review: model.ReviewDTO): string {
-  const number = props.overview?.review_numbers?.[review.review_id]
+  const number = props.overview?.review_numbers?.[`${review.review_id}`]
   return number ? `Review ${number}` : 'Review'
 }
 

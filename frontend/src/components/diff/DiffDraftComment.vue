@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { inject } from 'vue'
 import MarkdownBody from '@/components/markdown/MarkdownBody.vue'
 import EditableComment from '@/components/comment/EditableComment.vue'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 
 export type DraftActions = {
   indexOf: (draft: model.DraftCommentDTO) => number

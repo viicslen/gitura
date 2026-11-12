@@ -7,7 +7,7 @@ vi.mock('@/lib/markdown', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/lib/markdown')>()
   return { ...real, renderGitHubMarkdown: vi.fn(real.renderGitHubMarkdown) }
 })
-import { model } from '@/wailsjs/go/models'
+import * as model from '@/bindings/gitura/internal/model'
 
 const thread = model.CommentThreadDTO.createFrom({
   root_id: 1,

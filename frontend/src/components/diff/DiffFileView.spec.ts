@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
 import type { UnsentComments } from '@/lib/diffLayout'
 import DiffFileView from './DiffFileView.vue'
-import { model } from '@/wailsjs/go/models'
+import * as model from '@/bindings/gitura/internal/model'
 
 const ctx = (n: number) => ({ type: 'context', old_no: n, new_no: n, content: `line ${n}` })
 const file = model.PRFileDTO.createFrom({ filename: 'a.ts', status: 'modified', additions: 0, deletions: 0, changes: 0, is_binary: false })

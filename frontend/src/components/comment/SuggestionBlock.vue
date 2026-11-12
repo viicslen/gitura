@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { errorMessage } from '@/lib/utils'
 import { ref } from 'vue'
-import type { model } from '@/wailsjs/go/models'
-import { CommitSuggestion } from '@/wailsjs/go/app/App'
+import type * as model from '@/bindings/gitura/internal/model'
+import { CommitSuggestion } from '@/bindings/gitura/internal/app/app'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, GitCommit, Loader2 } from 'lucide-vue-next'
+import { CheckCircle2, GitCommit, Loader2 } from '@lucide/vue'
 
 const props = defineProps<{
   comment: model.ReviewCommentDTO
@@ -58,7 +59,7 @@ async function handleCommit() {
     showInput.value = false
     emit('committed', result)
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = errorMessage(e)
     if (msg.includes('github:conflict')) {
       error.value = 'Conflict: the file has changed since this suggestion was made. Please re-review the latest version.'
     } else if (msg.startsWith('validation:')) {

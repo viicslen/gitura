@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 
 	"gitura/internal/logger"
 	"gitura/internal/model"
@@ -191,11 +191,10 @@ func (a *App) PostImmediateComment(comment model.DraftCommentDTO) (model.ReviewC
 		return model.ReviewCommentDTO{}, fmt.Errorf("notfound: no PR loaded; call LoadPR first")
 	}
 
-	commitSHA := a.prCache.HeadSHA
-	prComment := &github.PullRequestComment{
-		Path:     &comment.Path,
-		Body:     &comment.Body,
-		CommitID: &commitSHA,
+	prComment := github.CreatePullRequestCommentRequest{
+		Path:     comment.Path,
+		Body:     comment.Body,
+		CommitID: a.prCache.HeadSHA,
 		Line:     &comment.Line,
 		Side:     &comment.Side,
 	}

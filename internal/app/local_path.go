@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"gitura/internal/db"
 )
@@ -68,13 +68,15 @@ func (a *App) SetPRLocalPath(owner, repo string, number int, localPath string) e
 // OpenFolderPicker opens a native OS folder picker dialog and returns the
 // selected directory path, or an empty string if the user cancels.
 func (a *App) OpenFolderPicker(title string, defaultDir string) (string, error) {
-	opts := runtime.OpenDialogOptions{
-		Title:            title,
-		DefaultDirectory: defaultDir,
+	dialog := application.Get().Dialog.OpenFile()
+	if w, ok := mainWindow(); ok {
+		dialog.AttachToWindow(w)
 	}
-	selected, err := runtime.OpenDirectoryDialog(a.ctx, opts)
-	if err != nil {
-		return "", err
-	}
-	return selected, nil
+	return dialog.
+		CanChooseFiles(false).
+		CanChooseDirectories(true).
+		CanCreateDirectories(true).
+		SetTitle(title).
+		SetDirectory(defaultDir).
+		PromptForSingleSelection()
 }

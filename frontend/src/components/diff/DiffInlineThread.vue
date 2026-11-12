@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ChevronDown, ChevronRight, CheckCircle2, MessageSquare } from 'lucide-vue-next'
-import type { model } from '@/wailsjs/go/models'
+import { ChevronDown, ChevronRight, CheckCircle2, MessageSquare } from '@lucide/vue'
+import type * as model from '@/bindings/gitura/internal/model'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import MarkdownBody from '@/components/markdown/MarkdownBody.vue'

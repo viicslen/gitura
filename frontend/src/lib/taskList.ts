@@ -1,7 +1,8 @@
 import { nextTick } from 'vue'
 import { toast } from 'vue-sonner'
-import { UpdateBodyIfUnchanged } from '@/wailsjs/go/app/App'
+import { UpdateBodyIfUnchanged } from '@/bindings/gitura/internal/app/app'
 import { setTaskListItem } from '@/lib/markdown'
+import { errorMessage } from '@/lib/utils'
 
 export type TaskToggle = (index: number, checked: boolean) => Promise<void>
 export type TaskSource = 'pr_body' | 'issue_comment' | 'review_comment' | 'review'
@@ -44,7 +45,7 @@ export async function onTaskChange(event: Event, toggle?: TaskToggle, offset = 0
     container?.querySelector<HTMLInputElement>(`input[data-task-index="${index}"]`)?.focus()
   } catch (err) {
     box.checked = !box.checked
-    toast.error('Could not update checkbox: ' + String(err))
+    toast.error('Could not update checkbox: ' + errorMessage(err))
   } finally {
     box.disabled = false
   }

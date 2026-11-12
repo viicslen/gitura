@@ -8,8 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"gitura/internal/ghapi"
 	"gitura/internal/gitlocal"
@@ -67,7 +66,7 @@ func parseArgs(args []string, dir string, usage io.Writer) (launchArgs, error) {
 // ConfigureLaunch applies the command line: it queues the PR or local changes to open and, unless
 // --new-window is given, makes later launches hand their PR to this window and exit.
 // It returns flag.ErrHelp for -h. It is a function, not a method, so Wails doesn't bind it.
-func ConfigureLaunch(opts *options.App, a *App, args []string, dir string, usage io.Writer) error {
+func ConfigureLaunch(opts *application.Options, a *App, args []string, dir string, usage io.Writer) error {
 	la, err := parseArgs(args, dir, usage)
 	if err != nil {
 		return err
@@ -76,8 +75,8 @@ func ConfigureLaunch(opts *options.App, a *App, args []string, dir string, usage
 	if la.newWindow {
 		return nil
 	}
-	opts.SingleInstanceLock = &options.SingleInstanceLock{
-		UniqueId:               "gitura",
+	opts.SingleInstance = &application.SingleInstanceOptions{
+		UniqueID:               "gitura",
 		OnSecondInstanceLaunch: a.secondInstance,
 	}
 	return nil
@@ -85,10 +84,17 @@ func ConfigureLaunch(opts *options.App, a *App, args []string, dir string, usage
 
 // secondInstance runs when another launch handed over its command line; that process
 // already validated it, so a parse error here is only logged.
-func (a *App) secondInstance(data options.SecondInstanceData) {
-	runtime.WindowUnminimise(a.ctx)
-	runtime.WindowShow(a.ctx)
-	la, err := parseArgs(data.Args, data.WorkingDirectory, io.Discard)
+func (a *App) secondInstance(data application.SecondInstanceData) {
+	if w, ok := mainWindow(); ok {
+		w.UnMinimise()
+		w.Show()
+		w.Focus()
+	}
+	args := data.Args
+	if len(args) > 0 {
+		args = args[1:] // Wails v3 passes the whole os.Args, executable included
+	}
+	la, err := parseArgs(args, data.WorkingDir, io.Discard)
 	if err != nil {
 		logger.L.Warn("second instance: bad arguments", "args", data.Args, "err", err)
 		return

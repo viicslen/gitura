@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=gitura
+Comment=Review GitHub pull requests
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/gitura %u
+Terminal=false
+Type=Application
+Icon=gitura
+Categories=Utility;
+StartupWMClass=gitura
+
+ 

@@ -57,7 +57,9 @@ func (a *App) PollDeviceFlow() (model.PollResult, error) {
 		} else {
 			logger.L.Info("token saved to keyring")
 		}
-		a.initGHClient(token)
+		if err := a.initGHClient(token); err != nil {
+			return result, err
+		}
 		a.deviceCode = ""
 		a.emit("auth:device-flow-complete")
 		logger.L.Info("auth complete")
@@ -109,14 +111,18 @@ func (a *App) GetAuthState() (model.AuthState, error) {
 	logger.L.Debug("keyring token prefix", "prefix", prefix+"...")
 
 	logger.L.Debug("verifying keyring token via GitHub API")
-	client := ghapi.NewClient(token)
+	client, err := ghapi.NewClient(token)
+	if err != nil {
+		return model.AuthState{IsAuthenticated: false}, fmt.Errorf("github: %w", err)
+	}
 	ghUser, _, err := client.Users.Get(a.ctx, "")
 	if err != nil {
 		logger.L.Warn("keyring token invalid", "err", err)
 		return model.AuthState{IsAuthenticated: false}, nil
 	}
 
-	a.initGHClient(token)
+	a.authToken, a.ghClient = token, client
+	logger.L.Debug("github client initialised")
 	logger.L.Info("GetAuthState: authenticated via keyring", "login", ghUser.GetLogin())
 	return model.AuthState{
 		IsAuthenticated: true,

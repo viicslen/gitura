@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { formatLocalReview } from './localReview'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 
 describe('formatLocalReview', () => {
   it('formats single-line, ranged and old-side comments', () => {

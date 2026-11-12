@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +33,9 @@ func TestUpdateAndDeleteDraftComment_StaleOrBlankThenValid_RejectsThenApplies(t 
 }
 
 func TestAddDraftComment_HeadMovedAfterFirstDraft_KeepsOriginalCommit(t *testing.T) {
-	app := &App{ghClient: github.NewClient(nil), prCache: &model.PullRequestSummary{HeadSHA: "old"}}
+	client, err := github.NewClient()
+	require.NoError(t, err)
+	app := &App{ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "old"}}
 
 	pending, err := app.AddDraftComment(model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "x"})
 	require.NoError(t, err)

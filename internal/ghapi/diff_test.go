@@ -3,7 +3,7 @@ package ghapi
 import (
 	"testing"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,12 +21,12 @@ func TestParseCommitFileDiff_SingleHunk_ParsesAllLineTypes(t *testing.T) {
 	//  context2       (old=3, new=4)
 	patch := "@@ -1,3 +1,4 @@\n context\n-old line\n+new line\n+extra line\n context2"
 	f := &github.CommitFile{
-		Filename:  github.String("main.go"),
-		Status:    github.String("modified"),
-		Additions: github.Int(2),
-		Deletions: github.Int(1),
-		Changes:   github.Int(3),
-		Patch:     github.String(patch),
+		Filename:  new("main.go"),
+		Status:    new("modified"),
+		Additions: new(2),
+		Deletions: new(1),
+		Changes:   new(3),
+		Patch:     new(patch),
 	}
 
 	got := ParseCommitFileDiff(f)
@@ -82,12 +82,12 @@ func TestParseCommitFileDiff_SingleHunk_ParsesAllLineTypes(t *testing.T) {
 func TestParseCommitFileDiff_MultipleHunks_TwoHunksCreated(t *testing.T) {
 	patch := "@@ -1,2 +1,2 @@\n line1\n-old1\n+new1\n@@ -10,2 +10,2 @@\n ctx\n-old2\n+new2"
 	f := &github.CommitFile{
-		Filename:  github.String("file.go"),
-		Status:    github.String("modified"),
-		Additions: github.Int(2),
-		Deletions: github.Int(2),
-		Changes:   github.Int(4),
-		Patch:     github.String(patch),
+		Filename:  new("file.go"),
+		Status:    new("modified"),
+		Additions: new(2),
+		Deletions: new(2),
+		Changes:   new(4),
+		Patch:     new(patch),
 	}
 
 	got := ParseCommitFileDiff(f)
@@ -103,11 +103,11 @@ func TestParseCommitFileDiff_MultipleHunks_TwoHunksCreated(t *testing.T) {
 // non-zero changes count is flagged as binary and has no hunks.
 func TestParseCommitFileDiff_BinaryFile_FlaggedAsBinary(t *testing.T) {
 	f := &github.CommitFile{
-		Filename:  github.String("image.png"),
-		Status:    github.String("modified"),
-		Additions: github.Int(0),
-		Deletions: github.Int(0),
-		Changes:   github.Int(1),
+		Filename:  new("image.png"),
+		Status:    new("modified"),
+		Additions: new(0),
+		Deletions: new(0),
+		Changes:   new(1),
 		// Patch intentionally nil
 	}
 
@@ -121,11 +121,11 @@ func TestParseCommitFileDiff_BinaryFile_FlaggedAsBinary(t *testing.T) {
 // changes is not flagged as binary and has no hunks (e.g. an empty new file).
 func TestParseCommitFileDiff_EmptyFile_NotBinary(t *testing.T) {
 	f := &github.CommitFile{
-		Filename:  github.String("empty.go"),
-		Status:    github.String("added"),
-		Additions: github.Int(0),
-		Deletions: github.Int(0),
-		Changes:   github.Int(0),
+		Filename:  new("empty.go"),
+		Status:    new("added"),
+		Additions: new(0),
+		Deletions: new(0),
+		Changes:   new(0),
 	}
 
 	got := ParseCommitFileDiff(f)
@@ -139,12 +139,12 @@ func TestParseCommitFileDiff_EmptyFile_NotBinary(t *testing.T) {
 func TestParseCommitFileDiff_NoNewlineMarker_Skipped(t *testing.T) {
 	patch := "@@ -1,1 +1,1 @@\n-old\n\\ No newline at end of file\n+new\n\\ No newline at end of file"
 	f := &github.CommitFile{
-		Filename:  github.String("f.go"),
-		Status:    github.String("modified"),
-		Additions: github.Int(1),
-		Deletions: github.Int(1),
-		Changes:   github.Int(2),
-		Patch:     github.String(patch),
+		Filename:  new("f.go"),
+		Status:    new("modified"),
+		Additions: new(1),
+		Deletions: new(1),
+		Changes:   new(2),
+		Patch:     new(patch),
 	}
 
 	got := ParseCommitFileDiff(f)
@@ -159,12 +159,12 @@ func TestParseCommitFileDiff_NoNewlineMarker_Skipped(t *testing.T) {
 // for renamed files.
 func TestParseCommitFileDiff_RenamedFile_PreviousFilenameSet(t *testing.T) {
 	f := &github.CommitFile{
-		Filename:         github.String("new.go"),
-		PreviousFilename: github.String("old.go"),
-		Status:           github.String("renamed"),
-		Additions:        github.Int(0),
-		Deletions:        github.Int(0),
-		Changes:          github.Int(0),
+		Filename:         new("new.go"),
+		PreviousFilename: new("old.go"),
+		Status:           new("renamed"),
+		Additions:        new(0),
+		Deletions:        new(0),
+		Changes:          new(0),
 	}
 
 	got := ParseCommitFileDiff(f)
@@ -178,9 +178,9 @@ func TestParseCommitFileDiff_RenamedFile_PreviousFilenameSet(t *testing.T) {
 // all DTO fields are populated and a patch-less file with changes counts as binary.
 func TestPRFileFromCommitFile_PatchAndBinary_MapsFieldsAndDetectsBinary(t *testing.T) {
 	text := PRFileFromCommitFile(&github.CommitFile{
-		Filename: github.String("main.go"), Status: github.String("modified"),
-		Additions: github.Int(5), Deletions: github.Int(2), Changes: github.Int(7),
-		Patch: github.String("@@ -1 +1 @@\n-old\n+new"),
+		Filename: new("main.go"), Status: new("modified"),
+		Additions: new(5), Deletions: new(2), Changes: new(7),
+		Patch: new("@@ -1 +1 @@\n-old\n+new"),
 	})
 	assert.Equal(t, "main.go", text.Filename)
 	assert.Equal(t, "modified", text.Status)
@@ -190,7 +190,7 @@ func TestPRFileFromCommitFile_PatchAndBinary_MapsFieldsAndDetectsBinary(t *testi
 	assert.False(t, text.IsBinary)
 
 	bin := PRFileFromCommitFile(&github.CommitFile{
-		Filename: github.String("logo.png"), Status: github.String("added"), Changes: github.Int(1),
+		Filename: new("logo.png"), Status: new("added"), Changes: new(1),
 	})
 	assert.Equal(t, "logo.png", bin.Filename)
 	assert.True(t, bin.IsBinary)

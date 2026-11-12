@@ -5,13 +5,11 @@ import (
 	_ "embed"
 	"errors"
 	"flag"
+	"log"
 	"os"
 	"runtime"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/linux"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"gitura/internal/app"
 )
@@ -27,7 +25,26 @@ var appIcon []byte
 func main() {
 	configureLinuxWebView()
 
-	opts := &options.App{
+	a := app.New(githubClientID)
+	opts := application.Options{
+		Name:        "gitura",
+		Description: "Review GitHub pull requests",
+		Services:    []application.Service{application.NewService(a)},
+		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
+		Icon:        appIcon,
+		Mac:         application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+	}
+	if err := app.ConfigureLaunch(&opts, a, os.Args[1:], ".", os.Stderr); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
+		os.Exit(2)
+	}
+	app.Configure(&opts, a)
+
+	wailsApp := application.New(opts)
+	wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:      app.MainWindow,
 		Title:     "gitura",
 		Width:     1280,
 		Height:    800,
@@ -38,22 +55,14 @@ func main() {
 		MaxWidth:         16384,
 		MaxHeight:        16384,
 		Frameless:        true, // the app draws its own title strip and window controls
-		AssetServer:      &assetserver.Options{Assets: assets},
-		BackgroundColour: &options.RGBA{R: 9, G: 9, B: 11, A: 1},
-		// Wails only defaults the GPU policy to Never when Linux options are nil; keep it for GPUs that fail EGL/GBM.
-		Linux: &linux.Options{Icon: appIcon, WebviewGpuPolicy: linux.WebviewGpuPolicyNever},
-	}
-	a := app.New(githubClientID)
-	if err := app.ConfigureLaunch(opts, a, os.Args[1:], ".", os.Stderr); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return
-		}
-		os.Exit(2)
-	}
-	app.Configure(opts, a)
+		BackgroundColour: application.NewRGB(9, 9, 11),
+		URL:              "/",
+		// Keep the GPU policy off for GPUs that fail EGL/GBM.
+		Linux: application.LinuxWindow{Icon: appIcon, WebviewGpuPolicy: application.WebviewGpuPolicyNever},
+	})
 
-	if err := wails.Run(opts); err != nil {
-		println("Error:", err.Error())
+	if err := wailsApp.Run(); err != nil {
+		log.Fatal(err)
 	}
 }
 

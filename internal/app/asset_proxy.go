@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 
 	"gitura/internal/logger"
 )
@@ -116,12 +116,11 @@ func streamRepositoryMarkdownImage(w http.ResponseWriter, r *http.Request, clien
 
 func streamRepositoryMarkdownImageRawAPI(w http.ResponseWriter, r *http.Request, client *github.Client, owner, repo, ref, path string) bool {
 	rawPath := githubContentsRawPath(owner, repo, path, ref)
-	req, err := client.NewRequest(http.MethodGet, rawPath, nil)
+	req, err := client.NewRequest(r.Context(), http.MethodGet, rawPath, nil)
 	if err != nil {
 		logger.L.Warn("markdown image raw api request build failed", "err", err, "request_path", rawPath)
 		return false
 	}
-	req = req.WithContext(r.Context())
 	req.Header.Set("Accept", "application/vnd.github.raw")
 
 	resp, err := client.Client().Do(req)

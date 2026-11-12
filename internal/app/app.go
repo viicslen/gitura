@@ -3,14 +3,13 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
 
-	"github.com/google/go-github/v67/github"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/google/go-github/v93/github"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"gitura/internal/db"
 	"gitura/internal/ghapi"
@@ -18,6 +17,20 @@ import (
 	"gitura/internal/model"
 	"gitura/internal/settings"
 )
+
+// MainWindow names the app's only window.
+const MainWindow = "main"
+
+func init() {
+	application.RegisterEvent[model.RunResult]("command:run:pending")
+	application.RegisterEvent[model.RunResult]("command:run:complete")
+	application.RegisterEvent[model.RunOutput]("command:run:output")
+	application.RegisterEvent[model.LoadProgress]("pr:load-progress")
+	application.RegisterEvent[application.Void]("launch")
+	application.RegisterEvent[application.Void]("auth:device-flow-complete")
+	application.RegisterEvent[application.Void]("auth:device-flow-expired")
+	application.RegisterEvent[application.Void]("local:changed")
+}
 
 // App is the main application struct exposed to Wails.
 type App struct {
@@ -94,19 +107,14 @@ func New(clientID string) *App {
 	}
 }
 
-// Configure wires a into opts; it is a function, not a method, so Wails doesn't bind it.
-// opts.AssetServer must already be set.
-func Configure(opts *options.App, a *App) {
-	opts.OnStartup = a.startup
-	opts.OnDomReady = a.domReady
-	opts.OnBeforeClose = a.beforeClose
-	opts.Bind = []interface{}{a}
-	opts.AssetServer.Middleware = assetserver.Middleware(assetProxyMiddleware(a))
+// Configure wires a's asset proxy into opts; it is a function, not a method, so Wails doesn't bind it.
+func Configure(opts *application.Options, a *App) {
+	opts.Assets.Middleware = assetProxyMiddleware(a)
 }
 
-// startup is called by Wails when the application starts.
-// The context is stored for use with Wails runtime calls.
-func (a *App) startup(ctx context.Context) {
+// ServiceStartup is called by Wails when the application starts; Wails does not bind it.
+// The context is cancelled on shutdown.
+func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	a.ctx = ctx
 	logger.L.Info("app started", "client_id", a.clientID)
 
@@ -128,6 +136,7 @@ func (a *App) startup(ctx context.Context) {
 	if err := a.loadConfig(); err != nil {
 		logger.L.Warn("failed to pre-load config", "err", err)
 	}
+	return nil
 }
 
 // loadConfig loads the full settings config from disk if not yet loaded.
@@ -154,27 +163,31 @@ func (a *App) loadConfig() error {
 	return nil
 }
 
-// domReady is called by Wails after the frontend DOM is ready.
-func (a *App) domReady(_ context.Context) {
-	logger.L.Debug("dom ready")
-}
-
-// beforeClose is called by Wails just before the window closes.
-// Return true to prevent the close; false to allow it.
-func (a *App) beforeClose(_ context.Context) bool {
-	logger.L.Debug("before close")
-	return false
-}
-
 // initGHClient sets up the authenticated GitHub client from a token.
-func (a *App) initGHClient(token string) {
+func (a *App) initGHClient(token string) error {
+	client, err := ghapi.NewClient(token)
+	if err != nil {
+		return fmt.Errorf("github: %w", err)
+	}
 	a.authToken = token
-	a.ghClient = ghapi.NewClient(token)
+	a.ghClient = client
 	logger.L.Debug("github client initialised")
+	return nil
 }
 
-// emit sends a named Wails event to the frontend.
-func (a *App) emit(name string, data ...interface{}) {
+// emit sends a named Wails event to the frontend; data must match the type registered in init.
+func (a *App) emit(name string, data ...any) {
 	logger.L.Debug("emitting event", "event", name)
-	runtime.EventsEmit(a.ctx, name, data...)
+	if wails := application.Get(); wails != nil {
+		wails.Event.Emit(name, data...)
+	}
+}
+
+// mainWindow returns the app window; ok is false before the Wails app exists (e.g. in tests).
+func mainWindow() (application.Window, bool) {
+	wails := application.Get()
+	if wails == nil {
+		return nil, false
+	}
+	return wails.Window.GetByName(MainWindow)
 }

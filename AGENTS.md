@@ -2,11 +2,11 @@
 
 ## Technologies
 
-- **Language**: Go 1.26+
-- **UI Framework**: Wails v2 (WebView-based desktop app)
-- **Frontend**: Vue 3 + TypeScript (Vite)
-- **Component Library**: shadcn-vue + Tailwind CSS v4
-- **GitHub API Client**: `github.com/google/go-github/v67`
+- **Language**: Go 1.27+
+- **UI Framework**: Wails v3.1 (WebView-based desktop app; GTK4 + WebKitGTK 6.0 on Linux). The `wails3` CLI is a Go tool dependency in `go.mod` (the Nix shell wraps it; elsewhere `go install tool` puts it on `PATH`); builds run through `Taskfile.yml`, `build/**/Taskfile.yml` and `build/config.yml`
+- **Frontend**: Vue 3 + TypeScript 6 (Vite); runtime from `@wailsio/runtime`. TypeScript stays on 6.x because vue-tsc cannot run on TypeScript 7 yet
+- **Component Library**: shadcn-vue + Tailwind CSS v4; icons from `@lucide/vue`
+- **GitHub API Client**: `github.com/google/go-github/v93`
 - **Auth**: GitHub OAuth 2.0 Device Flow
 - **Token Storage**: `github.com/zalando/go-keyring`
 - **Testing**: `go test` + `testify`; `httptest` for HTTP fixture recording
@@ -14,17 +14,19 @@
 
 ## Project Structure
 
-See the tree in README.md. Root holds only what tooling requires there: `main.go` and `assets*.go` (`//go:embed` cannot reach parent directories, so they must sit beside `frontend/dist` and `build/`), `wails.json`, `go.mod`, release-please, Nix, lint and just configs.
+See the tree in README.md. Root holds only what tooling requires there: `main.go` and `assets*.go` (`//go:embed` cannot reach parent directories, so they must sit beside `frontend/dist` and `build/`), `Taskfile.yml`, `go.mod`, release-please, Nix, lint and just configs.
 
-- Wails-bound methods live on `App` in `internal/app`; only binding methods may be exported on `App`, since Wails exposes every exported method to the frontend.
+- `App` in `internal/app` is registered as a Wails service; only binding methods may be exported on `App`, since Wails exposes every exported method to the frontend. The exception is `ServiceStartup`, a Wails lifecycle hook that is not bound.
+- Backend→frontend events are registered with typed payloads via `application.RegisterEvent` in `internal/app/app.go`; register any new event there.
+- Generated bindings live in `frontend/src/bindings/` (committed, do not edit); regenerate with `just bindings` after changing a bound method or its types.
 - Go test fixtures go in the package's `testdata/`.
 - Frontend components are grouped by feature folder under `frontend/src/components/`.
 
 ## Commands
 
 ```bash
-# Development (hot-reload)
-wails dev
+# Development (hot-reload; Vite on port 9245, override with WAILS_VITE_PORT)
+just dev
 
 # Frontend package scripts (run from ./frontend)
 bun install
@@ -40,16 +42,16 @@ go test -coverprofile=coverage.out ./...
 # Lint
 golangci-lint run
 
-# Build (current platform)
-wails build
+# Build (current platform) → bin/
+just build
 
-# Regenerate Wails JS bindings
-wails generate module
+# Regenerate the frontend bindings in frontend/src/bindings/
+just bindings   # or: wails3 task common:generate:bindings
 
 # Regenerate sqlc queries after editing internal/db/query.sql or schema.sql
 sqlc generate -f internal/db/sqlc.yaml
 
-# Regenerate build/appicon.png and build/windows/icon.ico from frontend/src/assets/images/logo.svg
+# Regenerate build/appicon.png, build/windows/icon.ico and build/darwin/icons.icns from frontend/src/assets/images/logo.svg
 just icons
 ```
 
@@ -122,15 +124,15 @@ Do not update docs for bug fixes unless the fix changes behavior that was previo
 
 After any code change, run the same checks used by CI before handing off work.
 
-- **Go tests (CI-equivalent)**: `CGO_ENABLED=1 GOFLAGS='-tags=webkit2_41' go test -race -count=1 -coverprofile=coverage.out ./internal/...`
-- **Go lint (CI-equivalent)**: `CGO_ENABLED=1 GOFLAGS='-tags=dev,webkit2_41' golangci-lint run`
-- **Frontend check (CI-equivalent)**: from `frontend/`, run `bun run build`
+- **Go tests (CI-equivalent)**: `CGO_ENABLED=1 go test -race -count=1 -coverprofile=coverage.out ./internal/...`
+- **Go lint (CI-equivalent)**: `CGO_ENABLED=1 GOFLAGS='-tags=dev' golangci-lint run`
+- **Frontend check (CI-equivalent)**: from `frontend/`, run `bun run typecheck && bun run test && bun run build`
 
 If `golangci-lint` is not installed locally, run:
 
-- `CGO_ENABLED=1 GOFLAGS='-tags=dev,webkit2_41' go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run`
+- `CGO_ENABLED=1 GOFLAGS='-tags=dev' go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run`
 
-If you are in a Nix-enabled environment and validation/build commands fail due to missing system dependencies (e.g., WebKit/GTK/libsecret), run the commands inside the repo `shell.nix` environment:
+If you are in a Nix-enabled environment and validation/build commands fail due to missing system dependencies (e.g., GTK4/WebKitGTK 6.0/libsecret), run the commands inside the repo `shell.nix` environment, which provides them along with a `wails3` wrapper for the pinned CLI:
 
 - `nix-shell --run "<your command>"`
 <!-- MANUAL ADDITIONS END -->

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // PRReviewPage teleports Refresh into #title-strip-actions.
-import { ArrowLeft, ExternalLink } from 'lucide-vue-next'
+import { ArrowLeft, ExternalLink } from '@lucide/vue'
 import PRStateBadge from './PRStateBadge.vue'
 import WindowControls from './WindowControls.vue'
 import type { PRRef } from '@/types/pr'

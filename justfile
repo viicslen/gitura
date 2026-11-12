@@ -14,7 +14,7 @@ init:
 
 # Start the development server with hot reload.
 dev client_id=client_id:
-    wails dev -ldflags "-X 'main.githubClientID={{ client_id }}'"
+    GITHUB_CLIENT_ID={{ quote(client_id) }} wails3 dev -config ./build/config.yml
 
 # Build the app for the current platform. Requires GITHUB_CLIENT_ID.
 build client_id=client_id:
@@ -23,23 +23,17 @@ build client_id=client_id:
         echo "Error: client_id is required. Pass it as an argument or set GITHUB_CLIENT_ID."
         exit 1
     fi
-    wails build -ldflags "-X 'main.githubClientID={{ client_id }}'"
+    GITHUB_CLIENT_ID={{ quote(client_id) }} wails3 build
 
-# Rebuild only the Go binary: skips the frontend build and binding generation.
-# Use `just build` after changing the frontend or any method bound to the frontend.
-build-fast client_id=client_id:
-    #!/usr/bin/env sh
-    if [ -z "{{ client_id }}" ]; then
-        echo "Error: client_id is required. Pass it as an argument or set GITHUB_CLIENT_ID."
-        exit 1
-    fi
-    wails build -s -skipbindings -ldflags "-X 'main.githubClientID={{ client_id }}'"
+# Regenerate the frontend bindings after changing a bound method or its types.
+bindings:
+    wails3 task common:generate:bindings
 
 # Type-check the frontend (not part of `build`; CI runs it).
 typecheck:
     cd frontend && bun run typecheck
 
-# Regenerate the app icons from frontend/src/assets/images/logo.svg.
+# Regenerate the app icons (PNG, Windows .ico, macOS .icns) from frontend/src/assets/images/logo.svg.
 icons:
     #!/usr/bin/env sh
     set -eu
@@ -51,3 +45,5 @@ icons:
     magick "$tmp/824.png" -background none -gravity center -extent 1024x1024 build/appicon.png
     for s in 16 24 32 48 64 128 256; do resvg -w "$s" "$src" "$tmp/$s.png"; done
     icotool -c -o build/windows/icon.ico "$tmp/16.png" "$tmp/24.png" "$tmp/32.png" "$tmp/48.png" "$tmp/64.png" "$tmp/128.png" -r "$tmp/256.png"
+    # wails3 always writes a .ico too; the full-bleed one above is kept instead.
+    wails3 generate icons -input build/appicon.png -macfilename build/darwin/icons.icns -windowsfilename "$tmp/unused.ico"

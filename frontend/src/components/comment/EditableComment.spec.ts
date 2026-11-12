@@ -4,7 +4,7 @@ import { reactive, ref } from 'vue'
 
 const update = vi.fn()
 const del = vi.fn()
-vi.mock('@/wailsjs/go/app/App', () => ({
+vi.mock('@/bindings/gitura/internal/app/app', () => ({
   UpdateBodyIfUnchanged: (...a: unknown[]) => update(...a),
   DeleteComment: (...a: unknown[]) => del(...a),
 }))

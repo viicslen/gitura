@@ -1,4 +1,4 @@
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 
 /** Renders local review comments as markdown a coding agent can act on. */
 export function formatLocalReview(comments: model.DraftCommentDTO[]): string {

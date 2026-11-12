@@ -1,4 +1,5 @@
 <script lang="ts">
+import { errorMessage } from '@/lib/utils'
 import { reactive } from 'vue'
 
 // Per thread, shared by every composer showing it (Conversation and Files tabs), so hiding,
@@ -9,8 +10,8 @@ const sendingThreads = reactive<Record<number, boolean>>({})
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { model } from '@/wailsjs/go/models'
-import { ReplyToComment } from '@/wailsjs/go/app/App'
+import type * as model from '@/bindings/gitura/internal/model'
+import { ReplyToComment } from '@/bindings/gitura/internal/app/app'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -44,7 +45,7 @@ async function submit(): Promise<void> {
     if (replyDrafts[rootId] === sent) delete replyDrafts[rootId]
     emit('reply-sent', comment)
   } catch (err) {
-    inlineError.value = String(err)
+    inlineError.value = errorMessage(err)
   } finally {
     delete sendingThreads[rootId]
   }

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, CheckCircle2, XCircle, MinusCircle } from 'lucide-vue-next'
+import { Loader2, CheckCircle2, XCircle, MinusCircle } from '@lucide/vue'
 import { useRuns } from '@/composables/useRuns'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
 
@@ -13,7 +13,7 @@ const props = defineProps<{
   commands: model.CommandDTO[]
   defaultCommandName: string
   /** PR-wide review numbers, so labels match the Overview and don't shift with filters. */
-  reviewNumbers?: Record<number, number>
+  reviewNumbers?: model.PROverviewDTO['review_numbers']
 }>()
 
 const { runsForThread } = useRuns()
@@ -68,7 +68,7 @@ function threadAvatarKey(thread: model.CommentThreadDTO): string {
 }
 
 function reviewLabel(thread: model.CommentThreadDTO): string {
-  const number = props.reviewNumbers?.[thread.review_id]
+  const number = props.reviewNumbers?.[`${thread.review_id}`]
   return number ? `Review ${number}` : 'Single comment'
 }
 </script>

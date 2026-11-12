@@ -34,7 +34,7 @@ func TestFetchIssueComments_Success_ReturnsMappedComments(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	comments, err := FetchIssueComments(context.Background(), newTestClient(srv), "o", "r", 1)
+	comments, err := FetchIssueComments(context.Background(), newTestClient(t, srv), "o", "r", 1)
 	require.NoError(t, err)
 	require.Len(t, comments, 1)
 	assert.Equal(t, int64(101), comments[0].ID)
