@@ -15,8 +15,8 @@ import (
 )
 
 // makePRJSON creates a minimal PR JSON response from the GitHub REST API.
-func makePRJSON(number int, title, state, nodeID, htmlURL, headRef, baseRef, headSHA string, isDraft bool) map[string]interface{} {
-	return map[string]interface{}{
+func makePRJSON(number int, title, state, nodeID, htmlURL, headRef, baseRef, headSHA string, isDraft bool) map[string]any {
+	return map[string]any{
 		"id":       int64(number) * 100,
 		"number":   number,
 		"title":    title,
@@ -25,12 +25,12 @@ func makePRJSON(number int, title, state, nodeID, htmlURL, headRef, baseRef, hea
 		"node_id":  nodeID,
 		"html_url": htmlURL,
 		"body":     "PR body",
-		"labels":   []map[string]interface{}{{"name": "bug", "color": "d73a4a", "description": "Something isn't working"}},
-		"head": map[string]interface{}{
+		"labels":   []map[string]any{{"name": "bug", "color": "d73a4a", "description": "Something isn't working"}},
+		"head": map[string]any{
 			"ref": headRef,
 			"sha": headSHA,
 		},
-		"base": map[string]interface{}{
+		"base": map[string]any{
 			"ref": baseRef,
 		},
 	}
@@ -50,7 +50,7 @@ func TestFetchPR_Success_MapsAllFields(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	summary, err := FetchPR(context.Background(), client, "owner", "repo", 42)
 	require.NoError(t, err)
 	require.NotNil(t, summary)
@@ -80,7 +80,7 @@ func TestFetchPR_Draft_SetsDraftTrue(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	summary, err := FetchPR(context.Background(), client, "o", "r", 1)
 	require.NoError(t, err)
 	assert.True(t, summary.IsDraft)
@@ -96,7 +96,7 @@ func TestFetchPR_NotFound_ReturnsNotFoundError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	_, err := FetchPR(context.Background(), client, "owner", "repo", 99)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "notfound:")
@@ -112,7 +112,7 @@ func TestFetchPR_NetworkError_ReturnsGithubError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	_, err := FetchPR(context.Background(), client, "owner", "repo", 42)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "github:")
@@ -126,7 +126,7 @@ func TestFetchPR_Merged_ReportsMergedState(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	summary, err := FetchPR(context.Background(), newTestClient(srv), "owner", "repo", 42)
+	summary, err := FetchPR(context.Background(), newTestClient(t, srv), "owner", "repo", 42)
 	require.NoError(t, err)
 	assert.Equal(t, "merged", summary.State)
 }
@@ -143,7 +143,7 @@ func TestMergePR_LoadedPR_SendsMethodAndHeadSHA(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	require.NoError(t, MergePR(context.Background(), newTestClient(srv), "owner", "repo", 42, "abc", "squash"))
+	require.NoError(t, MergePR(context.Background(), newTestClient(t, srv), "owner", "repo", 42, "abc", "squash"))
 }
 
 func TestMergePR_HeadMoved_ReturnsGithubError(t *testing.T) {
@@ -153,7 +153,7 @@ func TestMergePR_HeadMoved_ReturnsGithubError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	err := MergePR(context.Background(), newTestClient(srv), "owner", "repo", 42, "abc", "merge")
+	err := MergePR(context.Background(), newTestClient(t, srv), "owner", "repo", 42, "abc", "merge")
 	require.ErrorContains(t, err, "github:")
 }
 
@@ -168,5 +168,5 @@ func TestClosePR_LoadedPR_PatchesStateClosed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	require.NoError(t, ClosePR(context.Background(), newTestClient(srv), "owner", "repo", 42))
+	require.NoError(t, ClosePR(context.Background(), newTestClient(t, srv), "owner", "repo", 42))
 }

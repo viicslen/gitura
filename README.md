@@ -12,8 +12,8 @@ and hand a comment straight to your coding agent — without a browser tab in si
 [![CI](https://github.com/viicslen/gitura/actions/workflows/ci.yml/badge.svg)](https://github.com/viicslen/gitura/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/viicslen/gitura)](https://github.com/viicslen/gitura/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](#license)
-[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![Wails](https://img.shields.io/badge/Wails-v2-DF0000)](https://wails.io)
+[![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![Wails](https://img.shields.io/badge/Wails-v3-DF0000)](https://v3.wails.io)
 
 <img src="https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-review-dark.png" alt="gitura review view" width="900">
 
@@ -76,7 +76,7 @@ See [Development](#development).
 | Platform | Dependencies                        |
 | -------- | ----------------------------------- |
 | macOS    | None beyond the app bundle          |
-| Linux    | `libwebkit2gtk-4.1`, `libsecret-1`  |
+| Linux    | `libgtk-4-1`, `libwebkitgtk-6.0-4`, `libsecret-1` |
 | Windows  | None beyond the app bundle          |
 
 ### Environment
@@ -117,39 +117,41 @@ The token lives in the OS native keychain — never on disk, never in logs.
 
 ### Prerequisites
 
-- Go 1.26+
+- Go 1.27+
 - [Bun](https://bun.sh) (the frontend workspace is Bun-managed)
-- [Wails v2 CLI](https://wails.io/docs/gettingstarted/installation): `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
-- On Linux: `libwebkit2gtk-4.1-dev`, `libsecret-1-dev`, `libgtk-3-dev`
+- The [Wails v3](https://v3.wails.io) CLI, pinned as a Go tool in `go.mod`: the `just` recipes and Taskfiles call `wails3`, so outside the Nix shell run `go install tool` once to put that version on your `PATH`
+- On Linux: `libgtk-4-dev`, `libwebkitgtk-6.0-dev`, `libsecret-1-dev`
 
-A Nix flake is provided — `nix develop` (or `direnv allow`) gives you all of the above.
+A Nix flake is provided — `nix develop` (or `direnv allow`) gives you all of the above, plus a `wails3` wrapper for the pinned CLI.
 
 ### Common tasks
 
 ```sh
-just dev      # hot-reload dev server (injects GITHUB_CLIENT_ID from .env)
-just build    # build for the current platform → build/bin/
+just dev       # hot-reload dev server (injects GITHUB_CLIENT_ID from .env)
+just build     # build for the current platform → bin/
+just bindings  # regenerate frontend/src/bindings/ after changing a bound method or its types
 ```
+
+Builds run through the Taskfiles (`Taskfile.yml`, `build/`), which skip steps whose inputs haven't changed.
 
 ```sh
 # CI-equivalent checks
-CGO_ENABLED=1 GOFLAGS='-tags=webkit2_41' go test -race -count=1 ./internal/...
-CGO_ENABLED=1 GOFLAGS='-tags=dev,webkit2_41' golangci-lint run
-cd frontend && bun run build
+CGO_ENABLED=1 go test -race -count=1 -coverprofile=coverage.out ./internal/...
+CGO_ENABLED=1 GOFLAGS='-tags=dev' golangci-lint run
+cd frontend && bun run typecheck && bun run test && bun run build
 ```
 
-`just dev` also serves the UI at `http://localhost:34115` for browser devtools.
-
-> **Note**: Wails v2 does not support cross-compilation. Build each platform natively.
+> **Note**: build each platform natively; the app needs cgo (SQLite, and GTK/WebKit on Linux).
 
 ## Project structure
 
 ```text
 .
-├── main.go                 # wails.Run() entry point: window options, app icon
+├── main.go                 # Wails application entry point: window options, app icon
+├── Taskfile.yml            # Wails build/dev/package tasks (includes build/**/Taskfile.yml)
 ├── assets.go, assets_dev.go # Embedded frontend/dist (production) or none (dev, build tag)
 ├── internal/
-│   ├── app/                # Wails-bound App, one file per domain (auth, pr, threads, pending_review, …)
+│   ├── app/                # App, bound as a Wails service; one file per domain (auth, pr, threads, pending_review, …)
 │   ├── auth/               # GitHub OAuth 2.0 Device Flow
 │   ├── db/                 # SQLite app state (sqlc.yaml + generated queries)
 │   ├── fonts/              # System font listing
@@ -167,8 +169,8 @@ cd frontend && bun run build
 │   ├── lib/                # Framework-free helpers (markdown, highlight, fileTree, …)
 │   ├── pages/              # AuthPage, PRListPage, PRReviewPage, LocalReviewPage, SettingsPage
 │   ├── types/              # Shared frontend types
-│   └── wailsjs/            # Generated Wails bindings (do not edit)
-└── build/                  # App icons and platform manifests used by `wails build`
+│   └── bindings/           # Generated Wails bindings (`just bindings`; do not edit)
+└── build/                  # config.yml, platform Taskfiles, icons and packaging assets used by `wails3`
 ```
 
 Go test fixtures live next to their package in `testdata/`.

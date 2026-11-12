@@ -304,6 +304,19 @@ type RunContext struct {
 	CommentID    int64 `json:"comment_id,omitempty"`
 }
 
+// RunOutput is a chunk of a running command's output; Stream is "stdout" or "stderr".
+type RunOutput struct {
+	RunID  string `json:"run_id"`
+	Stream string `json:"stream"`
+	Chunk  string `json:"chunk"`
+}
+
+// LoadProgress reports how many review threads of Total have loaded; Total is -1 while unknown.
+type LoadProgress struct {
+	Loaded int `json:"loaded"`
+	Total  int `json:"total"`
+}
+
 // RunResult holds the outcome of a single command execution.
 // Running is true while the goroutine has not yet completed; the frontend
 // should treat it as a live/pending entry until a completion event arrives.

@@ -9,17 +9,11 @@
  */
 import { ref, readonly, computed } from 'vue'
 import type { ComputedRef } from 'vue'
-import { EventsOn } from '@/wailsjs/runtime/runtime'
-import { CancelRun } from '@/wailsjs/go/app/App'
-import type { model } from '@/wailsjs/go/models'
+import { Events } from '@wailsio/runtime'
+import { CancelRun } from '@/bindings/gitura/internal/app/app'
+import type * as model from '@/bindings/gitura/internal/model'
 
 export type Run = model.RunResult
-
-type RunOutputEvent = {
-  run_id: string
-  stream: 'stdout' | 'stderr'
-  chunk: string
-}
 
 type BufferedOutput = {
   stdout: string
@@ -69,11 +63,11 @@ function subscribe(): void {
   if (subscribed) return
   subscribed = true
 
-  EventsOn('command:run:pending', (result: Run) => {
+  Events.On('command:run:pending', ({ data: result }) => {
     runs.value.unshift({ ...result })
   })
 
-  EventsOn('command:run:complete', (result: Run) => {
+  Events.On('command:run:complete', ({ data: result }) => {
     outputBuffers.delete(result.run_id)
 
     const idx = runs.value.findIndex((r) => r.run_id === result.run_id)
@@ -85,7 +79,7 @@ function subscribe(): void {
     }
   })
 
-  EventsOn('command:run:output', (payload: RunOutputEvent) => {
+  Events.On('command:run:output', ({ data: payload }) => {
     const idx = runs.value.findIndex((r) => r.run_id === payload.run_id)
     if (idx === -1) {
       return

@@ -19,7 +19,7 @@ func List(ctx context.Context) ([]string, error) {
 
 func parse(out string) []string {
 	families := []string{}
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if f := strings.TrimSpace(line); f != "" {
 			families = append(families, f)
 		}

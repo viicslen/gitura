@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { usePRFilters } from './usePRFilters'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 
 function pr(owner: string, repo: string, number = 1): model.PRListItem {
   return {

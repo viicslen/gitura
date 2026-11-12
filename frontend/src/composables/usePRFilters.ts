@@ -1,5 +1,5 @@
 import { ref, computed, readonly, watch } from 'vue'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 
 // ── Module-level singleton state ─────────────────────────────────────────────
 // Declared outside the exported function so all component mounts share the same

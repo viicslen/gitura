@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '@/lib/utils'
 import { ref, onMounted } from 'vue'
 import {
   GetIgnoredCommenters,
@@ -9,13 +10,13 @@ import {
   RemoveCommand,
   GetDefaultCommandName,
   SetDefaultCommandName,
-} from '@/wailsjs/go/app/App'
-import type { model } from '@/wailsjs/go/models'
+} from '@/bindings/gitura/internal/app/app'
+import type * as model from '@/bindings/gitura/internal/model'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw } from 'lucide-vue-next'
+import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw } from '@lucide/vue'
 import {
   useAppearance,
   setAppearance,
@@ -61,12 +62,12 @@ onMounted(async () => {
   try {
     commenters.value = await GetIgnoredCommenters()
   } catch (e: unknown) {
-    loadError.value = e instanceof Error ? e.message : String(e)
+    loadError.value = errorMessage(e)
   }
   try {
     commands.value = await GetCommands()
   } catch (e: unknown) {
-    loadCmdError.value = e instanceof Error ? e.message : String(e)
+    loadCmdError.value = errorMessage(e)
   }
   try {
     defaultCommandName.value = await GetDefaultCommandName()
@@ -88,7 +89,7 @@ async function handleAdd() {
     commenters.value = await GetIgnoredCommenters()
     newLogin.value = ''
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = errorMessage(e)
     addError.value = msg.replace('validation:', '').trim() || 'Failed to add commenter.'
   } finally {
     adding.value = false
@@ -172,7 +173,7 @@ async function handleAddCommand() {
     newCmdName.value = ''
     newCmdCommand.value = ''
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = errorMessage(e)
     addCmdError.value = msg.replace('validation:', '').trim() || 'Failed to add command.'
   } finally {
     addingCmd.value = false

@@ -1,8 +1,9 @@
 import { ref, computed } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
 import { isTestFile } from '@/lib/testFiles'
-import * as App from '@/wailsjs/go/app/App'
-import type { model } from '@/wailsjs/go/models'
+import * as App from '@/bindings/gitura/internal/app/app'
+import type * as model from '@/bindings/gitura/internal/model'
+import { errorMessage } from '@/lib/utils'
 
 /**
  * useDiffReview provides reactive state and actions for the diff review view.
@@ -78,7 +79,7 @@ export function useDiffReview() {
         await selectFile(startFile.value.filename)
       }
     } catch (err) {
-      filesError.value = String(err)
+      filesError.value = errorMessage(err)
     } finally {
       filesLoading.value = false
     }
@@ -91,7 +92,7 @@ export function useDiffReview() {
       for (const f of files.value) if (!viewedSaving.value.has(f.filename)) f.viewed = viewed.has(f.filename)
       viewedError.value = ''
     } catch (err) {
-      viewedError.value = String(err)
+      viewedError.value = errorMessage(err)
     }
   }
 
@@ -110,7 +111,7 @@ export function useDiffReview() {
       const diff = await App.GetFileDiff(path)
       if (request === diffRequest) currentDiff.value = diff
     } catch (err) {
-      if (request === diffRequest) diffError.value = String(err)
+      if (request === diffRequest) diffError.value = errorMessage(err)
     } finally {
       if (request === diffRequest) diffLoading.value = false
     }
@@ -158,7 +159,7 @@ export function useDiffReview() {
     try {
       pendingReview.value = await App.AddDraftComment(comment)
     } catch (err) {
-      throw new Error(String(err))
+      throw new Error(errorMessage(err))
     }
   }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildSplitLayout, diffLineKeys, mapOffset, syncScrollTop, type PaneItem } from './diffLayout'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 
 const ctx = (o: number, n: number) => ({ type: 'context', old_no: o, new_no: n, content: `c${o}` })
 const del = (o: number) => ({ type: 'delete', old_no: o, new_no: 0, content: `d${o}` })

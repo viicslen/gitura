@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MsixPackagingToolTemplate
+    xmlns="http://schemas.microsoft.com/msix/packaging/msixpackagingtool/template/2022">
+    <Settings
+        AllowTelemetry="false"
+        ApplyACLsToPackageFiles="true"
+        GenerateCommandLineFile="true"
+        AllowPromptForPassword="false">
+    </Settings>
+    <Installer
+        Path="gitura"
+        Arguments=""
+        InstallLocation="C:\Program Files\viicslen\gitura">
+    </Installer>
+    <PackageInformation
+        PackageName="gitura"
+        PackageDisplayName="gitura"
+        PublisherName="CN=viicslen"
+        PublisherDisplayName="viicslen"
+        Version="0.14.0.0"
+        PackageDescription="A gitura application">
+        <Capabilities>
+            <Capability Name="runFullTrust" />
+            
+        </Capabilities>
+        <Applications>
+            <Application
+                Id="io.github.viicslen.gitura"
+                Description="A gitura application"
+                DisplayName="gitura"
+                ExecutableName="gitura"
+                EntryPoint="Windows.FullTrustApplication">
+                
+            </Application>
+        </Applications>
+        <Resources>
+            <Resource Language="en-us" />
+        </Resources>
+        <Dependencies>
+            <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
+        </Dependencies>
+        <Properties>
+            <Framework>false</Framework>
+            <DisplayName>gitura</DisplayName>
+            <PublisherDisplayName>viicslen</PublisherDisplayName>
+            <Description>A gitura application</Description>
+            <Logo>Assets\AppIcon.png</Logo>
+        </Properties>
+    </PackageInformation>
+    <SaveLocation PackagePath="gitura.msix" />
+    <PackageIntegrity>
+        <CertificatePath></CertificatePath>
+    </PackageIntegrity>
+</MsixPackagingToolTemplate>

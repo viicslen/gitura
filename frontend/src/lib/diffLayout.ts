@@ -1,4 +1,4 @@
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 
 export type Side = 'LEFT' | 'RIGHT'
 

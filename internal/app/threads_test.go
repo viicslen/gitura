@@ -4,10 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,8 +31,10 @@ func TestReplyToComment_ThreadsReloadedDuringRequest_KeepsReply(t *testing.T) {
 		_, _ = w.Write([]byte(`{"id": 99, "body": "reply", "pull_request_review_id": 7}`))
 	}))
 	defer srv.Close()
-	app.ghClient = github.NewClient(nil)
-	app.ghClient.BaseURL, _ = url.Parse(srv.URL + "/")
+	base := srv.URL + "/"
+	var err error
+	app.ghClient, err = github.NewClient(github.WithURLs(&base, nil))
+	require.NoError(t, err)
 
 	dto, err := app.ReplyToComment(10, "reply")
 	require.NoError(t, err)
@@ -60,8 +61,10 @@ func TestDeleteComment_OnlyReviewComment_DropsCommentAndThread(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
-	app.ghClient = github.NewClient(nil)
-	app.ghClient.BaseURL, _ = url.Parse(srv.URL + "/")
+	base := srv.URL + "/"
+	var err error
+	app.ghClient, err = github.NewClient(github.WithURLs(&base, nil))
+	require.NoError(t, err)
 
 	require.NoError(t, app.DeleteComment("review_comment", 5))
 	require.NoError(t, app.DeleteComment("review_comment", 11))

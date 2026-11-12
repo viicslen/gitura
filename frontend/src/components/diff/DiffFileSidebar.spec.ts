@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import DiffFileSidebar from './DiffFileSidebar.vue'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 
 const files = ['src/a.ts', 'src/b.ts', 'README.md'].map(
   (filename) => ({ filename, status: 'modified', additions: 1, deletions: 0, viewed: false }) as model.PRFileDTO,

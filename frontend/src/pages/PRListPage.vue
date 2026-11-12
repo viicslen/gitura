@@ -334,10 +334,11 @@
 </template>
 
 <script setup lang="ts">
+import { errorMessage } from '@/lib/utils'
 import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
 import { toast } from 'vue-sonner'
-import { RefreshCw, GitPullRequest, GitPullRequestDraft, Filter, FolderGit2 } from 'lucide-vue-next'
+import { RefreshCw, GitPullRequest, GitPullRequestDraft, Filter, FolderGit2 } from '@lucide/vue'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -346,8 +347,8 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePRFilters } from '@/composables/usePRFilters'
-import * as App from '@/wailsjs/go/app/App'
-import type { model } from '@/wailsjs/go/models'
+import * as App from '@/bindings/gitura/internal/app/app'
+import type * as model from '@/bindings/gitura/internal/model'
 import type { PRRef } from '@/types/pr'
 
 const props = defineProps<{
@@ -369,7 +370,7 @@ async function openLocalReview(): Promise<void> {
     lastLocalDir.value = path
     emit('open-local', path)
   } catch (err) {
-    toast.error('Could not open folder picker: ' + String(err))
+    toast.error('Could not open folder picker: ' + errorMessage(err))
   }
 }
 
@@ -535,7 +536,7 @@ async function fetchPRs(background = false): Promise<void> {
     }
   } catch (e) {
     if (thisId !== filters.requestId.value) return
-    errorMsg.value = String(e)
+    errorMsg.value = errorMessage(e)
   } finally {
     if (thisId === filters.requestId.value) {
       loading.value = false

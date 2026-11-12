@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,8 +19,8 @@ import (
 // ── httptest helpers ────────────────────────────────────────────────────────
 
 // searchResponse builds a minimal GitHub Search API response body.
-func searchResponse(items []map[string]interface{}, total int, incomplete bool) string {
-	body := map[string]interface{}{
+func searchResponse(items []map[string]any, total int, incomplete bool) string {
+	body := map[string]any{
 		"total_count":        total,
 		"incomplete_results": incomplete,
 		"items":              items,
@@ -38,27 +38,27 @@ func makeIssueJSON(
 	updatedAt time.Time,
 	assignees []string,
 	requestedReviewers []string,
-) map[string]interface{} {
-	assigneeList := make([]map[string]interface{}, 0, len(assignees))
+) map[string]any {
+	assigneeList := make([]map[string]any, 0, len(assignees))
 	for _, a := range assignees {
-		assigneeList = append(assigneeList, map[string]interface{}{"login": a})
+		assigneeList = append(assigneeList, map[string]any{"login": a})
 	}
-	reviewerList := make([]map[string]interface{}, 0, len(requestedReviewers))
+	reviewerList := make([]map[string]any, 0, len(requestedReviewers))
 	for _, r := range requestedReviewers {
-		reviewerList = append(reviewerList, map[string]interface{}{"login": r})
+		reviewerList = append(reviewerList, map[string]any{"login": r})
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"number":              number,
 		"title":               title,
 		"html_url":            htmlURL,
 		"repository_url":      repoURL,
-		"user":                map[string]interface{}{"login": authorLogin},
+		"user":                map[string]any{"login": authorLogin},
 		"draft":               isDraft,
 		"created_at":          updatedAt.Add(-24 * time.Hour).Format(time.RFC3339),
 		"updated_at":          updatedAt.Format(time.RFC3339),
 		"assignees":           assigneeList,
 		"requested_reviewers": reviewerList,
-		"pull_request":        map[string]interface{}{"url": "https://api.github.com/repos/owner/repo/pulls/1"},
+		"pull_request":        map[string]any{"url": "https://api.github.com/repos/owner/repo/pulls/1"},
 	}
 }
 
@@ -74,11 +74,11 @@ func TestRunQuery_SinglePage_ReturnsAllIssues(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{item}, 1, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{item}, 1, false))
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	issues, incomplete, err := runQuery(context.Background(), client, "is:pr is:open")
 	require.NoError(t, err)
 	assert.False(t, incomplete)
@@ -91,11 +91,11 @@ func TestRunQuery_SinglePage_ReturnsAllIssues(t *testing.T) {
 func TestRunQuery_IncompleteResults_SetsFlag(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, true))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{}, 0, true))
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	_, incomplete, err := runQuery(context.Background(), client, "is:pr is:open")
 	require.NoError(t, err)
 	assert.True(t, incomplete)
@@ -114,16 +114,12 @@ func TestRunQuery_RateLimited_ReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	_, _, err := runQuery(context.Background(), client, "is:pr is:open")
 	require.Error(t, err)
 }
 
 // ── issueToItem tests ────────────────────────────────────────────────────────
-
-func strPtr(s string) *string { return &s }
-func intPtr(i int) *int       { return &i }
-func boolPtr(b bool) *bool    { return &b }
 
 func makeTimestamp(t time.Time) *github.Timestamp {
 	ts := github.Timestamp{Time: t}
@@ -137,16 +133,16 @@ func makeIssue(
 	updatedAt time.Time,
 ) *github.Issue {
 	return &github.Issue{
-		Number:        intPtr(number),
-		Title:         strPtr(title),
-		HTMLURL:       strPtr(htmlURL),
-		RepositoryURL: strPtr(repoURL),
-		User:          &github.User{Login: strPtr(authorLogin)},
-		Draft:         boolPtr(isDraft),
+		Number:        new(number),
+		Title:         new(title),
+		HTMLURL:       new(htmlURL),
+		RepositoryURL: new(repoURL),
+		User:          &github.User{Login: new(authorLogin)},
+		Draft:         new(isDraft),
 		CreatedAt:     makeTimestamp(updatedAt.Add(-24 * time.Hour)),
 		UpdatedAt:     makeTimestamp(updatedAt),
 		PullRequestLinks: &github.PullRequestLinks{
-			URL: strPtr("https://api.github.com/repos/owner/repo/pulls/1"),
+			URL: new("https://api.github.com/repos/owner/repo/pulls/1"),
 		},
 	}
 }
@@ -186,7 +182,7 @@ func TestIssueToItem_DraftIssue_SetsDraftTrue(t *testing.T) {
 func TestIssueToItem_AssigneeTag_SetWhenLoginInAssignees(t *testing.T) {
 	issue := makeIssue(1, "T", "https://github.com/o/r/pull/1",
 		"https://api.github.com/repos/o/r", "alice", false, time.Now())
-	issue.Assignees = []*github.User{{Login: strPtr("bob")}}
+	issue.Assignees = []*github.User{{Login: new("bob")}}
 
 	item, ok := issueToItem(issue, "bob")
 	require.True(t, ok)
@@ -241,11 +237,11 @@ func TestSearchOpenPRs_SingleQuery_UsesInvolvesQualifier(t *testing.T) {
 		callCount++
 		capturedQuery = r.URL.Query().Get("q")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{}, 0, false))
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{
 		IncludeAuthor:   true,
 		IncludeAssignee: true,
@@ -267,11 +263,11 @@ func TestSearchOpenPRs_FieldMapping_MapsIssueToItem(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{pr}, 1, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{pr}, 1, false))
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{IncludeAuthor: true}
 	result, err := SearchOpenPRs(context.Background(), client, "bob", filters)
 	require.NoError(t, err)
@@ -302,11 +298,11 @@ func TestSearchOpenPRs_InvolvementTags_AssigneeAndReviewer(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{prAssigned, prReviewer}, 2, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{prAssigned, prReviewer}, 2, false))
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{IncludeAuthor: true, IncludeAssignee: true, IncludeReviewer: true}
 	result, err := SearchOpenPRs(context.Background(), client, "bob", filters)
 	require.NoError(t, err)
@@ -336,7 +332,7 @@ func TestSearchOpenPRs_RateLimit_ReturnsMappedResult(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{IncludeAuthor: true}
 	result, err := SearchOpenPRs(context.Background(), client, "alice", filters)
 	require.NoError(t, err)
@@ -356,11 +352,11 @@ func TestSearchOpenPRs_MultipleResults_SortsByUpdatedAtDesc(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{prOld, prNew}, 2, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{prOld, prNew}, 2, false))
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{IncludeAuthor: true}
 	result, err := SearchOpenPRs(context.Background(), client, "alice", filters)
 	require.NoError(t, err)
@@ -379,7 +375,7 @@ func TestSearchOpenPRs_GenericError_ReturnsMappedResult(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{IncludeAuthor: true}
 	result, err := SearchOpenPRs(context.Background(), client, "alice", filters)
 	require.NoError(t, err)
@@ -396,7 +392,7 @@ func TestSearchOpenPRs_BadRequest_ReturnsSearchError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{IncludeAuthor: true}
 	result, err := SearchOpenPRs(context.Background(), client, "alice", filters)
 	require.NoError(t, err)
@@ -410,11 +406,11 @@ func TestSearchOpenPRs_IncludeDrafts_OmitsDraftFalseQualifier(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedQuery = r.URL.Query().Get("q")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{}, 0, false))
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{IncludeAuthor: true, IncludeDrafts: true}
 	_, err := SearchOpenPRs(context.Background(), client, "alice", filters)
 	require.NoError(t, err)
@@ -428,11 +424,11 @@ func TestSearchOpenPRs_ExcludeDrafts_AddsDraftFalseQualifier(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedQuery = r.URL.Query().Get("q")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{}, 0, false))
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{IncludeAuthor: true, IncludeDrafts: false}
 	_, err := SearchOpenPRs(context.Background(), client, "alice", filters)
 	require.NoError(t, err)
@@ -450,7 +446,7 @@ func TestSearchOpenPRs_AbuseLimitRetryAfter_ReturnsMappedResult(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	filters := model.PRListFilters{IncludeAuthor: true}
 	result, err := SearchOpenPRs(context.Background(), client, "alice", filters)
 	require.NoError(t, err)
@@ -464,11 +460,11 @@ func TestSearchOpenPRs_NoFiltersAppliedServerSide_RepoNotInQuery(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedQuery = r.URL.Query().Get("q")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, searchResponse([]map[string]interface{}{}, 0, false))
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{}, 0, false))
 	}))
 	defer srv.Close()
 
-	client := newTestClient(srv)
+	client := newTestClient(t, srv)
 	// Even with repo/org/author set, they must NOT appear in the API query.
 	filters := model.PRListFilters{
 		IncludeAuthor: true,

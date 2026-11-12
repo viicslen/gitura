@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 const replyToComment = vi.fn()
-vi.mock('@/wailsjs/go/app/App', () => ({ ReplyToComment: (...a: unknown[]) => replyToComment(...a) }))
+vi.mock('@/bindings/gitura/internal/app/app', () => ({ ReplyToComment: (...a: unknown[]) => replyToComment(...a) }))
 
 import ReplyComposer from './ReplyComposer.vue'
 

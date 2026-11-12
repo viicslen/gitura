@@ -1,15 +1,16 @@
 <script setup lang="ts">
+import { errorMessage } from '@/lib/utils'
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
-import { RefreshCw, Terminal } from 'lucide-vue-next'
+import { RefreshCw, Terminal } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DiffReviewView from '@/components/diff/DiffReviewView.vue'
 import RunPanel from '@/components/run/RunPanel.vue'
 import type { UnsentComments } from '@/lib/diffLayout'
-import { StartLocalReview, StopLocalReview } from '@/wailsjs/go/app/App'
-import { EventsOn } from '@/wailsjs/runtime/runtime'
+import { StartLocalReview, StopLocalReview } from '@/bindings/gitura/internal/app/app'
+import { Events } from '@wailsio/runtime'
 
 const props = defineProps<{ path: string }>()
 
@@ -27,7 +28,7 @@ async function start(): Promise<void> {
     await StartLocalReview(props.path, base.value)
     started.value = true
   } catch (err) {
-    error.value = String(err)
+    error.value = errorMessage(err)
   }
 }
 
@@ -46,7 +47,7 @@ async function reload(): Promise<void> {
       await diffReviewRef.value?.reload()
     } while (reloadAgain)
   } catch (err) {
-    toast.error('Could not refresh local changes: ' + String(err))
+    toast.error('Could not refresh local changes: ' + errorMessage(err))
   } finally {
     refreshing.value = false
   }
@@ -57,7 +58,7 @@ watch([base, () => props.path], async () => {
   if (!error.value) await reload()
 })
 
-const offChanged = EventsOn('local:changed', () => void reload())
+const offChanged = Events.On('local:changed', () => void reload())
 onMounted(start)
 onUnmounted(() => {
   offChanged()

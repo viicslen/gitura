@@ -1,4 +1,5 @@
 <script lang="ts">
+import { errorMessage } from '@/lib/utils'
 import { reactive } from 'vue'
 
 // Shared by every view of a comment, so switching tabs keeps an unsaved edit.
@@ -8,11 +9,11 @@ const edits = reactive<Record<string, { base: string; text: string; saving?: boo
 
 <script setup lang="ts">
 import { computed, inject, ref, type Ref } from 'vue'
-import { Pencil, Trash2 } from 'lucide-vue-next'
+import { Pencil, Trash2 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DeleteComment, UpdateBodyIfUnchanged } from '@/wailsjs/go/app/App'
+import { DeleteComment, UpdateBodyIfUnchanged } from '@/bindings/gitura/internal/app/app'
 import type { TaskSource } from '@/lib/taskList'
 
 const props = defineProps<{
@@ -47,7 +48,7 @@ async function remove(): Promise<void> {
       await onDeleted()
     }
   } catch (err) {
-    deleteError.value = String(err)
+    deleteError.value = errorMessage(err)
   } finally {
     deleting.value = false
   }
@@ -71,7 +72,7 @@ async function save(): Promise<void> {
     props.target.body = await (props.save ?? ((base, next) => UpdateBodyIfUnchanged(props.kind, props.id, base, next)))(e.base, e.text)
     delete edits[key.value]
   } catch (err) {
-    error.value = String(err)
+    error.value = errorMessage(err)
   } finally {
     e.saving = false
   }

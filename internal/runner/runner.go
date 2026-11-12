@@ -221,8 +221,7 @@ func applyRunResult(result *model.RunResult, ctx context.Context, runErr error) 
 		return
 	}
 
-	var exitErr *exec.ExitError
-	if errors.As(runErr, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](runErr); ok {
 		result.ExitCode = exitErr.ExitCode()
 
 		return

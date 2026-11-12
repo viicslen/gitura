@@ -4,5 +4,5 @@ package main
 
 import "embed"
 
-// assets is unused in dev mode; Wails serves frontend files directly.
+// assets is empty under the dev tag, so linting works without a frontend build.
 var assets embed.FS

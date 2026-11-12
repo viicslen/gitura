@@ -89,7 +89,7 @@ import {
   CardContent,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BrowserOpenURL } from '@/wailsjs/runtime/runtime'
+import { Browser } from '@wailsio/runtime'
 import { useAuth } from '@/composables/useAuth'
 
 const { deviceFlowInfo, polling, error, startDeviceFlow } = useAuth()
@@ -103,7 +103,7 @@ async function handleStart() {
 
 function handleOpenGitHub() {
   if (deviceFlowInfo.value) {
-    BrowserOpenURL(deviceFlowInfo.value.verification_uri)
+    void Browser.OpenURL(deviceFlowInfo.value.verification_uri)
   }
 }
 

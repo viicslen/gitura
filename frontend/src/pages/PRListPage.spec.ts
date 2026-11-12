@@ -20,7 +20,7 @@ function pr(owner: string, repo: string, number: number) {
   }
 }
 
-vi.mock('@/wailsjs/go/app/App', () => ({
+vi.mock('@/bindings/gitura/internal/app/app', () => ({
   ListOpenPRs: () => Promise.resolve({ items: [pr('FmTod', 'app', 1), pr('FmTod2', 'config', 2)] }),
 }))
 

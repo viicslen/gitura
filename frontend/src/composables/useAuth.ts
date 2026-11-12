@@ -1,7 +1,8 @@
 import { ref, readonly } from 'vue'
-import * as App from '@/wailsjs/go/app/App'
-import { EventsOn, BrowserOpenURL } from '@/wailsjs/runtime/runtime'
-import type { model } from '@/wailsjs/go/models'
+import * as App from '@/bindings/gitura/internal/app/app'
+import { Browser, Events } from '@wailsio/runtime'
+import type * as model from '@/bindings/gitura/internal/model'
+import { errorMessage } from '@/lib/utils'
 
 // Shared reactive state (module-level singleton).
 const authState = ref<model.AuthState>({ is_authenticated: false, login: '', avatar_url: '' })
@@ -33,7 +34,7 @@ async function refreshAuthState() {
   try {
     authState.value = await App.GetAuthState()
   } catch (e) {
-    error.value = String(e)
+    error.value = errorMessage(e)
   }
 }
 
@@ -57,7 +58,7 @@ async function pollDeviceFlow() {
     // plain 'pending' → keep existing timer
   } catch (e) {
     stopPolling()
-    error.value = String(e)
+    error.value = errorMessage(e)
   }
 }
 
@@ -77,7 +78,7 @@ export function useAuth() {
       deviceFlowInfo.value = info
 
       // Open the verification URL in the user's default browser.
-      BrowserOpenURL(info.verification_uri)
+      void Browser.OpenURL(info.verification_uri)
 
       // Begin polling at the interval GitHub specifies.
       pollIntervalMs = (info.interval || 5) * 1000
@@ -85,7 +86,7 @@ export function useAuth() {
 
       restartPolling()
     } catch (e) {
-      error.value = String(e)
+      error.value = errorMessage(e)
     }
   }
 
@@ -98,7 +99,7 @@ export function useAuth() {
       deviceFlowInfo.value = null
       stopPolling()
     } catch (e) {
-      error.value = String(e)
+      error.value = errorMessage(e)
     }
   }
 
@@ -115,7 +116,7 @@ export function useAuth() {
 }
 
 /** Subscribe to auth:device-flow-complete at the module level (once). */
-EventsOn('auth:device-flow-complete', async () => {
+Events.On('auth:device-flow-complete', async () => {
   const info = await App.GetAuthState().catch(
     () => ({ is_authenticated: false, login: '', avatar_url: '' } as model.AuthState),
   )
@@ -129,7 +130,7 @@ EventsOn('auth:device-flow-complete', async () => {
  * Stops polling and surfaces an expired message so the UI can prompt
  * the user to restart the device flow.
  */
-EventsOn('auth:device-flow-expired', () => {
+Events.On('auth:device-flow-expired', () => {
   stopPolling()
   deviceFlowInfo.value = null
   error.value =

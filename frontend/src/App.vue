@@ -70,6 +70,7 @@
 </template>
 
 <script setup lang="ts">
+import { errorMessage } from '@/lib/utils'
 import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import AuthPage from '@/pages/AuthPage.vue'
@@ -80,12 +81,12 @@ import SettingsPage from '@/pages/SettingsPage.vue'
 import ThemeToggle from '@/components/shell/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
-import { TakeLaunch } from '@/wailsjs/go/app/App'
+import { TakeLaunch } from '@/bindings/gitura/internal/app/app'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
 import { buildAvatarProxyURL } from '@/lib/avatar'
 import type { PRRef } from '@/types/pr'
-import { BrowserOpenURL, EventsOn } from '@/wailsjs/runtime/runtime'
+import { Browser, Events } from '@wailsio/runtime'
 import SideRail from '@/components/shell/SideRail.vue'
 import TitleStrip from '@/components/shell/TitleStrip.vue'
 
@@ -118,11 +119,11 @@ async function openLaunch() {
     if (pr) handleOpenReview({ owner: pr.owner, repo: pr.repo, number: pr.number, title: pr.title, state: pr.state, is_draft: pr.is_draft, html_url: pr.html_url })
     else if (launch?.local_path) handleOpenLocal(launch.local_path)
   } catch (e) {
-    toast.error('Could not open: ' + String(e))
+    toast.error('Could not open: ' + errorMessage(e))
   }
 }
 watch(() => authState.value.is_authenticated, openLaunch)
-EventsOn('launch', openLaunch)
+Events.On('launch', openLaunch)
 
 async function handleLogout() {
   await logout()
@@ -159,7 +160,7 @@ function handleUpdatePRMeta(meta: PRRef) {
 function openPRInBrowser() {
   const url = reviewNavMeta.value?.html_url
   if (!url) return
-  BrowserOpenURL(url)
+  void Browser.OpenURL(url)
 }
 
 // Links in rendered comments would otherwise navigate the app window itself away.
@@ -169,7 +170,7 @@ function openExternalLink(event: MouseEvent): void {
   const url = new URL(link.href, location.href)
   if (url.origin === location.origin || !/^(https?|mailto):$/.test(url.protocol)) return
   event.preventDefault()
-  BrowserOpenURL(url.href)
+  void Browser.OpenURL(url.href)
 }
 useEventListener(document, 'click', openExternalLink)
 useEventListener(document, 'auxclick', openExternalLink)

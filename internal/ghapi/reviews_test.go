@@ -45,7 +45,7 @@ func TestFetchReviews_Success_ExcludesPendingAndMapsFields(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	reviews, err := FetchReviews(context.Background(), newTestClient(srv), "o", "r", 1)
+	reviews, err := FetchReviews(context.Background(), newTestClient(t, srv), "o", "r", 1)
 	require.NoError(t, err)
 	require.Len(t, reviews, 1)
 	assert.Equal(t, int64(201), reviews[0].ReviewID)

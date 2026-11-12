@@ -1,5 +1,6 @@
 import { ref } from 'vue'
-import { GetKeybindings, SetKeybindings } from '@/wailsjs/go/app/App'
+import { GetKeybindings, SetKeybindings } from '@/bindings/gitura/internal/app/app'
+import { errorMessage } from '@/lib/utils'
 
 export const KEYBINDING_ACTIONS = [
   { id: 'prevFile', label: 'Previous file', view: 'Files', default: '[' },
@@ -27,7 +28,7 @@ async function save(next: Keybindings): Promise<string | null> {
     bindings.value = next
     return null
   } catch (e: unknown) {
-    return e instanceof Error ? e.message : String(e)
+    return errorMessage(e)
   }
 }
 

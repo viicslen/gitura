@@ -37,7 +37,7 @@ func (a *App) LoadPR(owner, repo string, number int) (model.PullRequestSummary, 
 	threads, err := ghapi.FetchReviewThreads(
 		a.ctx, httpClient, owner, repo, number,
 		func(loaded, total int) {
-			a.emit("pr:load-progress", map[string]int{"loaded": loaded, "total": total})
+			a.emit("pr:load-progress", model.LoadProgress{Loaded: loaded, Total: total})
 		},
 	)
 	if err != nil {

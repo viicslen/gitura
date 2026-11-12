@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 
 	"gitura/internal/model"
 )
@@ -61,7 +61,7 @@ func MergePR(ctx context.Context, client *github.Client, owner, repo string, num
 
 // ClosePR closes the pull request without merging.
 func ClosePR(ctx context.Context, client *github.Client, owner, repo string, number int) error {
-	if _, _, err := client.PullRequests.Edit(ctx, owner, repo, number, &github.PullRequest{State: github.String("closed")}); err != nil {
+	if _, _, err := client.PullRequests.Edit(ctx, owner, repo, number, &github.PullRequest{State: new("closed")}); err != nil {
 		return fmt.Errorf("github: close PR %s/%s#%d: %w", owner, repo, number, err)
 	}
 	return nil
@@ -71,9 +71,9 @@ func ClosePR(ctx context.Context, client *github.Client, owner, repo string, num
 // PRs from forks are not matched. On no match the error is prefixed with "notfound:".
 func FindPRByBranch(ctx context.Context, client *github.Client, owner, repo, branch string) (int, error) {
 	prs, _, err := client.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{
-		Head:        owner + ":" + branch,
-		State:       "all",
-		ListOptions: github.ListOptions{PerPage: 1},
+		Head:    owner + ":" + branch,
+		State:   "all",
+		PerPage: 1,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("github: find PR for branch %s in %s/%s: %w", branch, owner, repo, err)

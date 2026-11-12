@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PROverviewPanel from './PROverviewPanel.vue'
-import { model } from '@/wailsjs/go/models'
+import * as model from '@/bindings/gitura/internal/model'
 
 function overview(review: Partial<model.ReviewDTO>): model.PROverviewDTO {
   return model.PROverviewDTO.createFrom({

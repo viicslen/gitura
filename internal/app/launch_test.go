@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 func TestParseArgs_FlagsAndRef_ReturnsTarget(t *testing.T) {
@@ -43,13 +43,22 @@ func TestConfigureLaunch_NewWindow_SkipsSingleInstanceLock(t *testing.T) {
 		args []string
 		lock bool
 	}{{[]string{"12"}, true}, {[]string{"--new-window", "12"}, false}} {
-		opts, a := &options.App{}, New("")
+		opts, a := &application.Options{}, New("")
 		require.NoError(t, ConfigureLaunch(opts, a, tc.args, ".", io.Discard))
-		assert.Equal(t, tc.lock, opts.SingleInstanceLock != nil, tc.args)
+		assert.Equal(t, tc.lock, opts.SingleInstance != nil, tc.args)
 		assert.Equal(t, "12", a.launch.Load().ref)
 	}
 }
 
+func TestSecondInstance_FullOSArgs_SkipsExecutable(t *testing.T) {
+	a := New("")
+	a.secondInstance(application.SecondInstanceData{
+		Args:       []string{"/usr/bin/gitura", "--repo", "o/r", "12"},
+		WorkingDir: "/w",
+	})
+	assert.Equal(t, &launchTarget{dir: "/w", repo: "o/r", ref: "12"}, a.launch.Load())
+}
+
 func TestConfigureLaunch_UnknownFlag_ReturnsError(t *testing.T) {
-	assert.Error(t, ConfigureLaunch(&options.App{}, New(""), []string{"--bogus"}, ".", io.Discard))
+	assert.Error(t, ConfigureLaunch(&application.Options{}, New(""), []string{"--bogus"}, ".", io.Discard))
 }

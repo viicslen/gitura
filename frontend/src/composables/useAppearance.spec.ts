@@ -6,7 +6,7 @@ const backend = vi.hoisted(() => ({
   SetAppearance: vi.fn(),
   ListSystemFonts: vi.fn(),
 }))
-vi.mock('@/wailsjs/go/app/App', () => backend)
+vi.mock('@/bindings/gitura/internal/app/app', () => backend)
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn() } }))
 
 async function load() {

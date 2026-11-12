@@ -5,14 +5,14 @@ import App from './App.vue'
 
 const listOpenPRs = vi.fn()
 
-vi.mock('@/wailsjs/go/app/App', () => ({
+vi.mock('@/bindings/gitura/internal/app/app', () => ({
   GetAuthState: () => Promise.resolve({ is_authenticated: true, login: 'me', avatar_url: '' }),
   ListOpenPRs: (...args: unknown[]) => listOpenPRs(...args),
 }))
 
-vi.mock('@/wailsjs/runtime/runtime', () => ({
-  BrowserOpenURL: vi.fn(),
-  EventsOn: vi.fn(),
+vi.mock('@wailsio/runtime', () => ({
+  Browser: { OpenURL: vi.fn() },
+  Events: { On: vi.fn() },
 }))
 
 // Stands in for the review view reporting the PR's state after a merge.

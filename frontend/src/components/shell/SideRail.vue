@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // While reviewing, the rail also switches the review view.
-import { FileDiff, GitPullRequest, LayoutList, MessagesSquare } from 'lucide-vue-next'
+import { FileDiff, GitPullRequest, LayoutList, MessagesSquare } from '@lucide/vue'
 import logoUrl from '@/assets/images/logo.svg'
 import UserMenu from './UserMenu.vue'
 import { useReviewTabs } from '@/composables/useReviewTabs'

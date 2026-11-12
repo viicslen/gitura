@@ -85,7 +85,7 @@ func Diff(ctx context.Context, dir, base string) ([]File, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, path := range strings.Split(untracked, "\x00") {
+	for path := range strings.SplitSeq(untracked, "\x00") {
 		if path == "" {
 			continue
 		}
@@ -169,7 +169,7 @@ func Fingerprint(ctx context.Context, dir string) (string, error) {
 	var b strings.Builder
 	b.WriteString(head)
 	b.WriteString(status)
-	for _, entry := range strings.Split(status, "\x00") {
+	for entry := range strings.SplitSeq(status, "\x00") {
 		// Rename entries are followed by a bare old path; stat'ing its tail fails the same way every time.
 		if len(entry) < 4 {
 			continue

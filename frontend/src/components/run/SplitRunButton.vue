@@ -8,7 +8,7 @@
  * If no defaultCommandName is set, falls back to the first command in the list.
  */
 import { computed, ref } from 'vue'
-import { Play, ChevronDown, Loader2 } from 'lucide-vue-next'
+import { Play, ChevronDown, Loader2 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -18,8 +18,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
-import { RunCommands } from '@/wailsjs/go/app/App'
-import type { model } from '@/wailsjs/go/models'
+import { RunCommands } from '@/bindings/gitura/internal/app/app'
+import type * as model from '@/bindings/gitura/internal/model'
 
 const props = defineProps<{
   /** All configured commands */

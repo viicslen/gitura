@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v67/github"
+	"github.com/google/go-github/v93/github"
 
 	"gitura/internal/model"
 )
@@ -37,11 +37,9 @@ func runQuery(
 	query string,
 ) ([]*github.Issue, bool, error) {
 	opts := &github.SearchOptions{
-		Sort:  "updated",
-		Order: "desc",
-		ListOptions: github.ListOptions{
-			PerPage: 100,
-		},
+		Sort:    "updated",
+		Order:   "desc",
+		PerPage: 100,
 	}
 
 	var all []*github.Issue
@@ -123,8 +121,7 @@ func mapSearchError(err error) (model.PRListResult, bool) {
 	}
 
 	// Check for primary rate limit.
-	var rateLimitErr *github.RateLimitError
-	if errors.As(err, &rateLimitErr) {
+	if rateLimitErr, ok := errors.AsType[*github.RateLimitError](err); ok {
 		resetAt := rateLimitErr.Rate.Reset.Time.UTC().Format(time.RFC3339)
 		return model.PRListResult{
 			RateLimitReset: resetAt,
@@ -133,8 +130,7 @@ func mapSearchError(err error) (model.PRListResult, bool) {
 	}
 
 	// Check for secondary / abuse rate limit.
-	var abuseErr *github.AbuseRateLimitError
-	if errors.As(err, &abuseErr) {
+	if abuseErr, ok := errors.AsType[*github.AbuseRateLimitError](err); ok {
 		retryAfter := ""
 		if d := abuseErr.GetRetryAfter(); d > 0 {
 			retryAfter = time.Now().UTC().Add(d).Format(time.RFC3339)

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Check, ChevronDown, ChevronRight, ListFilter, MessageSquare } from 'lucide-vue-next'
+import { Check, ChevronDown, ChevronRight, ListFilter, MessageSquare } from '@lucide/vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { isTestFile } from '@/lib/testFiles'
-import type { model } from '@/wailsjs/go/models'
+import type * as model from '@/bindings/gitura/internal/model'
 import { buildFileTree, flattenFileTree } from '@/lib/fileTree'
 
 const props = defineProps<{

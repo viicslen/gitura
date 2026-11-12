@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { model } from '@/wailsjs/go/models'
-import * as App from '@/wailsjs/go/app/App'
+import { CancellablePromise } from '@wailsio/runtime'
+import * as model from '@/bindings/gitura/internal/model'
+import * as App from '@/bindings/gitura/internal/app/app'
 
 const SetFileViewed = vi.fn()
-vi.mock('@/wailsjs/go/app/App', () => ({
+vi.mock('@/bindings/gitura/internal/app/app', () => ({
   SetFileViewed: (...a: unknown[]) => SetFileViewed(...a),
   GetFileDiff: vi.fn().mockResolvedValue({}),
   GetPRFiles: vi.fn(),
@@ -116,7 +117,7 @@ describe('useDiffReview file filters', () => {
 
   it('keeps only the latest diff when files are switched quickly', async () => {
     let resolveSlow!: (v: model.ParsedDiffDTO) => void
-    vi.mocked(App.GetFileDiff).mockImplementationOnce(() => new Promise((r) => { resolveSlow = r }))
+    vi.mocked(App.GetFileDiff).mockImplementationOnce(() => new CancellablePromise((r) => { resolveSlow = r }))
     vi.mocked(App.GetFileDiff).mockResolvedValueOnce(diffNamed('fast'))
     const review = useDiffReview()
     const slow = review.selectFile('a.go')
@@ -134,7 +135,7 @@ describe('useDiffReview refetch', () => {
     const review = useDiffReview()
     await review.selectFile('a.go')
     let resolve!: (v: model.ParsedDiffDTO) => void
-    vi.mocked(App.GetFileDiff).mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+    vi.mocked(App.GetFileDiff).mockImplementationOnce(() => new CancellablePromise((r) => { resolve = r }))
     const refetch = review.selectFile('a.go', true)
     expect(review.diffLoading.value).toBe(false)
     expect(review.currentDiff.value?.filename).toBe('old')

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { X, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle, Terminal, Trash2, Square } from 'lucide-vue-next'
+import { X, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle, Terminal, Trash2, Square } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'

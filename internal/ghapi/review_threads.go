@@ -124,7 +124,7 @@ func FetchReviewThreads(
 	)
 
 	for {
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"owner":  owner,
 			"repo":   repo,
 			"number": number,
