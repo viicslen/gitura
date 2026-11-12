@@ -17,20 +17,35 @@ permissions:
 jobs:
   gosec:
     name: GoSec
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # The dev tag skips embedding frontend/dist, which isn't built here.
+    env:
+      CGO_ENABLED: 1
+      GOFLAGS: -tags=dev
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
+      - name: Drop broken apt sources
+        run: sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
+
+      # Loading the Go packages links Wails, which links GTK4 and WebKitGTK 6.0 on Linux.
+      - name: Install system dependencies
+        uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          args: '-no-fail -fmt sarif -out results.sarif ./...'
+          packages: libgtk-4-dev libwebkitgtk-6.0-dev
+          version: 2.0
+
+      # Runs natively: the gosec container action has no GTK/WebKit libraries.
+      - name: Run Gosec Security Scanner
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
+          gosec -no-fail -fmt sarif -out results.sarif ./...
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v4
@@ -39,15 +54,30 @@ jobs:
 
   govulncheck:
     name: Dependency Vulnerability Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      CGO_ENABLED: 1
+      GOFLAGS: -tags=dev
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
+      - name: Drop broken apt sources
+        run: sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
+
+      # Loading the Go packages links Wails, which links GTK4 and WebKitGTK 6.0 on Linux.
+      - name: Install system dependencies
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libgtk-4-dev libwebkitgtk-6.0-dev
+          version: 2.0
+
       - name: Run govulncheck
         uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: go.mod

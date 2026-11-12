@@ -28,7 +28,7 @@ jobs:
           message_if_xl: 'This PR is very large. Consider breaking it down into smaller PRs.'
 
       - name: Apply type labels based on files changed
-        uses: actions/labeler@v6
+        uses: actions/labeler@v7
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           configuration-path: .github/labeler.yml
