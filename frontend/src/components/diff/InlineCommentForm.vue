@@ -1,23 +1,27 @@
 <script setup lang="ts">
-import { ref, computed, inject } from 'vue'
+import { ref, computed, inject, reactive } from 'vue'
 import type { ComputedRef } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   target: { path: string; line: number; side: string; startLine?: number }
   /** Resolves true once the comment is saved; on false the typed text is kept. */
   post: (body: string, mode: 'draft' | 'immediate') => Promise<boolean>
   /** Sent from an earlier view of the file and still in flight. */
   sending?: boolean
-}>()
+  /** Owned by the diff so text survives the form moving lines; an object, not a v-model, so typing doesn't re-render the diff. */
+  draft?: { body: string }
+}>(), { draft: () => reactive({ body: '' }) })
 
 const emit = defineEmits<{
   (e: 'cancel'): void
 }>()
 
-// Bound by the diff so typed text survives the form moving to another anchor line.
-const body = defineModel<string>('body', { default: '' })
+const body = computed({
+  get: () => props.draft.body,
+  set: (value: string) => { props.draft.body = value },
+})
 const submitting = ref(false)
 const busy = computed(() => submitting.value || props.sending)
 const hasPendingReview = inject<ComputedRef<boolean>>('hasPendingReview')

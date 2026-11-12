@@ -162,4 +162,24 @@ describe('DiffFileView', () => {
     expect(second.find('textarea').exists()).toBe(false)
     second.unmount()
   })
+
+  it('does not re-render the diff while typing a comment', async () => {
+    let paneUpdates = 0
+    const props = { file, diff, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true, postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments }
+    const wrapper = mount(DiffFileView, {
+      props,
+      attachTo: document.body,
+      global: { mixins: [{ updated(this: { $options: { __name?: string } }) { if (this.$options.__name === 'DiffPane') paneUpdates++ } }] },
+    })
+    await wrapper.find('button[aria-label="Comment on new line 2"]').trigger('mousedown', { button: 0 })
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await flushPromises()
+    paneUpdates = 0
+
+    await wrapper.find('textarea').setValue('a')
+    await wrapper.find('textarea').setValue('ab')
+
+    expect(paneUpdates).toBe(0)
+    wrapper.unmount()
+  })
 })
