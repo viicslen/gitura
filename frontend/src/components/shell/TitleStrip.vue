@@ -26,19 +26,19 @@ const emit = defineEmits<{ (e: 'open-pr'): void; (e: 'back'): void }>()
           <span class="font-medium ml-1.5">{{ meta.title }}</span>
         </span>
         <PRStateBadge :state="meta.state" :is-draft="meta.is_draft" />
+        <button
+          class="h-7 w-7 shrink-0 grid place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          style="--wails-draggable: no-drag"
+          aria-label="Open on GitHub"
+          title="Open on GitHub"
+          @click="emit('open-pr')"
+        ><ExternalLink class="h-3.5 w-3.5" /></button>
       </template>
       <span v-else-if="localLabel" class="text-sm font-medium truncate min-w-[4rem]" :title="localLabel">{{ localLabel }}</span>
       <span v-else class="text-sm text-muted-foreground">{{ fallback }}</span>
     </div>
     <div class="flex items-center gap-0.5 pr-2" style="--wails-draggable: no-drag">
       <div id="title-strip-actions" class="contents" />
-      <button
-        v-if="meta"
-        class="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-        aria-label="Open on GitHub"
-        title="Open on GitHub"
-        @click="emit('open-pr')"
-      ><ExternalLink class="h-3.5 w-3.5" /></button>
     </div>
     <WindowControls />
   </div>
