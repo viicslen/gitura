@@ -9,6 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { isTestFile } from '@/lib/testFiles'
 import type { model } from '@/wailsjs/go/models'
 import { buildFileTree, flattenFileTree } from '@/lib/fileTree'
@@ -29,10 +30,12 @@ const props = defineProps<{
 
 const hideViewed = defineModel<boolean>('hideViewed', { default: false })
 const hideTests = defineModel<boolean>('hideTests', { default: false })
+const autoViewTests = defineModel<boolean>('autoViewTests', { default: false })
 
 const emit = defineEmits<{
   (e: 'select', path: string): void
   (e: 'retry-viewed'): void
+  (e: 'set-viewed', paths: string[], viewed: boolean): void
 }>()
 
 type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline'
@@ -78,6 +81,13 @@ const changeSummary = computed(() => {
 const viewedCount = computed(() => props.files.filter((f) => f.viewed).length)
 const collapsed = ref(new Set<string>())
 const rows = computed(() => flattenFileTree(tree.value, collapsed.value))
+
+/** Every changed file under a folder, including ones the filters hide. */
+const filesIn = (dir: string) => props.files.filter((f) => f.filename.startsWith(`${dir}/`))
+
+function setFolderViewed(dir: string, viewed: boolean): void {
+  emit('set-viewed', filesIn(dir).map((f) => f.filename), viewed)
+}
 
 function toggle(path: string): void {
   const next = new Set(collapsed.value)
@@ -172,7 +182,7 @@ function handleKeydown(event: KeyboardEvent, action: () => void): void {
             <span v-if="hiddenCount > 0" class="tabular-nums">{{ hiddenCount }} hidden</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="w-52">
+        <DropdownMenuContent align="end" class="w-60">
           <DropdownMenuCheckboxItem v-model="hideViewed" @select.prevent>
             <span class="flex-1">Hide viewed files</span>
             <span class="text-xs text-muted-foreground tabular-nums">{{ viewedCount }}</span>
@@ -180,6 +190,9 @@ function handleKeydown(event: KeyboardEvent, action: () => void): void {
           <DropdownMenuCheckboxItem v-model="hideTests" @select.prevent>
             <span class="flex-1">Hide test files</span>
             <span class="text-xs text-muted-foreground tabular-nums">{{ testCount }}</span>
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem v-model="autoViewTests" :disabled="!hideTests" @select.prevent>
+            Mark hidden tests as viewed
           </DropdownMenuCheckboxItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -214,21 +227,32 @@ function handleKeydown(event: KeyboardEvent, action: () => void): void {
     <div v-else ref="listEl" class="flex-1 overflow-y-auto min-h-0">
       <ul role="tree" aria-label="Changed files list" class="p-1" @keydown="onTreeKeydown">
         <template v-for="(row, i) in rows" :key="row.type === 'dir' ? `dir:${row.path}` : row.file.filename">
-          <li
-            v-if="row.type === 'dir'"
-            role="treeitem"
-            :aria-level="row.depth + 1"
-            :aria-expanded="row.expanded"
-            :tabindex="i === tabStop ? 0 : -1"
-            :title="row.path"
-            class="flex items-center gap-1 rounded-md py-1 pr-2 cursor-pointer select-none text-xs text-muted-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
-            :style="{ paddingLeft: `${row.depth * 12 + 4}px` }"
-            @click="toggle(row.path)"
-            @keydown="handleKeydown($event, () => toggle(row.path))"
-          >
-            <component :is="row.expanded ? ChevronDown : ChevronRight" class="h-3.5 w-3.5 shrink-0" />
-            <span class="min-w-0 truncate">{{ row.name }}</span>
-          </li>
+          <ContextMenu v-if="row.type === 'dir'">
+            <ContextMenuTrigger as-child>
+              <li
+                role="treeitem"
+                :aria-level="row.depth + 1"
+                :aria-expanded="row.expanded"
+                :tabindex="i === tabStop ? 0 : -1"
+                :title="row.path"
+                class="flex items-center gap-1 rounded-md py-1 pr-2 cursor-pointer select-none text-xs text-muted-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent"
+                :style="{ paddingLeft: `${row.depth * 12 + 4}px` }"
+                @click="toggle(row.path)"
+                @keydown="handleKeydown($event, () => toggle(row.path))"
+              >
+                <component :is="row.expanded ? ChevronDown : ChevronRight" class="h-3.5 w-3.5 shrink-0" />
+                <span class="min-w-0 truncate">{{ row.name }}</span>
+              </li>
+            </ContextMenuTrigger>
+            <ContextMenuContent class="w-52">
+              <ContextMenuItem :disabled="filesIn(row.path).every((f) => f.viewed)" @select="setFolderViewed(row.path, true)">
+                Mark folder as viewed
+              </ContextMenuItem>
+              <ContextMenuItem :disabled="!filesIn(row.path).some((f) => f.viewed)" @select="setFolderViewed(row.path, false)">
+                Mark folder as not viewed
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
           <li
             v-else
             role="treeitem"

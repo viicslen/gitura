@@ -53,6 +53,26 @@ describe('useDiffReview.setViewed', () => {
   })
 })
 
+describe('useDiffReview.setViewedMany', () => {
+  beforeEach(() => SetFileViewed.mockReset())
+
+  it('saves one file at a time, skips files already in that state, and rolls back the unsaved rest on failure', async () => {
+    const review = useDiffReview()
+    review.files.value = ['a.go', 'b.go', 'c.go', 'd.go'].map((filename) => model.PRFileDTO.createFrom({ filename, viewed: filename === 'b.go' }))
+    let inFlight = 0
+    SetFileViewed.mockImplementation(async (path: string) => {
+      expect(++inFlight).toBe(1)
+      await Promise.resolve()
+      inFlight--
+      if (path === 'c.go') throw new Error('403')
+    })
+    await expect(review.setViewedMany(['a.go', 'b.go', 'c.go', 'd.go'], true)).rejects.toThrow('403')
+    expect(SetFileViewed.mock.calls.map((c) => c[0])).toEqual(['a.go', 'c.go'])
+    expect(review.files.value.map((f) => f.viewed)).toEqual([true, true, false, false])
+    expect(review.viewedSaving.value.size).toBe(0)
+  })
+})
+
 describe('useDiffReview file filters', () => {
   it('counts unviewed files, leaving out test files only while they are hidden', () => {
     localStorage.clear()
