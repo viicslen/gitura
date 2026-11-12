@@ -44,7 +44,7 @@ const lines = computed<DiffLine[]>(() => {
 
 <template>
   <div aria-label="Diff context" class="rounded-md overflow-hidden border border-border text-xs font-mono">
-    <pre class="overflow-x-auto m-0 p-0 leading-5"><template
+    <pre class="overflow-x-auto m-0 p-0 leading-5"><span class="block w-max min-w-full"><template
       v-for="(line, i) in lines"
       :key="i"
     ><span
@@ -65,6 +65,6 @@ const lines = computed<DiffLine[]>(() => {
             : line.kind === 'remove' ? 'text-red-500 dark:text-red-400'
             : 'text-muted-foreground',
           ]"
-        >{{ line.prefix }}</span><!-- --><span v-html="line.highlighted" /></span></template></pre>
+        >{{ line.prefix }}</span><!-- --><span v-html="line.highlighted" /></span></template></span></pre>
   </div>
 </template>
