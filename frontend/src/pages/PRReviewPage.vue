@@ -292,14 +292,15 @@ watch(
       <DropdownMenu v-if="prSummary?.state === 'open'">
         <DropdownMenuTrigger as-child>
           <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7 text-muted-foreground hover:text-foreground"
+            variant="outline"
+            size="sm"
+            class="h-7 ml-1 gap-1.5 px-2.5 text-xs border-emerald-500/40 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
             aria-label="Merge or close pull request"
             title="Merge or close pull request"
             style="--wails-draggable: no-drag"
           >
             <GitMerge class="h-3.5 w-3.5" />
+            Merge
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
