@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/viicslen/gitura/compare/v0.15.0...v1.0.0) (2026-11-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* move to Wails v3 and put every dependency on its latest stable release ([#50](https://github.com/viicslen/gitura/issues/50))
+
+### Features
+
+* move to Wails v3 and put every dependency on its latest stable release ([#50](https://github.com/viicslen/gitura/issues/50)) ([b9c2cc9](https://github.com/viicslen/gitura/commit/b9c2cc98763e6e2537814928b77fae3101f90743))
+
 ## [0.15.0](https://github.com/viicslen/gitura/compare/v0.14.0...v0.15.0) (2026-11-12)
 
 
