@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import DiffFileSidebar from './DiffFileSidebar.vue'
 import type { model } from '@/wailsjs/go/models'
 
@@ -19,6 +19,19 @@ describe('DiffFileSidebar tree keyboard', () => {
 
     await items()[0].trigger('keydown', { key: 'ArrowLeft' })
     expect(items()).toHaveLength(4)
+    wrapper.unmount()
+  })
+})
+
+describe('DiffFileSidebar folder menu', () => {
+  it('marks every file in a right-clicked folder as viewed', async () => {
+    const wrapper = mount(DiffFileSidebar, { props: { files, selectedPath: null }, attachTo: document.body })
+    await wrapper.find('[role="treeitem"][aria-expanded]').trigger('contextmenu')
+    await flushPromises()
+    const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((el) => el.textContent?.includes('Mark folder as viewed'))
+    item!.click()
+    await flushPromises()
+    expect(wrapper.emitted('set-viewed')).toEqual([[['src/a.ts', 'src/b.ts'], true]])
     wrapper.unmount()
   })
 })

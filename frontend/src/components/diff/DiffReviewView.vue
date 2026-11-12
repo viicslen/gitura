@@ -28,6 +28,7 @@ import { useLocalStorage, useWindowSize } from '@vueuse/core'
 import { GetCommands, GetDefaultCommandName, RunCommands } from '@/wailsjs/go/app/App'
 import { ClipboardSetText } from '@/wailsjs/runtime/runtime'
 import { formatLocalReview } from '@/lib/localReview'
+import { isTestFile } from '@/lib/testFiles'
 
 const { tabBadges } = useReviewTabs()
 
@@ -80,7 +81,9 @@ const {
   nextFile,
   prevFile,
   setViewed,
+  setViewedMany,
   viewedSaving,
+  autoViewTests,
   addDraftComment,
   postImmediateComment,
   submitReview,
@@ -113,6 +116,19 @@ async function toggleViewed(path: string, viewed: boolean): Promise<void> {
     toast.error(`Could not update viewed state for ${path}: ${String(err)}`)
   }
 }
+
+async function markViewed(paths: string[], viewed: boolean): Promise<void> {
+  try {
+    await setViewedMany(paths, viewed)
+  } catch (err) {
+    toast.error(`Could not update viewed state: ${String(err)}`)
+  }
+}
+
+// Runs once per load (not on every viewed change), so a rejected save is not retried in a loop.
+watch(() => hideTests.value && autoViewTests.value && !filesLoading.value && !viewedError.value && files.value.length > 0, (ready) => {
+  if (ready) void markViewed(files.value.filter((f) => isTestFile(f.filename)).map((f) => f.filename), true)
+})
 
 watchEffect(() => {
   tabBadges.files = unviewedCount.value
@@ -398,6 +414,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
         <DiffFileSidebar
           v-model:hide-viewed="hideViewed"
           v-model:hide-tests="hideTests"
+          v-model:auto-view-tests="autoViewTests"
           :files="files"
           :visible-files="visibleFiles"
           :viewed-error="viewedError"
@@ -407,6 +424,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           :active="active"
           :loading="filesLoading && !files.length"
           @select="selectFile"
+          @set-viewed="markViewed"
         />
       </div>
       <div

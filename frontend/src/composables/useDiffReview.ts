@@ -24,6 +24,8 @@ export function useDiffReview() {
 
   const hideViewed = useLocalStorage('gitura.diffHideViewed', false)
   const hideTests = useLocalStorage('gitura.diffHideTests', false)
+  /** While test files are hidden, mark them viewed whenever the files load. */
+  const autoViewTests = useLocalStorage('gitura.diffAutoViewTests', false)
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -126,20 +128,28 @@ export function useDiffReview() {
   const viewedSaving = ref(new Set<string>())
 
   async function setViewed(path: string, viewed: boolean): Promise<void> {
-    const file = files.value.find((f) => f.filename === path)
-    if (!file || viewedSaving.value.has(path)) return
-    file.viewed = viewed
-    viewedSaving.value = new Set(viewedSaving.value).add(path)
+    await setViewedMany([path], viewed)
+  }
+
+  /** Marks files shown at once; on a failure the files not yet saved roll back and the error is thrown. */
+  async function setViewedMany(paths: string[], viewed: boolean): Promise<void> {
+    const todo = files.value.filter((f) => paths.includes(f.filename) && f.viewed !== viewed && !viewedSaving.value.has(f.filename))
+    if (!todo.length) return
+    for (const f of todo) f.viewed = viewed
+    const saving = todo.map((f) => f.filename)
+    viewedSaving.value = new Set([...viewedSaving.value, ...saving])
+    let i = 0
     try {
-      await App.SetFileViewed(path, viewed)
+      // One at a time: the backend's viewed map is not safe for concurrent writes.
+      for (; i < saving.length; i++) await App.SetFileViewed(saving[i], viewed)
     } catch (err) {
-      // Look the file up again: a refresh meanwhile replaces the file objects.
-      const current = files.value.find((f) => f.filename === path)
-      if (current) current.viewed = !viewed
+      // Look the files up again: a refresh meanwhile replaces the file objects.
+      const unsaved = new Set(saving.slice(i))
+      for (const f of files.value) if (unsaved.has(f.filename)) f.viewed = !viewed
       throw err
     } finally {
       const next = new Set(viewedSaving.value)
-      next.delete(path)
+      for (const path of saving) next.delete(path)
       viewedSaving.value = next
     }
   }
@@ -213,7 +223,9 @@ export function useDiffReview() {
     nextFile,
     prevFile,
     setViewed,
+    setViewedMany,
     viewedSaving,
+    autoViewTests,
     addDraftComment,
     postImmediateComment,
     submitReview,
