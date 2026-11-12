@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.15.0](https://github.com/viicslen/gitura/compare/v0.14.0...v0.15.0) (2026-11-12)
+
+
+### Features
+
+* **diff:** mark a folder's files viewed from its context menu, and auto-mark hidden tests ([5093834](https://github.com/viicslen/gitura/commit/509383429db69527d0bc2f6b58637f766c6fa346))
+* **diff:** mark a whole folder viewed from its right-click menu, and auto-mark hidden tests ([#48](https://github.com/viicslen/gitura/issues/48)) ([3cf3cb5](https://github.com/viicslen/gitura/commit/3cf3cb59421b01412041924082dd11e9e44748ce))
+* **title-strip:** make Merge stand out and keep the GitHub link by the PR state ([aacbf99](https://github.com/viicslen/gitura/commit/aacbf997fdc5fa2f997a5a5438ae1591857b7a46))
+* **title-strip:** make Merge stand out and keep the GitHub link by the PR state ([#46](https://github.com/viicslen/gitura/issues/46)) ([f527fdf](https://github.com/viicslen/gitura/commit/f527fdfce13e6bb9b0b765a5f4506404c2e160d0))
+
+
+### Bug Fixes
+
+* **comments:** keep diff line colours across the full width when scrolling sideways ([975422e](https://github.com/viicslen/gitura/commit/975422e9aead6857fd700132defe311d4d55313b))
+* **comments:** keep diff line colours across the full width when scrolling sideways ([#45](https://github.com/viicslen/gitura/issues/45)) ([d902711](https://github.com/viicslen/gitura/commit/d90271112df0bf360c3bf795a18fc180484cda82))
+* **diff:** stop comment threads from stalling while you scroll them ([248c3df](https://github.com/viicslen/gitura/commit/248c3dfd251975175152a585623da244b6c81cc3))
+* **diff:** stop comment threads from stalling while you scroll them ([#49](https://github.com/viicslen/gitura/issues/49)) ([e1c498f](https://github.com/viicslen/gitura/commit/e1c498fb6ddac0d24920ba6dd5e0d5568c89dc7c))
+
+
+### Performance Improvements
+
+* **diff:** stop collapsing a thread from re-parsing its comments ([76ffae8](https://github.com/viicslen/gitura/commit/76ffae875f46763a7f917b9bd9e81aa847e97b09))
+* **diff:** stop typing a comment from re-rendering every diff line ([0ced3fd](https://github.com/viicslen/gitura/commit/0ced3fdfae3f4c62c2d5aca122fd4b8f4507e716))
+
 ## [0.14.0](https://github.com/viicslen/gitura/compare/v0.13.5...v0.14.0) (2026-11-11)
 
 
