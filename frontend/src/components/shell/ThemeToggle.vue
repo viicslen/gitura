@@ -20,9 +20,9 @@ const label = computed(() => {
     :aria-label="`Theme: ${label}. Click to cycle.`"
     @click="cycleTheme"
   >
-    <Sun v-if="mode === 'light'" class="size-4" />
-    <Moon v-else-if="mode === 'dark'" class="size-4" />
-    <Monitor v-else class="size-4" />
+    <Sun v-if="mode === 'light'" class="size-4 animate-in fade-in-0 zoom-in-75 ease-out animation-duration-fast" />
+    <Moon v-else-if="mode === 'dark'" class="size-4 animate-in fade-in-0 zoom-in-75 ease-out animation-duration-fast" />
+    <Monitor v-else class="size-4 animate-in fade-in-0 zoom-in-75 ease-out animation-duration-fast" />
     <span class="sr-only">{{ label }}</span>
   </Button>
 </template>

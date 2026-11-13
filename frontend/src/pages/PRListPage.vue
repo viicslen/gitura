@@ -45,8 +45,8 @@
         <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           Repository
           <button
-            v-if="filters.repo.value"
-            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility] duration-fast"
+            :class="!filters.repo.value && 'invisible opacity-0'"
             aria-label="Clear repository filter"
             @click="filters.clearRepo()"
           >
@@ -62,23 +62,28 @@
             @focus="repoDropdownOpen = true"
             @blur="onRepoBlur"
           />
-          <ul
-            v-if="repoDropdownOpen && filteredRepoOptions.length > 0"
-            class="absolute z-10 mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-48 overflow-auto text-sm"
-            role="listbox"
-            aria-label="Repository options"
+          <Transition
+            enter-active-class="animate-in fade-in-0 zoom-in-95 animation-duration-fast ease-out"
+            leave-active-class="animate-out fade-out-0 zoom-out-95 animation-duration-faster ease-out"
           >
-            <li
-              v-for="opt in filteredRepoOptions"
-              :key="opt"
-              class="cursor-pointer px-3 py-1.5 hover:bg-accent"
-              role="option"
-              :aria-selected="filters.repo.value === opt"
-              @mousedown.prevent="selectRepo(opt)"
+            <ul
+              v-if="repoDropdownOpen && filteredRepoOptions.length > 0"
+              class="absolute z-10 mt-1 w-full origin-top rounded-md border border-border bg-popover shadow-md max-h-48 overflow-auto text-sm"
+              role="listbox"
+              aria-label="Repository options"
             >
-              {{ opt }}
-            </li>
-          </ul>
+              <li
+                v-for="opt in filteredRepoOptions"
+                :key="opt"
+                class="cursor-pointer px-3 py-1.5 hover:bg-accent"
+                role="option"
+                :aria-selected="filters.repo.value === opt"
+                @mousedown.prevent="selectRepo(opt)"
+              >
+                {{ opt }}
+              </li>
+            </ul>
+          </Transition>
         </div>
       </section>
 
@@ -87,8 +92,8 @@
         <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           Organisation
           <button
-            v-if="filters.org.value"
-            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility] duration-fast"
+            :class="!filters.org.value && 'invisible opacity-0'"
             aria-label="Clear organisation filter"
             @click="filters.clearOrg()"
           >
@@ -104,23 +109,28 @@
             @focus="orgDropdownOpen = true"
             @blur="onOrgBlur"
           />
-          <ul
-            v-if="orgDropdownOpen && filteredOrgOptions.length > 0"
-            class="absolute z-10 mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-48 overflow-auto text-sm"
-            role="listbox"
-            aria-label="Organisation options"
+          <Transition
+            enter-active-class="animate-in fade-in-0 zoom-in-95 animation-duration-fast ease-out"
+            leave-active-class="animate-out fade-out-0 zoom-out-95 animation-duration-faster ease-out"
           >
-            <li
-              v-for="opt in filteredOrgOptions"
-              :key="opt"
-              class="cursor-pointer px-3 py-1.5 hover:bg-accent"
-              role="option"
-              :aria-selected="filters.org.value === opt"
-              @mousedown.prevent="selectOrg(opt)"
+            <ul
+              v-if="orgDropdownOpen && filteredOrgOptions.length > 0"
+              class="absolute z-10 mt-1 w-full origin-top rounded-md border border-border bg-popover shadow-md max-h-48 overflow-auto text-sm"
+              role="listbox"
+              aria-label="Organisation options"
             >
-              {{ opt }}
-            </li>
-          </ul>
+              <li
+                v-for="opt in filteredOrgOptions"
+                :key="opt"
+                class="cursor-pointer px-3 py-1.5 hover:bg-accent"
+                role="option"
+                :aria-selected="filters.org.value === opt"
+                @mousedown.prevent="selectOrg(opt)"
+              >
+                {{ opt }}
+              </li>
+            </ul>
+          </Transition>
         </div>
       </section>
 
@@ -129,8 +139,8 @@
         <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           PR Author
           <button
-            v-if="filters.author.value"
-            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility] duration-fast"
+            :class="!filters.author.value && 'invisible opacity-0'"
             aria-label="Clear author filter"
             @click="filters.clearAuthor()"
           >
@@ -150,8 +160,8 @@
         <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           Updated after
           <button
-            v-if="filters.updatedAfter.value"
-            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility] duration-fast"
+            :class="!filters.updatedAfter.value && 'invisible opacity-0'"
             aria-label="Clear date filter"
             @click="filters.clearUpdatedAfter()"
           >
@@ -179,7 +189,10 @@
       </section>
 
       <!-- Clear all -->
-      <div v-if="filters.hasActiveFilters.value">
+      <div
+        class="transition-[opacity,visibility] duration-fast"
+        :class="!filters.hasActiveFilters.value && 'invisible opacity-0'"
+      >
         <Button
           variant="ghost"
           size="sm"
@@ -195,8 +208,8 @@
     <main class="flex-1 min-w-0" aria-label="Pull request list">
       <!-- Toolbar: count + refresh -->
       <div class="flex items-center justify-between mb-4">
-        <p class="text-sm text-muted-foreground" aria-live="polite">
-          <template v-if="!loading && !errorMsg">
+        <p class="text-sm text-muted-foreground tabular-nums" aria-live="polite">
+          <template v-if="rawResult && !errorMsg">
             {{ visibleItems.length }} {{ visibleItems.length === 1 ? 'pull request' : 'pull requests' }}
             <span v-if="rawResult?.incomplete_results" class="ml-1 text-yellow-500">(incomplete)</span>
           </template>
@@ -219,116 +232,129 @@
       </div>
 
       <!-- Error state -->
-      <div
-        v-if="errorMsg"
-        class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-5"
-        role="alert"
-      >
-        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div class="space-y-1">
-            <p class="text-sm font-semibold text-destructive">Could not load pull requests</p>
-            <p
-              v-if="rateLimitReset"
-              class="text-sm text-yellow-700 dark:text-yellow-300"
+      <Transition enter-active-class="animate-in fade-in-0 slide-in-from-top-1 animation-duration-base ease-out">
+        <div
+          v-if="errorMsg"
+          class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-5"
+          role="alert"
+        >
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div class="space-y-1">
+              <p class="text-sm font-semibold text-destructive">Could not load pull requests</p>
+              <p
+                v-if="rateLimitReset"
+                class="text-sm text-yellow-700 dark:text-yellow-300"
+              >
+                GitHub rate limit reached. Resets at {{ formatReset(rateLimitReset) }}.
+              </p>
+              <p
+                v-else-if="isGitHubServiceIssue"
+                class="text-sm text-muted-foreground"
+              >
+                GitHub is temporarily unavailable. This is usually transient.
+              </p>
+              <p
+                v-else
+                class="text-sm text-muted-foreground"
+              >
+                {{ errorMsg }}
+              </p>
+            </div>
+            <Button
+              size="lg"
+              :disabled="loading"
+              @click="fetchPRs()"
             >
-              GitHub rate limit reached. Resets at {{ formatReset(rateLimitReset) }}.
-            </p>
-            <p
-              v-else-if="isGitHubServiceIssue"
-              class="text-sm text-muted-foreground"
-            >
-              GitHub is temporarily unavailable. This is usually transient.
-            </p>
-            <p
-              v-else
-              class="text-sm text-muted-foreground"
-            >
-              {{ errorMsg }}
-            </p>
+              <RefreshCw :class="['mr-2 h-4 w-4', loading && 'animate-spin']" />
+              Refresh pull requests
+            </Button>
           </div>
-          <Button
-            size="lg"
-            :disabled="loading"
-            @click="fetchPRs()"
-          >
-            <RefreshCw :class="['mr-2 h-4 w-4', loading && 'animate-spin']" />
-            Refresh pull requests
-          </Button>
+        </div>
+      </Transition>
+
+      <!-- Skeleton: first load only, and only once the wait is real -->
+      <div
+        v-if="loading && !rawResult"
+        class="rounded-lg border border-border bg-card divide-y divide-border animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards"
+        aria-label="Loading pull requests"
+      >
+        <div v-for="n in 6" :key="n" class="flex items-start gap-3 px-4 py-3">
+          <Skeleton class="h-4 w-4 mt-0.5 shrink-0 rounded-full" />
+          <div class="flex-1 space-y-2">
+            <Skeleton class="h-4 w-3/4" />
+            <Skeleton class="h-3 w-1/2" />
+          </div>
         </div>
       </div>
 
-      <!-- Skeleton loading state -->
-      <template v-if="loading">
-        <div class="rounded-lg border border-border bg-card divide-y divide-border" aria-label="Loading pull requests">
-          <div v-for="n in 6" :key="n" class="flex items-start gap-3 px-4 py-3">
-            <Skeleton class="h-4 w-4 mt-0.5 shrink-0 rounded-full" />
-            <div class="flex-1 space-y-2">
-              <Skeleton class="h-4 w-3/4" />
-              <Skeleton class="h-3 w-1/2" />
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- Empty: no PRs at all (no filters active) -->
-      <template v-else-if="visibleItems.length === 0 && !filters.hasActiveFilters.value && !errorMsg">
-        <div class="flex flex-col items-center justify-center py-20 text-center gap-3">
-          <GitPullRequest class="h-10 w-10 text-muted-foreground" />
-          <p class="text-sm text-muted-foreground">No open pull requests found.</p>
-          <Button
-            size="lg"
-            variant="outline"
-            :disabled="loading"
-            @click="fetchPRs()"
+      <!-- A refresh keeps the current content, dimmed once the wait is real -->
+      <div v-else class="transition-opacity" :class="loading && 'opacity-60 delay-200'">
+        <Transition appear mode="out-in" enter-active-class="animate-in fade-in-0 animation-duration-fast">
+          <!-- Empty: no PRs at all (no filters active) -->
+          <div
+            v-if="visibleItems.length === 0 && !filters.hasActiveFilters.value && !errorMsg"
+            class="flex flex-col items-center justify-center py-20 text-center gap-3"
           >
-            <RefreshCw :class="['mr-2 h-4 w-4', loading && 'animate-spin']" />
-            Refresh pull requests
-          </Button>
-        </div>
-      </template>
-
-      <!-- Empty: filters active but no results -->
-      <template v-else-if="visibleItems.length === 0 && filters.hasActiveFilters.value && !errorMsg">
-        <div class="flex flex-col items-center justify-center py-20 text-center gap-3">
-          <Filter class="h-10 w-10 text-muted-foreground" />
-          <p class="text-sm text-muted-foreground">No pull requests match the current filters.</p>
-          <Button variant="ghost" size="sm" @click="filters.clearAllFilters()">
-            Clear filters
-          </Button>
-        </div>
-      </template>
-
-      <!-- PR rows -->
-      <template v-else-if="visibleItems.length > 0">
-        <ul class="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden" role="list">
-          <li v-for="pr in visibleItems" :key="pr.html_url">
-            <button
-              class="w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring cursor-pointer"
-              @click="openPR(pr)"
+            <GitPullRequest class="h-10 w-10 text-muted-foreground" />
+            <p class="text-sm text-muted-foreground">No open pull requests found.</p>
+            <Button
+              size="lg"
+              variant="outline"
+              :disabled="loading"
+              @click="fetchPRs()"
             >
-              <GitPullRequestDraft v-if="pr.is_draft" class="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <GitPullRequest v-else class="h-4 w-4 mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 min-w-0">
-                  <span class="text-sm font-medium truncate" :title="pr.title">{{ pr.title }}</span>
-                  <Badge v-if="pr.is_draft" variant="secondary" class="shrink-0 text-xs">
-                    Draft
-                  </Badge>
+              <RefreshCw :class="['mr-2 h-4 w-4', loading && 'animate-spin']" />
+              Refresh pull requests
+            </Button>
+          </div>
+
+          <!-- Empty: filters active but no results -->
+          <div
+            v-else-if="visibleItems.length === 0 && filters.hasActiveFilters.value && !errorMsg"
+            class="flex flex-col items-center justify-center py-20 text-center gap-3"
+          >
+            <Filter class="h-10 w-10 text-muted-foreground" />
+            <p class="text-sm text-muted-foreground">No pull requests match the current filters.</p>
+            <Button variant="ghost" size="sm" @click="filters.clearAllFilters()">
+              Clear filters
+            </Button>
+          </div>
+
+          <!-- PR rows -->
+          <ul
+            v-else-if="visibleItems.length > 0"
+            class="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden"
+            role="list"
+          >
+            <li v-for="pr in visibleItems" :key="pr.html_url">
+              <button
+                class="w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors duration-fast hover:duration-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring cursor-pointer"
+                @click="openPR(pr)"
+              >
+                <GitPullRequestDraft v-if="pr.is_draft" class="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <GitPullRequest v-else class="h-4 w-4 mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-sm font-medium truncate" :title="pr.title">{{ pr.title }}</span>
+                    <Badge v-if="pr.is_draft" variant="secondary" class="shrink-0 text-xs">
+                      Draft
+                    </Badge>
+                  </div>
+                  <div class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground min-w-0">
+                    <span class="truncate max-w-full" :title="`${pr.owner}/${pr.repo} #${pr.number}`">{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
+                    <span aria-hidden="true">·</span>
+                    <span class="truncate max-w-full">{{ pr.author_login }}</span>
+                    <span aria-hidden="true">·</span>
+                    <time :datetime="pr.updated_at" :title="new Date(pr.updated_at).toLocaleString()">
+                      updated {{ formatAge(pr.updated_at) }}
+                    </time>
+                  </div>
                 </div>
-                <div class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground min-w-0">
-                  <span class="truncate max-w-full" :title="`${pr.owner}/${pr.repo} #${pr.number}`">{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
-                  <span aria-hidden="true">·</span>
-                  <span class="truncate max-w-full">{{ pr.author_login }}</span>
-                  <span aria-hidden="true">·</span>
-                  <time :datetime="pr.updated_at" :title="new Date(pr.updated_at).toLocaleString()">
-                    updated {{ formatAge(pr.updated_at) }}
-                  </time>
-                </div>
-              </div>
-            </button>
-          </li>
-        </ul>
-      </template>
+              </button>
+            </li>
+          </ul>
+        </Transition>
+      </div>
     </main>
   </div>
 </template>
@@ -376,7 +402,8 @@ async function openLocalReview(): Promise<void> {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-const loading = ref(false)
+// Starts true so the first paint is the loading state, not the empty one.
+const loading = ref(true)
 const errorMsg = ref<string | null>(null)
 const rateLimitReset = ref<string | null>(null)
 
@@ -509,8 +536,6 @@ async function fetchPRs(background = false): Promise<void> {
   const thisId = filters.requestId.value
 
   loading.value = !background
-  errorMsg.value = null
-  rateLimitReset.value = null
 
   try {
     // Only include_drafts is meaningful server-side; other filter fields are ignored.
@@ -528,15 +553,13 @@ async function fetchPRs(background = false): Promise<void> {
       }
     })
 
-    if (res.error) {
-      errorMsg.value = res.error
-    }
-    if (res.rate_limit_reset) {
-      rateLimitReset.value = res.rate_limit_reset
-    }
+    // The previous error stays on screen until the retry answers.
+    errorMsg.value = res.error || null
+    rateLimitReset.value = res.rate_limit_reset || null
   } catch (e) {
     if (thisId !== filters.requestId.value) return
     errorMsg.value = errorMessage(e)
+    rateLimitReset.value = null
   } finally {
     if (thisId === filters.requestId.value) {
       loading.value = false

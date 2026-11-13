@@ -71,6 +71,12 @@ Go: Follow idiomatic Go conventions enforced by `gofmt`, `golint`, `go vet`.
 Frontend: TypeScript strict mode. shadcn-vue components are the single source of
 UI primitives — no ad-hoc inline styles.
 
+Motion: durations and easing come from the tokens in `frontend/src/style.css`
+(`duration-faster|fast|base|slow|slower`; `ease-out` is the default). Time
+`animate-in` / `animate-out` with `animation-duration-*`, since a bare
+`duration-*` turns on `transition: all`. Name the properties in every
+transition.
+
 <!-- MANUAL ADDITIONS START -->
 ## App State Storage
 

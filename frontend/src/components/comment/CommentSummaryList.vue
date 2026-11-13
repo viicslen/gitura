@@ -74,15 +74,25 @@ function reviewLabel(thread: model.CommentThreadDTO): string {
 </script>
 
 <template>
-  <div
+  <!-- Keyed on the filter so a filter change swaps the list as one block instead of moving every row. -->
+  <!-- shortcut: every row below a removed one gets a move transition; cap it if PRs with hundreds of threads stutter. -->
+  <TransitionGroup
+    :key="showResolved ? 'all' : 'unresolved'"
+    tag="div"
     role="listbox"
     :aria-activedescendant="visibleThreads.length > 0 ? `thread-item-${currentIndex}` : undefined"
     aria-label="Comment threads"
-    class="flex flex-col overflow-y-auto h-full"
+    class="relative h-full overflow-y-auto animate-in fade-in-0 animation-duration-fast ease-out"
+    enter-active-class="transition-opacity"
+    enter-from-class="opacity-0"
+    leave-active-class="absolute transition-opacity duration-fast"
+    leave-to-class="opacity-0"
+    move-class="transition-transform ease-in-out"
   >
     <div
       v-if="visibleThreads.length === 0"
-      class="flex-1 flex items-center justify-center text-muted-foreground text-sm p-4"
+      key="empty"
+      class="h-full w-full flex items-center justify-center text-muted-foreground text-sm p-4"
     >
       No comments to show.
     </div>
@@ -93,7 +103,7 @@ function reviewLabel(thread: model.CommentThreadDTO): string {
       :key="thread.root_id"
       role="option"
       :aria-selected="index === currentIndex"
-      class="block w-full text-left px-3 py-2.5 border-b border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors cursor-pointer"
+      class="block w-full text-left px-3 py-2.5 border-b border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
       :class="[
         index === currentIndex
           ? 'bg-accent text-accent-foreground'
@@ -174,5 +184,5 @@ function reviewLabel(thread: model.CommentThreadDTO): string {
         </div>
       </div>
     </button>
-  </div>
+  </TransitionGroup>
 </template>

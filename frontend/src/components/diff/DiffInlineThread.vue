@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ChevronDown, ChevronRight, CheckCircle2, MessageSquare } from '@lucide/vue'
+import { ChevronRight, CheckCircle2, MessageSquare } from '@lucide/vue'
 import type * as model from '@/bindings/gitura/internal/model'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -51,7 +51,7 @@ function toggleResolved(): void {
       :aria-expanded="!collapsed"
       @click="collapsed = !collapsed"
     >
-      <component :is="collapsed ? ChevronRight : ChevronDown" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <ChevronRight class="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-fast" :class="{ 'rotate-90': !collapsed }" />
       <MessageSquare class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <span class="font-medium">{{ root?.author_login ?? 'Unknown' }}</span>
       <span v-if="collapsed" class="min-w-0 flex-1 truncate text-muted-foreground">{{ preview }}</span>
@@ -60,52 +60,59 @@ function toggleResolved(): void {
         {{ thread.comments.length - 1 }} repl{{ thread.comments.length === 2 ? 'y' : 'ies' }}
       </span>
       <Badge v-if="thread.outdated" variant="secondary" class="shrink-0 text-[0.625rem]">Outdated</Badge>
-      <Badge v-if="thread.resolved" variant="secondary" class="shrink-0 gap-1 text-[0.625rem]">
-        <CheckCircle2 class="h-3 w-3" /> Resolved
-      </Badge>
+      <Transition enter-active-class="animate-in fade-in-0 zoom-in-95 ease-out" leave-active-class="animate-out fade-out-0 zoom-out-95 animation-duration-fast ease-out">
+        <Badge v-if="thread.resolved" variant="secondary" class="shrink-0 gap-1 text-[0.625rem]">
+          <CheckCircle2 class="h-3 w-3" /> Resolved
+        </Badge>
+      </Transition>
     </button>
 
     <!-- v-show keeps an unsent reply when the thread is collapsed. -->
-    <div v-show="!collapsed">
-      <div v-if="thread.outdated && root?.diff_hunk" class="border-t border-border p-3">
-        <CommentDiffHunk :diff-hunk="root.diff_hunk" :language="language" />
-      </div>
-
-      <div
-        v-for="comment in thread.comments"
-        :key="comment.id"
-        class="border-t border-border px-3 py-2"
-      >
-        <div class="mb-1 flex items-center gap-2 text-xs">
-          <img
-            v-if="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
-            :src="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
-            :alt="comment.author_login"
-            class="h-5 w-5 rounded-full"
-            @error="handleAvatarError(`diff:${comment.id}`, comment.author_avatar)"
-          />
-          <span
-            v-else
-            class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[0.625rem] font-semibold text-muted-foreground"
-            aria-hidden="true"
-          >{{ avatarInitial(comment.author_login) }}</span>
-          <span class="font-medium">{{ comment.author_login }}</span>
-          <span class="text-muted-foreground">{{ formatTimestamp(comment.created_at) }}</span>
+    <!-- Fades in place: animating the height would lay out the whole diff on every frame. -->
+    <Transition enter-active-class="animate-in fade-in-0 slide-in-from-top-1 animation-duration-fast ease-out">
+      <div v-show="!collapsed">
+        <div v-if="thread.outdated && root?.diff_hunk" class="border-t border-border p-3">
+          <CommentDiffHunk :diff-hunk="root.diff_hunk" :language="language" />
         </div>
-        <EditableComment kind="review_comment" :id="comment.id" :target="comment">
-          <MarkdownBody :content="comment.body" :toggle-task="taskToggler('review_comment', comment.id, comment)" />
-        </EditableComment>
-      </div>
 
-      <div class="border-t border-border bg-muted/30 px-3 py-2">
-        <ReplyComposer :thread-root-id="thread.root_id" @reply-sent="emit('reply-sent', $event)">
-          <template #leading>
-            <Button variant="outline" size="sm" @click="toggleResolved">
-              {{ thread.resolved ? 'Unresolve' : 'Resolve conversation' }}
-            </Button>
-          </template>
-        </ReplyComposer>
+        <TransitionGroup enter-active-class="animate-in fade-in-0 animation-duration-fast">
+          <div
+            v-for="comment in thread.comments"
+            :key="comment.id"
+            class="border-t border-border px-3 py-2"
+          >
+            <div class="mb-1 flex items-center gap-2 text-xs">
+              <img
+                v-if="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
+                :src="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
+                :alt="comment.author_login"
+                class="h-5 w-5 rounded-full"
+                @error="handleAvatarError(`diff:${comment.id}`, comment.author_avatar)"
+              />
+              <span
+                v-else
+                class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[0.625rem] font-semibold text-muted-foreground"
+                aria-hidden="true"
+              >{{ avatarInitial(comment.author_login) }}</span>
+              <span class="font-medium">{{ comment.author_login }}</span>
+              <span class="text-muted-foreground">{{ formatTimestamp(comment.created_at) }}</span>
+            </div>
+            <EditableComment kind="review_comment" :id="comment.id" :target="comment">
+              <MarkdownBody :content="comment.body" :toggle-task="taskToggler('review_comment', comment.id, comment)" />
+            </EditableComment>
+          </div>
+        </TransitionGroup>
+
+        <div class="border-t border-border bg-muted/30 px-3 py-2">
+          <ReplyComposer :thread-root-id="thread.root_id" @reply-sent="emit('reply-sent', $event)">
+            <template #leading>
+              <Button variant="outline" size="sm" @click="toggleResolved">
+                {{ thread.resolved ? 'Unresolve' : 'Resolve conversation' }}
+              </Button>
+            </template>
+          </ReplyComposer>
+        </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>

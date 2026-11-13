@@ -82,8 +82,13 @@ const btnSize = computed(() => props.size ?? 'sm')
       class="rounded-r-none border-r-0 gap-1.5 bg-muted/60 hover:bg-muted"
       @click="handlePrimary"
     >
-      <Loader2 v-if="running" class="h-3 w-3 animate-spin text-green-500" />
-      <Play v-else class="h-3 w-3 text-green-500" />
+      <!-- RunCommands answers as soon as the run starts, so the spinner only replaces the icon when that wait is real -->
+      <span class="grid *:col-start-1 *:row-start-1">
+        <Play class="h-3 w-3 text-green-500 transition-opacity" :class="running && 'opacity-0 delay-200'" />
+        <span v-if="running" class="animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards">
+          <Loader2 class="h-3 w-3 animate-spin text-green-500" />
+        </span>
+      </span>
       <span v-if="label" class="text-xs">{{ label }}</span>
     </Button>
 

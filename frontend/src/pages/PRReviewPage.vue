@@ -176,12 +176,15 @@ async function refreshPRView(): Promise<void> {
 type PRAction = 'merge' | 'squash' | 'rebase' | 'close'
 const prActionLabels: Record<PRAction, string> = { merge: 'Merge', squash: 'Squash and merge', rebase: 'Rebase and merge', close: 'Close pull request' }
 const confirmingAction = ref<PRAction | null>(null)
+// Separate from confirmingAction so the dialog keeps its text while it animates out.
+const confirmOpen = ref(false)
 const actionRunning = ref(false)
 const actionError = ref('')
 
 function askAction(action: PRAction): void {
   actionError.value = ''
   confirmingAction.value = action
+  confirmOpen.value = true
 }
 
 async function runAction(): Promise<void> {
@@ -191,7 +194,7 @@ async function runAction(): Promise<void> {
   actionError.value = ''
   try {
     await (action === 'close' ? ClosePR() : MergePR(action))
-    confirmingAction.value = null
+    confirmOpen.value = false
     toast.success(action === 'close' ? 'Pull request closed' : 'Pull request merged')
     await refreshPRView()
     if (action !== 'close' && toggles.value.return_after_merge) emit('close-review')
@@ -300,7 +303,7 @@ watch(
           <Button
             variant="outline"
             size="sm"
-            class="h-7 ml-1 gap-1.5 px-2.5 text-xs border-emerald-500/40 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+            class="h-7 ml-1 gap-1.5 px-2.5 text-xs animate-in fade-in-0 animation-duration-fast ease-out border-emerald-500/40 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
             aria-label="Merge or close pull request"
             title="Merge or close pull request"
             style="--wails-draggable: no-drag"
@@ -319,7 +322,7 @@ watch(
       </DropdownMenu>
     </Teleport>
 
-    <Dialog :open="!!confirmingAction" @update:open="(open: boolean) => { if (!open && !actionRunning) confirmingAction = null }">
+    <Dialog :open="confirmOpen" @update:open="(open: boolean) => { if (!open && !actionRunning) confirmOpen = false }">
       <DialogContent class="max-w-sm">
         <DialogHeader>
           <DialogTitle>{{ confirmingAction && prActionLabels[confirmingAction] }}?</DialogTitle>
@@ -331,7 +334,7 @@ watch(
         </p>
         <p v-if="actionError" class="text-sm text-destructive">{{ actionError }}</p>
         <DialogFooter>
-          <Button variant="ghost" :disabled="actionRunning" @click="confirmingAction = null">Cancel</Button>
+          <Button variant="ghost" :disabled="actionRunning" @click="confirmOpen = false">Cancel</Button>
           <Button :variant="confirmingAction === 'close' ? 'destructive' : 'default'" :disabled="actionRunning" @click="runAction()">
             {{ actionRunning ? 'Working…' : confirmingAction && prActionLabels[confirmingAction] }}
           </Button>
@@ -340,7 +343,7 @@ watch(
     </Dialog>
 
     <!-- ── Loading state ───────────────────────────────────────────────────── -->
-    <div v-if="loading && !prSummary" class="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+    <div v-if="loading && !prSummary" class="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground animate-in fade-in-0 animation-duration-base ease-out delay-200 fill-mode-backwards">
       <RefreshCw class="h-6 w-6 animate-spin" />
       <div class="text-sm">Loading review…</div>
       <div v-if="loadProgress.loaded > 0" class="text-xs">
@@ -352,7 +355,7 @@ watch(
     <!-- ── Error state ─────────────────────────────────────────────────────── -->
     <div
       v-else-if="error"
-      class="flex-1 flex flex-col items-center justify-center gap-3 p-6"
+      class="flex-1 flex flex-col items-center justify-center gap-3 p-6 animate-in fade-in-0 animation-duration-fast ease-out"
     >
       <p class="text-sm text-destructive text-center">{{ error }}</p>
       <Button variant="outline" size="sm" @click="loadPR()">
@@ -363,20 +366,20 @@ watch(
     <!-- ── Content area ────────────────────────────────────────────────────── -->
     <template v-else>
       <!-- Conversation view -->
-      <div v-show="reviewTab === 'conversation'" class="flex flex-1 min-h-0 overflow-hidden">
+      <div v-show="reviewTab === 'conversation'" class="flex flex-1 min-h-0 overflow-hidden animate-in fade-in-0 animation-duration-fast ease-out">
         <!-- Left: thread list with its own filter -->
         <div class="w-72 shrink-0 border-r border-border flex flex-col min-h-0">
           <div class="h-10 shrink-0 border-b border-border px-3 flex items-center gap-2">
             <span class="text-xs font-medium">Threads</span>
             <div class="ml-auto flex shrink-0 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="Thread filter">
               <button
-                class="rounded px-2 py-0.5"
+                class="rounded px-2 py-0.5 transition-[color,background-color,box-shadow] duration-fast"
                 :class="!showResolved ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
                 :aria-pressed="!showResolved"
                 @click="showResolved && toggleShowResolved()"
               >Unresolved <span class="tabular-nums opacity-60">{{ threads.filter((t) => !t.resolved).length }}</span></button>
               <button
-                class="rounded px-2 py-0.5"
+                class="rounded px-2 py-0.5 transition-[color,background-color,box-shadow] duration-fast"
                 :class="showResolved ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
                 :aria-pressed="showResolved"
                 @click="!showResolved && toggleShowResolved()"
@@ -385,7 +388,7 @@ watch(
           </div>
           <div
             v-if="!showResolved && queue.length === 0 && threads.length > 0"
-            class="flex-1 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground"
+            class="flex-1 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground animate-in fade-in-0 animation-duration-fast ease-out"
           >
             All {{ threads.length }} threads are resolved.
             <Button variant="outline" size="sm" class="h-7 text-xs" @click="toggleShowResolved()">Show all threads</Button>
@@ -488,7 +491,7 @@ watch(
         v-show="reviewTab === 'overview'"
         v-model:show-resolved-reviews="showResolvedReviews"
         :overview="overview"
-        class="flex-1 min-h-0 overflow-hidden"
+        class="flex-1 min-h-0 overflow-hidden animate-in fade-in-0 animation-duration-fast ease-out"
       />
 
       <!-- Files changed view -->
@@ -501,7 +504,7 @@ watch(
         :head-sha="prSummary?.head_sha ?? ''"
         :active="reviewTab === 'files'"
         :unsent-comments="unsentComments"
-        class="flex-1 min-h-0 overflow-hidden"
+        class="flex-1 min-h-0 overflow-hidden animate-in fade-in-0 animation-duration-fast ease-out"
         @resolve="handleResolve"
         @unresolve="handleUnresolve"
         @reply-sent="handleReplySent"

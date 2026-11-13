@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useElementSize, useEventListener, useResizeObserver } from '@vueuse/core'
 import { Badge } from '@/components/ui/badge'
 import { FileSymlink } from '@lucide/vue'
@@ -196,6 +196,9 @@ const inlineByKey = computed(() => {
   return m
 })
 const inlineKeys = computed(() => new Set(inlineByKey.value.keys()))
+// Rows the file opens with don't animate, later ones do. Not a ref: flipping it must not re-render the panes.
+let settled = false
+onMounted(() => { settled = true })
 
 // ── Synchronized scrolling ─────────────────────────────────────────────────
 // Each pane scrolls on its own; the one the user drives maps its position through the
@@ -475,7 +478,12 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
               @activate="(hunk, line, shift) => onActivate(side, hunk, line, shift)"
             >
               <template #inline="{ no }">
-                <template v-for="row in inlineByKey.get(anchorKey(side, no)) ?? []" :key="row.key">
+                <Transition
+                  v-for="row in inlineByKey.get(anchorKey(side, no)) ?? []"
+                  :key="row.key"
+                  :appear="settled"
+                  enter-active-class="animate-in fade-in-0 slide-in-from-top-1 animation-duration-fast ease-out"
+                >
                   <DiffInlineThread
                     v-if="row.type === 'thread'"
                     :thread="row.thread"
@@ -494,7 +502,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                       @cancel="form = null"
                     />
                   </div>
-                </template>
+                </Transition>
               </template>
             </DiffPane>
           </div>

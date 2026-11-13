@@ -33,6 +33,7 @@ const reviewTotal = computed(() => Object.keys(props.overview?.review_numbers ??
 const cardClass = computed(() => [
   'gap-4 py-4',
   'shadow-none',
+  'animate-in fade-in-0 animation-duration-fast ease-out',
 ])
 
 const surfaceClass = 'rounded-lg bg-muted/30 px-4 py-3'
@@ -81,7 +82,8 @@ function avatarKey(prefix: string, id: number): string {
 </script>
 
 <template>
-  <div v-if="!overview" class="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+  <!-- Delayed so the message does not flash while the overview is still loading. -->
+  <div v-if="!overview" class="flex-1 flex items-center justify-center text-sm text-muted-foreground animate-in fade-in-0 animation-duration-base ease-out delay-200 fill-mode-backwards">
     No overview data available.
   </div>
 
@@ -119,7 +121,7 @@ function avatarKey(prefix: string, id: number): string {
             <span class="text-xs text-muted-foreground tabular-nums">{{ visibleGeneralComments.length }}</span>
           </div>
 
-          <div v-if="visibleGeneralComments.length === 0" class="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+          <div v-if="visibleGeneralComments.length === 0" class="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground animate-in fade-in-0 animation-duration-fast ease-out">
             No general pull request comments.
           </div>
 
@@ -169,7 +171,7 @@ function avatarKey(prefix: string, id: number): string {
             </div>
           </div>
 
-          <div v-if="visibleReviews.length === 0" class="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+          <div v-if="visibleReviews.length === 0" class="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground animate-in fade-in-0 animation-duration-fast ease-out">
             No submitted reviews to show.
           </div>
 

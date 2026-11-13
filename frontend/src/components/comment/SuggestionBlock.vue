@@ -91,7 +91,7 @@ async function handleCommit() {
     <!-- Success state -->
     <div
       v-if="committed"
-      class="flex items-center gap-2 px-3 py-2 border-t border-border bg-muted/20 text-sm text-green-700 dark:text-green-400"
+      class="flex items-center gap-2 px-3 py-2 border-t border-border bg-muted/20 text-sm text-green-700 dark:text-green-400 animate-in fade-in-0 animation-duration-fast ease-out"
     >
       <CheckCircle2 class="h-4 w-4 shrink-0" aria-hidden="true" />
       <span>Committed: </span>
@@ -119,7 +119,7 @@ async function handleCommit() {
         </Button>
       </div>
 
-      <div v-else class="space-y-2">
+      <div v-else class="space-y-2 animate-in fade-in-0 animation-duration-fast ease-out">
         <div class="flex gap-2">
           <Input
             v-model="commitMessage"
@@ -131,12 +131,13 @@ async function handleCommit() {
           />
           <Button
             size="sm"
+            class="relative"
             :disabled="submitting || !commitMessage.trim()"
             aria-label="Confirm and commit suggestion"
             @click="handleCommit"
           >
-            <Loader2 v-if="submitting" class="h-4 w-4 animate-spin" aria-hidden="true" />
-            <span v-else>Commit</span>
+            <span :class="submitting && 'invisible'">Commit</span>
+            <Loader2 v-if="submitting" class="absolute inset-0 m-auto h-4 w-4 animate-spin" aria-hidden="true" />
           </Button>
           <Button
             size="sm"

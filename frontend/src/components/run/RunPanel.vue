@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { X, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle, Terminal, Trash2, Square } from '@lucide/vue'
+import { X, ChevronDown, Loader2, CheckCircle2, XCircle, Terminal, Trash2, Square } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
@@ -67,14 +67,12 @@ const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
 </script>
 
 <template>
-  <!-- Slide-up panel from bottom of screen -->
+  <!-- Space opens in one frame and the panel settles into it, so the view above is never resized per frame -->
   <Transition
-    enter-active-class="transition-all duration-200 ease-out"
-    enter-from-class="translate-y-full opacity-0"
-    enter-to-class="translate-y-0 opacity-100"
-    leave-active-class="transition-all duration-150 ease-in"
-    leave-from-class="translate-y-0 opacity-100"
-    leave-to-class="translate-y-full opacity-0"
+    enter-active-class="transition-[opacity,translate] duration-base"
+    enter-from-class="translate-y-2 opacity-0"
+    leave-active-class="transition-[opacity,translate] duration-fast"
+    leave-to-class="translate-y-2 opacity-0"
   >
     <div
       v-if="open"
@@ -85,7 +83,7 @@ const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
       <div class="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
         <Terminal class="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <span class="text-sm font-medium">Run History</span>
-        <Badge v-if="runs.length > 0" variant="secondary" class="text-xs px-1.5 py-0">
+        <Badge v-if="runs.length > 0" variant="secondary" class="text-xs px-1.5 py-0 tabular-nums animate-in fade-in-0 animation-duration-fast">
           {{ runs.length }}
         </Badge>
 
@@ -95,12 +93,12 @@ const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
           class="flex items-center rounded-md border border-border text-xs overflow-hidden ml-1"
         >
           <button
-            class="px-2 py-0.5 transition-colors"
+            class="px-2 py-0.5 transition-colors duration-fast hover:duration-0"
             :class="scope === 'all' ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'"
             @click="scope = 'all'"
           >All</button>
           <button
-            class="px-2 py-0.5 transition-colors border-l border-border"
+            class="px-2 py-0.5 transition-colors duration-fast hover:duration-0 border-l border-border"
             :class="scope === 'thread' ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'"
             @click="scope = 'thread'"
           >This thread</button>
@@ -111,7 +109,7 @@ const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
           v-if="hasRuns"
           variant="ghost"
           size="sm"
-          class="h-6 gap-1 px-2 text-xs text-muted-foreground"
+          class="h-6 gap-1 px-2 text-xs text-muted-foreground animate-in fade-in-0"
           aria-label="Clear run history"
           @click="clearHistory"
         >
@@ -134,7 +132,7 @@ const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
         <!-- Empty state -->
         <div
           v-if="!hasDisplayedRuns"
-          class="flex flex-col items-center justify-center h-full py-8 text-muted-foreground"
+          class="flex flex-col items-center justify-center h-full py-8 text-muted-foreground animate-in fade-in-0 animation-duration-fast"
         >
           <Terminal class="h-6 w-6 opacity-30 mb-2" aria-hidden="true" />
           <p class="text-xs">
@@ -147,11 +145,11 @@ const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
           <div
             v-for="run in displayedRuns"
             :key="run.run_id"
-            class="group"
+            class="group animate-in fade-in-0 animation-duration-base"
           >
             <!-- Run summary row -->
             <button
-              class="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors duration-fast hover:duration-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               :aria-expanded="expandedRunID === run.run_id"
               @click="toggleExpand(run.run_id)"
             >
@@ -162,15 +160,15 @@ const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
               />
               <CheckCircle2
                 v-else-if="statusIcon(run) === 'success'"
-                class="h-4 w-4 shrink-0 text-green-600 dark:text-green-400"
+                class="h-4 w-4 shrink-0 text-green-600 dark:text-green-400 animate-in fade-in-0 animation-duration-fast"
               />
               <Square
                 v-else-if="statusIcon(run) === 'cancelled'"
-                class="h-4 w-4 shrink-0 text-muted-foreground"
+                class="h-4 w-4 shrink-0 text-muted-foreground animate-in fade-in-0 animation-duration-fast"
               />
               <XCircle
                 v-else
-                class="h-4 w-4 shrink-0 text-destructive"
+                class="h-4 w-4 shrink-0 text-destructive animate-in fade-in-0 animation-duration-fast"
               />
 
               <!-- Command name -->
@@ -180,14 +178,14 @@ const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
               <Badge
                 v-if="!run.running && !run.cancelled"
                 :variant="run.exit_code === 0 ? 'secondary' : 'destructive'"
-                class="text-xs shrink-0"
+                class="text-xs shrink-0 animate-in fade-in-0 animation-duration-fast"
               >
                 exit {{ run.exit_code }}
               </Badge>
               <Badge
                 v-else-if="run.cancelled"
                 variant="secondary"
-                class="text-xs shrink-0 text-muted-foreground"
+                class="text-xs shrink-0 text-muted-foreground animate-in fade-in-0 animation-duration-fast"
               >
                 cancelled
               </Badge>
@@ -205,19 +203,21 @@ const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
               </Button>
 
               <!-- Duration -->
-              <span v-if="formatDuration(run)" class="text-xs text-muted-foreground shrink-0">
+              <span v-if="formatDuration(run)" class="text-xs text-muted-foreground shrink-0 tabular-nums animate-in fade-in-0 animation-duration-fast">
                 {{ formatDuration(run) }}
               </span>
 
               <!-- Expand icon -->
-              <ChevronUp v-if="expandedRunID === run.run_id" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <ChevronDown v-else class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <ChevronDown
+                class="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-fast"
+                :class="expandedRunID === run.run_id && 'rotate-180'"
+              />
             </button>
 
             <!-- Expanded output -->
             <div
               v-if="expandedRunID === run.run_id"
-              class="bg-muted/30 border-t border-border px-4 py-3 space-y-2"
+              class="bg-muted/30 border-t border-border px-4 py-3 space-y-2 animate-in fade-in-0 animation-duration-fast"
             >
               <!-- Input used -->
               <div v-if="run.input" class="space-y-1">

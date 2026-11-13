@@ -45,8 +45,9 @@ async function pollDeviceFlow() {
 
     if (result.status === 'complete') {
       stopPolling()
-      deviceFlowInfo.value = null
+      // Cleared only once signed in, so the sign-in button never reappears between the two.
       await refreshAuthState()
+      deviceFlowInfo.value = null
     } else if (result.status === 'expired' || result.status === 'error') {
       stopPolling()
       error.value = result.error ?? `Device flow ${result.status}`
@@ -90,6 +91,13 @@ export function useAuth() {
     }
   }
 
+  /** Abandon the device flow and return to the sign-in prompt. */
+  function cancelDeviceFlow() {
+    stopPolling()
+    deviceFlowInfo.value = null
+    error.value = null
+  }
+
   /** Sign out: remove token from keyring. */
   async function logout() {
     error.value = null
@@ -110,6 +118,7 @@ export function useAuth() {
     error: readonly(error),
     refreshAuthState,
     startDeviceFlow,
+    cancelDeviceFlow,
     pollDeviceFlow,
     logout,
   }

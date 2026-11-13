@@ -82,13 +82,13 @@ onUnmounted(() => {
         variant="ghost"
         size="icon"
         class="h-7 w-7 text-muted-foreground hover:text-foreground"
-        :disabled="!started || refreshing"
+        :disabled="!started"
         aria-label="Refresh local changes"
         title="Refresh local changes"
         style="--wails-draggable: no-drag"
         @click="reload()"
       >
-        <RefreshCw :class="['h-3.5 w-3.5', refreshing && 'animate-spin']" />
+        <RefreshCw :class="['h-3.5 w-3.5', refreshing && 'animate-spin delay-200']" />
       </Button>
       <Button
         variant="ghost"
@@ -105,11 +105,11 @@ onUnmounted(() => {
       </Button>
     </Teleport>
 
-    <div v-if="error" class="flex-1 flex flex-col items-center justify-center gap-3 p-6">
+    <div v-if="error" class="flex-1 flex flex-col items-center justify-center gap-3 p-6 animate-in fade-in-0">
       <p class="text-sm text-destructive text-center">{{ error }}</p>
       <Button variant="outline" size="sm" @click="start()">Retry</Button>
     </div>
-    <div v-else-if="!started" class="flex-1 flex items-center justify-center text-muted-foreground">
+    <div v-else-if="!started" class="flex-1 flex items-center justify-center text-muted-foreground animate-in fade-in-0 delay-200 fill-mode-backwards">
       <RefreshCw class="h-6 w-6 animate-spin" />
     </div>
     <template v-else>
