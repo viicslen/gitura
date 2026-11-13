@@ -9,6 +9,7 @@
       :meta="currentPage === 'review' ? reviewNavMeta : null"
       :login="authState.login"
       :avatar-src="authAvatarSrc"
+      :focused="focused !== false"
       @home="goHome"
       @settings="settingsDialogOpen = true"
       @logout="handleLogout"
@@ -16,8 +17,9 @@
     <div class="flex-1 min-w-0 flex flex-col overflow-hidden">
     <TitleStrip
       :meta="authState.is_authenticated && currentPage === 'review' ? reviewNavMeta : null"
-      :fallback="authState.is_authenticated ? 'Pull Requests' : 'gitura'"
+      :fallback="authState.is_authenticated && !focused ? 'Pull Requests' : 'gitura'"
       :local-label="authState.is_authenticated && currentPage === 'local' ? localLabel : undefined"
+      :focused="focused !== false"
       @open-pr="openPRInBrowser"
       @back="goHome"
     />
@@ -34,7 +36,7 @@
         <!-- KeepAlive preserves PRListPage scroll position and filter state when navigating to review -->
         <KeepAlive>
           <PRListPage
-            v-if="currentPage === 'prList'"
+            v-if="currentPage === 'prList' && focused === false"
             :pr-updates="prUpdates"
             @open-review="handleOpenReview"
             @open-local="handleOpenLocal"
@@ -81,7 +83,7 @@ import SettingsPage from '@/pages/SettingsPage.vue'
 import ThemeToggle from '@/components/shell/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
-import { TakeLaunch } from '@/bindings/gitura/internal/app/app'
+import { IsFocused, TakeLaunch } from '@/bindings/gitura/internal/app/app'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
 import { buildAvatarProxyURL } from '@/lib/avatar'
@@ -100,13 +102,17 @@ const settingsDialogOpen = ref(false)
 const prUpdates = reactive(new Map<string, PRRef>())
 const authAvatarSrc = computed(() => buildAvatarProxyURL(authState.value.avatar_url))
 const railLayout = computed(() => authState.value.is_authenticated)
+// null until known, so a --focus window never mounts (and fetches) the PR list.
+const focused = ref<boolean | null>(null)
 
 function goHome() {
+  if (focused.value !== false) return
   if (currentPage.value === 'review') handleCloseReview()
   else currentPage.value = 'prList'
 }
 
 onMounted(async () => {
+  void IsFocused().then((f) => (focused.value = f), () => (focused.value = false))
   await refreshAuthState()
 })
 

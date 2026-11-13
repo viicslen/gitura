@@ -8,6 +8,7 @@ const listOpenPRs = vi.fn()
 vi.mock('@/bindings/gitura/internal/app/app', () => ({
   GetAuthState: () => Promise.resolve({ is_authenticated: true, login: 'me', avatar_url: '' }),
   ListOpenPRs: (...args: unknown[]) => listOpenPRs(...args),
+  IsFocused: () => Promise.resolve(false),
 }))
 
 vi.mock('@wailsio/runtime', () => ({

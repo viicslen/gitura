@@ -5,7 +5,7 @@ import PRStateBadge from './PRStateBadge.vue'
 import WindowControls from './WindowControls.vue'
 import type { PRRef } from '@/types/pr'
 
-defineProps<{ meta: PRRef | null; fallback: string; localLabel?: string }>()
+defineProps<{ meta: PRRef | null; fallback: string; localLabel?: string; focused?: boolean }>()
 const emit = defineEmits<{ (e: 'open-pr'): void; (e: 'back'): void }>()
 </script>
 
@@ -13,7 +13,7 @@ const emit = defineEmits<{ (e: 'open-pr'): void; (e: 'back'): void }>()
   <div class="h-10 flex items-stretch shrink-0 border-b border-border select-none" style="--wails-draggable: drag">
     <div class="flex-1 min-w-[8.5rem] flex items-center gap-2 pr-2" :class="meta || localLabel ? 'pl-2' : 'pl-4'">
       <button
-        v-if="meta || localLabel"
+        v-if="(meta || localLabel) && !focused"
         class="h-7 w-7 shrink-0 grid place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         style="--wails-draggable: no-drag"
         aria-label="Back to pull requests"

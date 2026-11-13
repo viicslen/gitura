@@ -244,6 +244,13 @@ export function GetViewedFiles(): $CancellablePromise<string[]> {
 }
 
 /**
+ * IsFocused reports whether this window was opened with --focus, so it shows only the launched review.
+ */
+export function IsFocused(): $CancellablePromise<boolean> {
+    return $Call.ByID(2595795827);
+}
+
+/**
  * ListOpenPRs fetches all open pull requests involving the authenticated user
  * using a single GitHub Search query (involves: qualifier). The returned items
  * are tagged with IsAuthor, IsAssignee, IsReviewer for client-side filtering.
