@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useElementSize, useEventListener, useResizeObserver } from '@vueuse/core'
 import { Badge } from '@/components/ui/badge'
 import { FileSymlink } from '@lucide/vue'
@@ -8,6 +8,8 @@ import DiffPane from './DiffPane.vue'
 import DiffInlineThread from './DiffInlineThread.vue'
 import InlineCommentForm from './InlineCommentForm.vue'
 import DiffDraftComment from './DiffDraftComment.vue'
+import GlideList from '@/components/motion/GlideList.vue'
+import { ROW_GLIDE } from '@/components/motion/motion'
 import type * as model from '@/bindings/gitura/internal/model'
 import { langFromPath } from '@/lib/highlight'
 import { anchorKey, buildSplitLayout, diffLineKeys, syncScrollTop, type BlockKind, type CommentTarget, type Edge, type LineSelection, type Side, type UnsentComments } from '@/lib/diffLayout'
@@ -64,7 +66,16 @@ const placedThreads = computed(() =>
 )
 const unplacedThreads = computed(() => visibleThreads.value.filter((t) => !placedThreads.value.includes(t)))
 
-const indexedDrafts = computed(() => props.drafts.map((draft, i) => ({ draft, key: `draft:${i}` })))
+// Keyed by line, not by position in the review: removing one draft must not re-key the others.
+const indexedDrafts = computed(() => {
+  const perLine = new Map<string, number>()
+  return props.drafts.map((draft) => {
+    const at = draftKey(draft)
+    const n = perLine.get(at) ?? 0
+    perLine.set(at, n + 1)
+    return { draft, key: `draft:${at}:${n}` }
+  })
+})
 const placedDrafts = computed(() =>
   props.draftsStale ? [] : indexedDrafts.value.filter((d) => lineKeys.value.has(draftKey(d.draft))),
 )
@@ -149,6 +160,23 @@ const selection = computed<LineSelection | null>(() => {
   return f ? { side: f.side, from: f.startLine ?? f.line, to: f.line } : null
 })
 
+// The form stays up until the posted comment comes back as a thread (3s at most), so the two swap in one move.
+const unmounted = ref(false)
+onBeforeUnmount(() => (unmounted.value = true))
+function threadLands(at: string): Promise<void> {
+  const count = () => placedThreads.value.filter((t) => threadKey(t) === at).length
+  const before = count()
+  return new Promise((resolve) => {
+    const finish = () => {
+      stop()
+      clearTimeout(timer)
+      resolve()
+    }
+    const stop = watch(() => unmounted.value || count() > before, (landed) => landed && finish())
+    const timer = setTimeout(finish, 3000)
+  })
+}
+
 async function submitComment(body: string, submitMode: 'draft' | 'immediate'): Promise<boolean> {
   const t = form.value
   if (!t || sending.value) return false
@@ -166,6 +194,7 @@ async function submitComment(body: string, submitMode: 'draft' | 'immediate'): P
   let ok = false
   try {
     ok = await props.postComment(comment, submitMode)
+    if (ok && submitMode === 'immediate' && props.showThreads && !unmounted.value) await threadLands(anchorKey(t.side, t.line))
   } finally {
     if (entry && props.unsentComments.get(path) === entry) {
       if (ok) props.unsentComments.delete(path)
@@ -195,10 +224,19 @@ const inlineByKey = computed(() => {
   if (form.value) add(anchorKey(form.value.side, form.value.line), { type: 'form', key: 'form' })
   return m
 })
-const inlineKeys = computed(() => new Set(inlineByKey.value.keys()))
+// A line keeps its inline container once it had a row, so the last row has somewhere to animate out of.
+const usedAnchors = new Set<string>()
+const inlineKeys = computed(() => {
+  for (const key of inlineByKey.value.keys()) usedAnchors.add(key)
+  return new Set(usedAnchors)
+})
 // Rows the file opens with don't animate, later ones do. Not a ref: flipping it must not re-render the panes.
 let settled = false
 onMounted(() => { settled = true })
+const NO_ROWS: Inline[] = []
+const rewrapped = ref(0)
+watch(() => props.wrapLines, () => rewrapped.value++)
+const rowKey = (row: Inline) => row.key
 
 // ── Synchronized scrolling ─────────────────────────────────────────────────
 // Each pane scrolls on its own; the one the user drives maps its position through the
@@ -247,20 +285,67 @@ function measure(): void {
   const l = mode.value === 'split' ? measurePane('LEFT') : null
   const r = mode.value === 'split' ? measurePane('RIGHT') : null
   metrics.value = l && r ? { LEFT: l, RIGHT: r } : null
+  shifts.value = NO_SHIFT
 }
 
-useResizeObserver(() => [contentEl('LEFT'), contentEl('RIGHT')], measure)
-watch([layout, inlineKeys, mode], () => nextTick(measure))
+// ── Gliding rows ───────────────────────────────────────────────────────────
+// A full measure on every frame of a glide drops frames; one height read per gliding row moves everything below it instead.
 
-const pos = (m: PaneMetrics, e: Edge) => (e.at === 'top' ? m.top : m.bottom)[e.item] ?? 0
+/** Rows in mid-glide: the pane item each sits in, and its height at the last measure. */
+const glides = new Map<HTMLElement, { side: Side; item: number; from: number }>()
+const NO_SHIFT: Record<Side, [afterItem: number, dy: number][]> = { LEFT: [], RIGHT: [] }
+/** How far each gliding row has pushed the items after it since the last measure. */
+const shifts = shallowRef(NO_SHIFT)
+let glideFrame = 0
+// A glide's start event arrives a frame late, so its starting height is read together with a fresh measure.
+let rebase = false
+
+function followGlides(): void {
+  // A row removed mid-glide sends no end event.
+  for (const el of glides.keys()) if (!el.isConnected || !el.getAnimations().length) glides.delete(el)
+  glideFrame = glides.size ? requestAnimationFrame(followGlides) : 0
+  if (rebase || !glides.size) {
+    measure()
+    for (const [el, glide] of glides) glide.from = el.offsetHeight
+    rebase = false
+    return
+  }
+  const next: typeof NO_SHIFT = { LEFT: [], RIGHT: [] }
+  for (const [el, glide] of glides) next[glide.side].push([glide.item, el.offsetHeight - glide.from])
+  shifts.value = next
+}
+
+function onGlide(side: Side, event: TransitionEvent): void {
+  const content = contentEl(side)
+  const el = event.target as HTMLElement
+  if (event.propertyName !== 'grid-template-rows' || !content?.contains(el)) return
+  if (event.type !== 'transitionrun') {
+    glides.delete(el)
+    return
+  }
+  let item = el
+  while (item.parentElement && item.parentElement !== content) item = item.parentElement
+  glides.set(el, { side, item: Array.prototype.indexOf.call(content.children, item), from: 0 })
+  rebase = true
+  glideFrame ||= requestAnimationFrame(followGlides)
+}
+onBeforeUnmount(() => cancelAnimationFrame(glideFrame))
+
+useResizeObserver(() => [contentEl('LEFT'), contentEl('RIGHT')], () => glides.size || measure())
+watch([layout, inlineKeys, mode], () => nextTick(() => glides.size || measure()))
+
+const shiftAt = (side: Side, item: number) =>
+  shifts.value[side].reduce((sum, [after, dy]) => (after < item ? sum + dy : sum), 0)
+const pos = (side: Side, m: PaneMetrics, e: Edge) =>
+  ((e.at === 'top' ? m.top : m.bottom)[e.item] ?? 0) + shiftAt(side, e.item)
 
 const syncPoints = computed<[number, number][]>(() => {
   const m = metrics.value
   if (!m) return []
   return [
     [0, 0],
-    ...layout.value.sync.map((p): [number, number] => [pos(m.LEFT, p.left), pos(m.RIGHT, p.right)]),
-    [m.LEFT.height, m.RIGHT.height],
+    ...layout.value.sync.map((p): [number, number] => [pos('LEFT', m.LEFT, p.left), pos('RIGHT', m.RIGHT, p.right)]),
+    [m.LEFT.height + shiftAt('LEFT', Infinity), m.RIGHT.height + shiftAt('RIGHT', Infinity)],
   ]
 })
 
@@ -315,8 +400,8 @@ const connectors = computed(() => {
   const mid = w / 2
   const out: { d: string; cls: string }[] = []
   for (const b of layout.value.blocks) {
-    const [l0, l1] = b.left.map((e) => pos(m.LEFT, e) - scrollTop.LEFT)
-    const [r0, r1] = b.right.map((e) => pos(m.RIGHT, e) - scrollTop.RIGHT)
+    const [l0, l1] = b.left.map((e) => pos('LEFT', m.LEFT, e) - scrollTop.LEFT)
+    const [r0, r1] = b.right.map((e) => pos('RIGHT', m.RIGHT, e) - scrollTop.RIGHT)
     if (Math.max(l1, r1) < 0 || Math.min(l0, r0) > h) continue
     out.push({
       d: `M0,${l0} C${mid},${l0} ${mid},${r0} ${w},${r0} L${w},${r1} C${mid},${r1} ${mid},${l1} 0,${l1} Z`,
@@ -325,6 +410,10 @@ const connectors = computed(() => {
   }
   return out
 })
+
+// Its own render scope: the connectors follow every scroll and resize, and must not re-render the panes with them.
+const Connectors = () => h('svg', { class: 'absolute inset-0 overflow-visible', width: gutterW.value, height: gutterH.value },
+  connectors.value.map((c, i) => h('path', { key: i, d: c.d, class: c.cls, 'stroke-width': 1 })))
 
 function statusLabel(status: string): string {
   switch (status) {
@@ -401,33 +490,53 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
         <span class="font-sans">{{ pathChangeTitle }}</span> from
         {{ pathChange.prefix }}<mark v-if="pathChange.from" class="rounded-sm bg-rose-500/20 px-0.5 text-rose-700 dark:text-rose-300">{{ pathChange.from }}</mark>{{ tail(pathChange.from, pathChange.suffix) }}
       </p>
-      <div v-if="unplacedThreads.length || unplacedDrafts.length" class="max-h-[40%] shrink-0 overflow-y-auto border-b border-border bg-muted/20 py-1">
-        <p v-if="unplacedThreads.length" class="px-4 pt-1 text-xs text-muted-foreground">
-          {{ unplacedThreads.length }} comment{{ unplacedThreads.length === 1 ? '' : 's' }} outside the visible diff
-        </p>
-        <DiffInlineThread
-          v-for="t in unplacedThreads"
-          :key="t.root_id"
-          :thread="t"
-          :language="language"
-          @resolve="emit('resolve', $event)"
-          @unresolve="emit('unresolve', $event)"
-          @reply-sent="emit('reply-sent', $event)"
-        />
-        <p v-if="unplacedDrafts.length" class="px-4 pt-1 text-xs text-muted-foreground">
-          {{ draftsStale
-            ? 'Your pending comments were written against an earlier commit and will be submitted against it'
-            : 'Pending comments outside the visible diff' }}
-        </p>
-        <DiffDraftComment v-for="d in unplacedDrafts" :key="d.key" :draft="d.draft" />
-      </div>
+      <!-- The bottom line is a shadow, not a border, so the box can close to nothing. -->
+      <Transition v-bind="ROW_GLIDE">
+        <div v-if="unplacedThreads.length || unplacedDrafts.length" class="grid max-h-[40%] shrink-0 bg-muted/20 shadow-[inset_0_-1px_0_var(--color-border)]">
+          <div class="min-h-0 overflow-y-auto">
+            <div class="py-1">
+              <p v-if="unplacedThreads.length" class="px-4 pt-1 text-xs text-muted-foreground">
+                {{ unplacedThreads.length }} comment{{ unplacedThreads.length === 1 ? '' : 's' }} outside the visible diff
+              </p>
+              <GlideList v-slot="{ item: t }" :items="unplacedThreads" :item-key="(t) => t.root_id" :appear="settled">
+                <div class="grid">
+                  <div class="min-h-0">
+                    <DiffInlineThread
+                      :thread="t"
+                      :language="language"
+                      @resolve="emit('resolve', $event)"
+                      @unresolve="emit('unresolve', $event)"
+                      @reply-sent="emit('reply-sent', $event)"
+                    />
+                  </div>
+                </div>
+              </GlideList>
+              <p v-if="unplacedDrafts.length" class="px-4 pt-1 text-xs text-muted-foreground">
+                {{ draftsStale
+                  ? 'Your pending comments were written against an earlier commit and will be submitted against it'
+                  : 'Pending comments outside the visible diff' }}
+              </p>
+              <GlideList v-slot="{ item: d }" :items="unplacedDrafts" :item-key="(d) => d.key" :appear="settled">
+                <div class="grid"><div class="min-h-0"><DiffDraftComment :draft="d.draft" /></div></div>
+              </GlideList>
+            </div>
+          </div>
+        </div>
+      </Transition>
 
       <div
-        class="grid min-h-0 flex-1"
+        class="relative grid min-h-0 flex-1"
         :class="mode === 'split'
           ? 'grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)]'
           : 'grid-cols-1 grid-rows-[minmax(0,1fr)]'"
       >
+        <!-- Every line re-wraps at once, so the new layout fades in from behind a cover instead of being mounted twice. -->
+        <div
+          v-if="rewrapped"
+          :key="rewrapped"
+          class="pointer-events-none absolute inset-0 z-[2] bg-background animate-out fade-out-0"
+          @animationend="rewrapped = 0"
+        />
         <template v-if="mode === 'split'">
           <span class="truncate border-b border-border px-3 py-1 font-mono text-[0.6875rem] text-muted-foreground">
             Base
@@ -445,9 +554,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
             aria-hidden="true"
             class="relative overflow-hidden bg-muted/30"
           >
-            <svg class="absolute inset-0 overflow-visible" :width="gutterW" :height="gutterH">
-              <path v-for="(c, i) in connectors" :key="i" :d="c.d" :class="c.cls" stroke-width="1" />
-            </svg>
+            <Connectors />
           </div>
           <div
             :ref="(el) => setScrollEl(side, el)"
@@ -457,6 +564,9 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
               mode === 'split' && side === 'LEFT' ? 'border-r border-border/60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : '',
             ]"
             @scroll.passive="onScroll(side)"
+            @transitionrun="onGlide(side, $event)"
+            @transitionend="onGlide(side, $event)"
+            @transitioncancel="onGlide(side, $event)"
             @wheel.passive="master = side"
             @touchstart.passive="master = side"
             @pointerdown="master = side"
@@ -478,31 +588,35 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
               @activate="(hunk, line, shift) => onActivate(side, hunk, line, shift)"
             >
               <template #inline="{ no }">
-                <Transition
-                  v-for="row in inlineByKey.get(anchorKey(side, no)) ?? []"
-                  :key="row.key"
+                <GlideList
+                  v-slot="{ item: row }"
+                  :items="inlineByKey.get(anchorKey(side, no)) ?? NO_ROWS"
+                  :item-key="rowKey"
                   :appear="settled"
-                  enter-active-class="animate-in fade-in-0 slide-in-from-top-1 animation-duration-fast ease-out"
                 >
-                  <DiffInlineThread
-                    v-if="row.type === 'thread'"
-                    :thread="row.thread"
-                    :language="language"
-                    @resolve="emit('resolve', $event)"
-                    @unresolve="emit('unresolve', $event)"
-                    @reply-sent="emit('reply-sent', $event)"
-                  />
-                  <DiffDraftComment v-else-if="row.type === 'draft'" :draft="row.draft" />
-                  <div v-else-if="form" class="px-3 py-2">
-                    <InlineCommentForm
-                      :draft="formDraft"
-                      :target="{ path: file.filename, side: form.side, line: form.line, startLine: form.startLine }"
-                      :post="submitComment"
-                      :sending="sending"
-                      @cancel="form = null"
-                    />
+                  <div class="grid">
+                    <div class="min-h-0">
+                      <DiffInlineThread
+                        v-if="row.type === 'thread'"
+                        :thread="row.thread"
+                        :language="language"
+                        @resolve="emit('resolve', $event)"
+                        @unresolve="emit('unresolve', $event)"
+                        @reply-sent="emit('reply-sent', $event)"
+                      />
+                      <DiffDraftComment v-else-if="row.type === 'draft'" :draft="row.draft" />
+                      <div v-else-if="form" class="px-3 py-2">
+                        <InlineCommentForm
+                          :draft="formDraft"
+                          :target="{ path: file.filename, side: form.side, line: form.line, startLine: form.startLine }"
+                          :post="submitComment"
+                          :sending="sending"
+                          @cancel="form = null"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </Transition>
+                </GlideList>
               </template>
             </DiffPane>
           </div>

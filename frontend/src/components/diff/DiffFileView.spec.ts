@@ -169,12 +169,13 @@ describe('DiffFileView', () => {
     const props = { file, diff, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true, postComment: vi.fn(), unsentComments }
     const wrapper = mount(DiffFileView, { props, attachTo: document.body })
     await flushPromises()
-    expect(wrapper.find('transition-stub').attributes('appear')).toBe('false')
+    const formRow = () => wrapper.findAll('transition-stub').find((t) => t.find('textarea').exists())
+    expect(formRow()?.attributes('appear')).toBe('false')
 
     await wrapper.find('button[aria-label="Comment on new line 3"]').trigger('mousedown', { button: 0 })
     window.dispatchEvent(new MouseEvent('mouseup'))
     await flushPromises()
-    expect(wrapper.find('transition-stub').attributes('appear')).toBe('true')
+    expect(formRow()?.attributes('appear')).toBe('true')
     wrapper.unmount()
   })
 

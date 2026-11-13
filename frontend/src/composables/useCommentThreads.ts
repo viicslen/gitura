@@ -50,9 +50,9 @@ export function useCommentThreads(prItem: PRRef) {
     }
   })
 
-  async function loadPR(): Promise<void> {
+  /** Resolves to false when the load failed; a failed refresh keeps what is on screen and reports in a toast. */
+  async function loadPR(): Promise<boolean> {
     loading.value = true
-    error.value = ''
     loadProgress.value = { loaded: 0, total: -1 }
     // A refresh keeps the filter and the open thread.
     const refreshing = !!prSummary.value
@@ -68,20 +68,30 @@ export function useCommentThreads(prItem: PRRef) {
     const unsubscribeProgress = Events.On('pr:load-progress', (ev) => progressHandler(ev.data))
 
     try {
-      prSummary.value = await App.LoadPR(prItem.owner, prItem.repo, prItem.number)
+      const summary = await App.LoadPR(prItem.owner, prItem.repo, prItem.number)
       threads.value = await App.GetCommentThreads(true)
+      // Set last: the page shows its content once there is a summary, and the threads must already be there.
+      prSummary.value = summary
+      error.value = ''
       const index = refreshing ? queue.value.findIndex((t) => t.root_id === openRootId) : -1
       if (index >= 0) currentIndex.value = index
+      return true
     } catch (err) {
-      error.value = errorMessage(err)
+      if (refreshing) toast.error('Could not refresh pull request: ' + errorMessage(err))
+      else error.value = errorMessage(err)
+      return false
     } finally {
       loading.value = false
       unsubscribeProgress()
     }
   }
 
+  /** Switches the filter; the open thread stays open when the other filter lists it too. */
   function toggleShowResolved(): void {
+    const openRootId = currentThread.value?.root_id
     showResolved.value = !showResolved.value
+    const index = queue.value.findIndex((t) => t.root_id === openRootId)
+    if (index >= 0) currentIndex.value = index
   }
 
   /** Re-fetches threads and reviews from GitHub so newly posted comments and reviews show up. */
@@ -141,7 +151,7 @@ export function useCommentThreads(prItem: PRRef) {
     try {
       threads.value = await App.GetCommentThreads(true)
     } catch (err) {
-      error.value = errorMessage(err)
+      toast.error('Could not refresh comments: ' + errorMessage(err))
     }
   }
 

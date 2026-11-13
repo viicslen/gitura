@@ -3,17 +3,27 @@
        in WebKit (Wails) is clipped by overflow:hidden ancestors. Vue 3 fragments
        allow multiple root elements. -->
   <Toaster position="bottom-right" richColors />
-  <div class="h-screen flex overflow-hidden bg-background text-foreground" :class="railLayout ? 'flex-row' : 'flex-col'">
-    <SideRail
-      v-if="railLayout"
-      :meta="currentPage === 'review' ? reviewNavMeta : null"
-      :login="authState.login"
-      :avatar-src="authAvatarSrc"
-      :focused="focused !== false"
-      @home="goHome"
-      @settings="settingsDialogOpen = true"
-      @logout="handleLogout"
-    />
+  <div class="h-screen flex overflow-hidden bg-background text-foreground">
+    <!-- :css is off until the first auth check, so the rail is simply there at launch and only glides on sign-in and sign-out. -->
+    <Transition
+      :css="authChecked"
+      enter-active-class="transition-[width] duration-slower"
+      enter-from-class="w-0!"
+      leave-active-class="transition-[width] duration-slow"
+      leave-to-class="w-0!"
+    >
+      <div v-if="railLayout" class="flex w-12 shrink-0 justify-end overflow-hidden">
+        <SideRail
+          :meta="currentPage === 'review' ? reviewNavMeta : null"
+          :login="authState.login"
+          :avatar-src="authAvatarSrc"
+          :focused="focused !== false"
+          @home="goHome"
+          @settings="settingsDialogOpen = true"
+          @logout="handleLogout"
+        />
+      </div>
+    </Transition>
     <div class="flex-1 min-w-0 flex flex-col overflow-hidden">
     <TitleStrip
       :meta="authState.is_authenticated && currentPage === 'review' ? reviewNavMeta : null"
@@ -24,46 +34,39 @@
       @back="goHome"
     />
 
-    <!-- Theme toggle shown in top-right corner when not authenticated -->
-    <div v-if="authChecked && !authState.is_authenticated" class="fixed top-12 right-4 z-50">
-      <ThemeToggle />
-    </div>
-
-    <!-- Page routing -->
-    <main class="flex-1 overflow-hidden">
-      <div
-        v-if="!authChecked"
-        class="h-full grid place-items-center text-muted-foreground animate-in fade-in-0 delay-200 fill-mode-backwards"
-        role="status"
-        aria-label="Loading"
+    <!-- Page routing: every page sits in the one grid cell, so the leaving page keeps its box while it fades out over the entering one. -->
+    <main class="relative grid flex-1 grid-cols-1 grid-rows-1 overflow-hidden">
+      <Transition
+        :enter-active-class="PAGE_MOTION[pageMotion].enter"
+        :leave-active-class="PAGE_MOTION[pageMotion].leave"
+        @before-leave="(el) => pageScroll.set(el, el.scrollTop)"
+        @enter="(el) => (el.scrollTop = pageScroll.get(el) ?? 0)"
       >
-        <RefreshCw class="h-6 w-6 animate-spin" />
-      </div>
-      <AuthPage v-else-if="!authState.is_authenticated" class="animate-in fade-in-0 ease-out animation-duration-slower" />
-      <template v-else>
-        <!-- KeepAlive preserves PRListPage scroll position and filter state when navigating to review -->
-        <KeepAlive>
+        <!-- Keeps PRListPage's scroll position and filter state while a review is open; emptied on sign-out. -->
+        <KeepAlive :include="railLayout ? 'PRListPage' : []">
+          <div v-if="page === 'boot'" :class="[cell, 'grid place-items-center text-muted-foreground']" role="status" aria-label="Loading">
+            <div class="animate-in fade-in-0 delay-200 fill-mode-backwards">
+              <RefreshCw class="h-6 w-6 animate-spin" />
+            </div>
+          </div>
+          <AuthPage v-else-if="page === 'auth'" :class="cell" />
           <PRListPage
-            v-if="currentPage === 'prList' && focused === false"
-            class="animate-in fade-in-0 slide-in-from-top-1 ease-out"
+            v-else-if="page === 'prList' && focused === false"
+            :class="cell"
             :pr-updates="prUpdates"
             @open-review="handleOpenReview"
             @open-local="handleOpenLocal"
           />
+          <PRReviewPage
+            v-else-if="page === 'review' && selectedPRItem"
+            :class="cell"
+            :pr-item="selectedPRItem"
+            @update-pr-meta="handleUpdatePRMeta"
+            @close-review="focused ? Application.Quit() : handleCloseReview()"
+          />
+          <LocalReviewPage v-else-if="page === 'local'" :class="cell" :path="localPath" />
         </KeepAlive>
-        <PRReviewPage
-          v-if="currentPage === 'review' && selectedPRItem"
-          class="animate-in fade-in-0 slide-in-from-bottom-1 ease-out"
-          :pr-item="selectedPRItem"
-          @update-pr-meta="handleUpdatePRMeta"
-          @close-review="focused ? Application.Quit() : handleCloseReview()"
-        />
-        <LocalReviewPage
-          v-if="currentPage === 'local'"
-          class="animate-in fade-in-0 slide-in-from-bottom-1 ease-out"
-          :path="localPath"
-        />
-      </template>
+      </Transition>
     </main>
 
     <Dialog :open="settingsDialogOpen" @update:open="settingsDialogOpen = $event">
@@ -75,6 +78,7 @@
     <Dialog v-model:open="zoomOpen">
       <DialogContent
         class="w-auto max-w-[95vw] sm:max-w-[95vw] p-0 border-0 bg-transparent shadow-none"
+        :style="{ transformOrigin: zoomedImage?.origin }"
         :aria-describedby="undefined"
         @click="zoomOpen = false"
       >
@@ -95,7 +99,6 @@ import PRListPage from '@/pages/PRListPage.vue'
 import PRReviewPage from '@/pages/PRReviewPage.vue'
 import LocalReviewPage from '@/pages/LocalReviewPage.vue'
 import SettingsPage from '@/pages/SettingsPage.vue'
-import ThemeToggle from '@/components/shell/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
 import { RefreshCw } from '@lucide/vue'
@@ -122,6 +125,31 @@ const railLayout = computed(() => authState.value.is_authenticated)
 const focused = ref<boolean | null>(null)
 // False until the saved token is verified, so a signed-in launch never shows the sign-in page.
 const authChecked = ref(false)
+
+const page = computed(() => (!authChecked.value ? 'boot' : !authState.value.is_authenticated ? 'auth' : currentPage.value))
+const PAGE_DEPTH = { boot: 0, auth: 0, prList: 1, review: 2, local: 2 }
+// arrive and signOut are rare; the others are page changes, moved one tier faster because they repeat all day.
+// hidden! takes the old page away in one frame where fading it out over the new one dropped frames.
+const PAGE_MOTION = {
+  arrive: { enter: 'animate-in fade-in-0 slide-in-from-bottom-2 animation-duration-slower', leave: 'animate-out fade-out-0 animation-duration-slow' },
+  signOut: { enter: 'animate-in fade-in-0 slide-in-from-bottom-2 animation-duration-slower', leave: 'hidden!' },
+  deeper: { enter: 'animate-in fade-in-0 slide-in-from-bottom-2', leave: 'animate-out fade-out-0 slide-out-to-top-2 animation-duration-fast' },
+  back: { enter: 'animate-in fade-in-0 slide-in-from-top-2', leave: 'hidden!' },
+  sibling: { enter: 'animate-in fade-in-0', leave: 'hidden!' },
+}
+// A kept-alive page is detached while it is away, which resets its scroll position; put it back before the enter starts.
+const pageScroll = new WeakMap<Element, number>()
+const cell = 'col-start-1 row-start-1 min-h-0 min-w-0'
+const pageMotion = ref<keyof typeof PAGE_MOTION>('arrive')
+// sync: the classes must be chosen before the render that swaps the page.
+watch(
+  page,
+  (now, was) => {
+    const step = PAGE_DEPTH[now] - PAGE_DEPTH[was]
+    pageMotion.value = !PAGE_DEPTH[was] ? 'arrive' : !PAGE_DEPTH[now] ? 'signOut' : step > 0 ? 'deeper' : step < 0 ? 'back' : 'sibling'
+  },
+  { flush: 'sync' },
+)
 
 function goHome() {
   if (focused.value !== false) return
@@ -156,13 +184,7 @@ async function handleLogout() {
 
 function handleOpenReview(item: PRRef) {
   selectedPRItem.value = item
-  reviewNavMeta.value = {
-    owner: item.owner,
-    repo: item.repo,
-    number: item.number,
-    title: item.title,
-    html_url: item.html_url,
-  }
+  reviewNavMeta.value = { ...item }
   currentPage.value = 'review'
 }
 
@@ -200,14 +222,17 @@ function openExternalLink(event: MouseEvent): void {
 useEventListener(document, 'click', openExternalLink)
 useEventListener(document, 'auxclick', openExternalLink)
 
-const zoomedImage = ref<{ src: string; alt: string } | null>(null)
+const zoomedImage = ref<{ src: string; alt: string; origin: string } | null>(null)
 // Separate from zoomedImage so the image stays rendered through the dialog's close animation.
 const zoomOpen = ref(false)
 // Linked images (badges, preview buttons) keep their link behaviour.
 useEventListener(document, 'click', (event: MouseEvent) => {
   const img = event.target instanceof Element ? event.target.closest<HTMLImageElement>('.markdown-body img') : null
   if (!img || img.closest('a[href]')) return
-  zoomedImage.value = { src: img.currentSrc || img.src, alt: img.alt }
+  const box = img.getBoundingClientRect()
+  // The dialog is centred in the window, so this origin makes it grow from the image that was clicked.
+  const origin = `calc(50% + ${box.x + box.width / 2 - innerWidth / 2}px) calc(50% + ${box.y + box.height / 2 - innerHeight / 2}px)`
+  zoomedImage.value = { src: img.currentSrc || img.src, alt: img.alt, origin }
   zoomOpen.value = true
 })
 </script>

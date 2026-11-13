@@ -45,8 +45,8 @@
         <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           Repository
           <button
-            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility] duration-fast"
-            :class="!filters.repo.value && 'invisible opacity-0'"
+            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility]"
+            :class="filters.repo.value ? 'duration-fast' : 'invisible opacity-0 duration-faster'"
             aria-label="Clear repository filter"
             @click="filters.clearRepo()"
           >
@@ -92,8 +92,8 @@
         <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           Organisation
           <button
-            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility] duration-fast"
-            :class="!filters.org.value && 'invisible opacity-0'"
+            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility]"
+            :class="filters.org.value ? 'duration-fast' : 'invisible opacity-0 duration-faster'"
             aria-label="Clear organisation filter"
             @click="filters.clearOrg()"
           >
@@ -139,8 +139,8 @@
         <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           PR Author
           <button
-            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility] duration-fast"
-            :class="!filters.author.value && 'invisible opacity-0'"
+            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility]"
+            :class="filters.author.value ? 'duration-fast' : 'invisible opacity-0 duration-faster'"
             aria-label="Clear author filter"
             @click="filters.clearAuthor()"
           >
@@ -152,6 +152,7 @@
           placeholder="github-login"
           aria-label="Filter by PR author"
           class="h-8 text-sm"
+          @input="rowMotionOnce('cut')"
         />
       </section>
 
@@ -160,8 +161,8 @@
         <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           Updated after
           <button
-            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility] duration-fast"
-            :class="!filters.updatedAfter.value && 'invisible opacity-0'"
+            class="ml-1 text-xs text-muted-foreground hover:text-foreground transition-[color,opacity,visibility]"
+            :class="filters.updatedAfter.value ? 'duration-fast' : 'invisible opacity-0 duration-faster'"
             aria-label="Clear date filter"
             @click="filters.clearUpdatedAfter()"
           >
@@ -173,6 +174,7 @@
           type="date"
           aria-label="Filter by updated date"
           class="h-8 text-sm"
+          @input="rowMotionOnce('cut')"
         />
       </section>
 
@@ -190,8 +192,8 @@
 
       <!-- Clear all -->
       <div
-        class="transition-[opacity,visibility] duration-fast"
-        :class="!filters.hasActiveFilters.value && 'invisible opacity-0'"
+        class="transition-[opacity,translate,visibility]"
+        :class="filters.hasActiveFilters.value ? 'duration-base' : 'invisible opacity-0 translate-y-1 duration-fast'"
       >
         <Button
           variant="ghost"
@@ -209,10 +211,12 @@
       <!-- Toolbar: count + refresh -->
       <div class="flex items-center justify-between mb-4">
         <p class="text-sm text-muted-foreground tabular-nums" aria-live="polite">
-          <template v-if="rawResult && !errorMsg">
-            {{ visibleItems.length }} {{ visibleItems.length === 1 ? 'pull request' : 'pull requests' }}
-            <span v-if="rawResult?.incomplete_results" class="ml-1 text-yellow-500">(incomplete)</span>
-          </template>
+          <Transition enter-active-class="animate-in fade-in-0 animation-duration-base">
+            <span v-if="rawResult">
+              {{ visibleItems.length }} {{ visibleItems.length === 1 ? 'pull request' : 'pull requests' }}
+              <span v-if="rawResult.incomplete_results" class="ml-1 text-yellow-500">(incomplete)</span>
+            </span>
+          </Transition>
         </p>
         <div class="flex items-center gap-1">
           <Button variant="outline" size="sm" class="gap-1.5" @click="openLocalReview()">
@@ -226,73 +230,82 @@
             aria-label="Refresh pull request list"
             @click="fetchPRs()"
           >
-            <RefreshCw :class="['h-4 w-4', loading && 'animate-spin']" />
+            <RefreshCw :class="['h-4 w-4', spinning && 'animate-spin']" @animationiteration="onSpinTurn" />
           </Button>
         </div>
       </div>
 
-      <!-- Error state -->
-      <Transition enter-active-class="animate-in fade-in-0 slide-in-from-top-1 animation-duration-base ease-out">
-        <div
-          v-if="errorMsg"
-          class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-5"
-          role="alert"
-        >
-          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div class="space-y-1">
-              <p class="text-sm font-semibold text-destructive">Could not load pull requests</p>
-              <p
-                v-if="rateLimitReset"
-                class="text-sm text-yellow-700 dark:text-yellow-300"
-              >
-                GitHub rate limit reached. Resets at {{ formatReset(rateLimitReset) }}.
-              </p>
-              <p
-                v-else-if="isGitHubServiceIssue"
-                class="text-sm text-muted-foreground"
-              >
-                GitHub is temporarily unavailable. This is usually transient.
-              </p>
-              <p
-                v-else
-                class="text-sm text-muted-foreground"
-              >
-                {{ errorMsg }}
-              </p>
+      <!-- Error state: opens and closes by height so the content below glides -->
+      <Transition
+        enter-active-class="transition-[grid-template-rows,opacity] duration-slow"
+        enter-from-class="grid-rows-[0fr]! opacity-0"
+        leave-active-class="transition-[grid-template-rows,opacity] duration-base"
+        leave-to-class="grid-rows-[0fr]! opacity-0"
+      >
+        <div v-if="errorMsg" class="grid grid-rows-[1fr]" role="alert">
+          <div class="min-h-0 overflow-hidden">
+            <div class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-5">
+              <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div class="space-y-1">
+                  <p class="text-sm font-semibold text-destructive">Could not load pull requests</p>
+                  <div class="grid *:col-start-1 *:row-start-1">
+                    <Transition
+                      enter-active-class="animate-in fade-in-0 animation-duration-base"
+                      leave-active-class="animate-out fade-out-0 animation-duration-fast"
+                    >
+                      <p
+                        :key="errorText"
+                        class="text-sm"
+                        :class="rateLimitReset ? 'text-yellow-700 dark:text-yellow-300' : 'text-muted-foreground'"
+                      >
+                        {{ errorText }}
+                      </p>
+                    </Transition>
+                  </div>
+                </div>
+                <Button
+                  size="lg"
+                  :disabled="loading"
+                  @click="fetchPRs()"
+                >
+                  <RefreshCw :class="['mr-2 h-4 w-4', spinning && 'animate-spin']" @animationiteration="onSpinTurn" />
+                  Refresh pull requests
+                </Button>
+              </div>
             </div>
-            <Button
-              size="lg"
-              :disabled="loading"
-              @click="fetchPRs()"
-            >
-              <RefreshCw :class="['mr-2 h-4 w-4', loading && 'animate-spin']" />
-              Refresh pull requests
-            </Button>
           </div>
         </div>
       </Transition>
 
-      <!-- Skeleton: first load only, and only once the wait is real -->
-      <div
-        v-if="loading && !rawResult"
-        class="rounded-lg border border-border bg-card divide-y divide-border animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards"
-        aria-label="Loading pull requests"
-      >
-        <div v-for="n in 6" :key="n" class="flex items-start gap-3 px-4 py-3">
-          <Skeleton class="h-4 w-4 mt-0.5 shrink-0 rounded-full" />
-          <div class="flex-1 space-y-2">
-            <Skeleton class="h-4 w-3/4" />
-            <Skeleton class="h-3 w-1/2" />
-          </div>
-        </div>
-      </div>
-
       <!-- A refresh keeps the current content, dimmed once the wait is real -->
-      <div v-else class="transition-opacity" :class="loading && 'opacity-60 delay-200'">
-        <Transition appear mode="out-in" enter-active-class="animate-in fade-in-0 animation-duration-fast">
+      <div class="relative transition-opacity" :class="loading && rawResult && 'opacity-60 delay-200'">
+        <Transition
+          :css="rowMotion !== 'cut'"
+          enter-active-class="animate-in fade-in-0 animation-duration-base"
+          leave-active-class="absolute inset-x-0 top-0 animate-none! transition-opacity duration-fast delay-0!"
+          leave-to-class="opacity-0!"
+          @before-leave="freezeOpacity"
+        >
+          <!-- Skeleton: first load only, and only once the wait is real -->
+          <div
+            v-if="!rawResult && loading"
+            key="skeleton"
+            class="rounded-lg border border-border bg-card divide-y divide-border animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards"
+            aria-label="Loading pull requests"
+          >
+            <div v-for="n in 6" :key="n" class="flex items-start gap-3 px-4 py-3">
+              <Skeleton class="h-4 w-4 mt-0.5 shrink-0 rounded-full" />
+              <div class="flex-1">
+                <Skeleton class="h-4 w-3/4 my-0.5" />
+                <Skeleton class="h-3 w-1/2 mt-2 mb-0.5" />
+              </div>
+            </div>
+          </div>
+
           <!-- Empty: no PRs at all (no filters active) -->
           <div
-            v-if="visibleItems.length === 0 && !filters.hasActiveFilters.value && !errorMsg"
+            v-else-if="rawResult && visibleItems.length === 0 && !filters.hasActiveFilters.value"
+            key="empty"
             class="flex flex-col items-center justify-center py-20 text-center gap-3"
           >
             <GitPullRequest class="h-10 w-10 text-muted-foreground" />
@@ -303,14 +316,15 @@
               :disabled="loading"
               @click="fetchPRs()"
             >
-              <RefreshCw :class="['mr-2 h-4 w-4', loading && 'animate-spin']" />
+              <RefreshCw :class="['mr-2 h-4 w-4', spinning && 'animate-spin']" @animationiteration="onSpinTurn" />
               Refresh pull requests
             </Button>
           </div>
 
           <!-- Empty: filters active but no results -->
           <div
-            v-else-if="visibleItems.length === 0 && filters.hasActiveFilters.value && !errorMsg"
+            v-else-if="rawResult && visibleItems.length === 0"
+            key="no-match"
             class="flex flex-col items-center justify-center py-20 text-center gap-3"
           >
             <Filter class="h-10 w-10 text-muted-foreground" />
@@ -321,14 +335,25 @@
           </div>
 
           <!-- PR rows -->
-          <ul
+          <TransitionGroup
             v-else-if="visibleItems.length > 0"
-            class="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden"
+            key="rows"
+            ref="rowsEl"
+            tag="ul"
+            v-bind="rowMotionProps"
+            class="relative rounded-lg border border-border bg-card divide-y divide-border overflow-hidden transition-[height] ease-in-out"
             role="list"
+            @transitionend.self="rowsHeightDone"
+            @animationend.self="rowsFadeDone"
           >
-            <li v-for="pr in visibleItems" :key="pr.html_url">
+            <li
+              v-for="pr in visibleItems"
+              :key="pr.html_url"
+              :class="changedRows.has(pr.html_url) && 'pr-row-flash'"
+              @animationend.self="changedRows.delete(pr.html_url)"
+            >
               <button
-                class="w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors duration-fast hover:duration-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring cursor-pointer"
+                class="w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors duration-faster hover:duration-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring cursor-pointer"
                 @click="openPR(pr)"
               >
                 <GitPullRequestDraft v-if="pr.is_draft" class="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -352,7 +377,7 @@
                 </div>
               </button>
             </li>
-          </ul>
+          </TransitionGroup>
         </Transition>
       </div>
     </main>
@@ -361,7 +386,8 @@
 
 <script setup lang="ts">
 import { errorMessage } from '@/lib/utils'
-import { ref, computed, onMounted, onActivated, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onActivated, watch } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { RefreshCw, GitPullRequest, GitPullRequestDraft, Filter, FolderGit2 } from '@lucide/vue'
@@ -409,10 +435,69 @@ const rateLimitReset = ref<string | null>(null)
 
 /** Raw unfiltered result from the backend (involves: query). */
 const rawResult = ref<model.PRListResult | null>(null)
-const isGitHubServiceIssue = computed<boolean>(() => {
-  if (!errorMsg.value) return false
-  return errorMsg.value.toLowerCase().includes('github service unavailable')
+const errorText = computed<string>(() => {
+  if (rateLimitReset.value) return `GitHub rate limit reached. Resets at ${formatReset(rateLimitReset.value)}.`
+  if (errorMsg.value?.toLowerCase().includes('github service unavailable')) return 'GitHub is temporarily unavailable. This is usually transient.'
+  return errorMsg.value ?? ''
 })
+
+// The refresh icon finishes its turn after the answer arrives, so it never snaps back mid-rotation.
+const spinning = ref(true)
+watch(loading, (on) => { if (on) spinning.value = true })
+function onSpinTurn(): void {
+  if (!loading.value) spinning.value = false
+}
+
+// ── Row motion ────────────────────────────────────────────────────────────────
+
+/** glide: rows fade and the rest move (the user's own change). settle: new rows fade in, nothing moves (background refresh). cut: no motion (typing). */
+type RowMotion = 'glide' | 'settle' | 'cut'
+const rowMotion = ref<RowMotion>('glide')
+const rowMotionProps = computed(() => {
+  if (rowMotion.value === 'cut' || tooManyRows()) return { css: false }
+  if (rowMotion.value === 'settle') {
+    return { enterActiveClass: 'transition-opacity', enterFromClass: 'opacity-0', leaveActiveClass: 'hidden' }
+  }
+  return {
+    // Spelled differently from the enter and leave classes: Vue strips the move classes when the move ends.
+    moveClass: 'transition-[transform,opacity] ease-in-out',
+    enterActiveClass: 'transition-[opacity,transform]',
+    enterFromClass: 'opacity-0',
+    leaveActiveClass: 'absolute inset-x-0 transition-[opacity,transform] duration-fast',
+    leaveToClass: 'opacity-0',
+  }
+})
+
+// Moving rows one by one drops a frame somewhere between 100 and 200 rows; a longer list changes in one frame and fades in as a block.
+const maxGlidingRows = 100
+let renderedRows = 0
+function tooManyRows(): boolean {
+  return Math.max(renderedRows, visibleItems.value.length) > maxGlidingRows
+}
+const blockFade = ['animate-in', 'fade-in-0', 'animation-duration-base']
+
+/** Applies `mode` to the list change made in this tick only. */
+function rowMotionOnce(mode: RowMotion): void {
+  rowMotion.value = mode
+  void nextTick(() => { rowMotion.value = 'glide' })
+}
+
+const rowsEl = ref<ComponentPublicInstance | null>(null)
+
+/** Rows whose title, draft state or update time changed in the last refresh; they flash once. */
+const changedRows = ref(new Set<string>())
+
+function freezeOpacity(el: Element): void {
+  (el as HTMLElement).style.opacity = getComputedStyle(el).opacity
+}
+
+function rowsHeightDone(e: TransitionEvent): void {
+  if (e.propertyName === 'height') (e.currentTarget as HTMLElement).style.height = ''
+}
+
+function rowsFadeDone(e: AnimationEvent): void {
+  (e.currentTarget as HTMLElement).classList.remove(...blockFade)
+}
 
 // ── Filters composable ────────────────────────────────────────────────────────
 
@@ -436,6 +521,29 @@ const visibleItems = computed<model.PRListItem[]>(() => {
   })
   return filters.applyFilters(items)
 })
+
+// The card's bottom edge follows its rows: animate the list from its old height to the new one.
+watch(visibleItems, (items) => {
+  const ul = rowsEl.value?.$el as HTMLElement | undefined
+  const block = tooManyRows()
+  void nextTick(() => { renderedRows = items.length })
+  if (!ul || rowMotion.value !== 'glide') return
+  if (block) {
+    ul.classList.remove(...blockFade)
+    void nextTick(() => ul.classList.add(...blockFade))
+    return
+  }
+  const from = ul.offsetHeight
+  void nextTick(() => {
+    if (!ul.isConnected) return
+    ul.style.height = ''
+    const to = ul.offsetHeight
+    if (to === from) return
+    ul.style.height = `${from}px`
+    void ul.offsetHeight
+    ul.style.height = `${to}px`
+  })
+}, { flush: 'pre' })
 
 // ── Derived: repo options from raw result ─────────────────────────────────────
 
@@ -465,12 +573,10 @@ function selectRepo(fullName: string): void {
 }
 
 function onRepoBlur(): void {
-  setTimeout(() => {
-    repoDropdownOpen.value = false
-    const known = findOption(repoOptions.value, repoSearch.value)
-    if (known) selectRepo(known)
-    else if (repoSearch.value !== filters.repo.value) filters.repo.value = repoSearch.value.trim()
-  }, 150)
+  repoDropdownOpen.value = false
+  const known = findOption(repoOptions.value, repoSearch.value)
+  if (known) selectRepo(known)
+  else if (repoSearch.value !== filters.repo.value) filters.repo.value = repoSearch.value.trim()
 }
 
 /** Typed text naming a loaded option counts as picking it, so exact matching is keyboard-reachable. */
@@ -512,12 +618,10 @@ function selectOrg(name: string): void {
 }
 
 function onOrgBlur(): void {
-  setTimeout(() => {
-    orgDropdownOpen.value = false
-    const known = findOption(orgOptions.value, orgSearch.value)
-    if (known) selectOrg(known)
-    else if (orgSearch.value !== filters.org.value) filters.org.value = orgSearch.value.trim()
-  }, 150)
+  orgDropdownOpen.value = false
+  const known = findOption(orgOptions.value, orgSearch.value)
+  if (known) selectOrg(known)
+  else if (orgSearch.value !== filters.org.value) filters.org.value = orgSearch.value.trim()
 }
 
 // Keep orgSearch in sync when filters.org is cleared externally.
@@ -543,15 +647,24 @@ async function fetchPRs(background = false): Promise<void> {
 
     if (thisId !== filters.requestId.value) return
 
-    rawResult.value = res
-    // GitHub's search index lags edits and merges; drop an update once search reflects it.
-    const returned = new Map(res.items?.map((pr) => [prKey(pr), pr]))
-    props.prUpdates?.forEach((update, key) => {
-      const pr = returned.get(key)
-      if (!pr || (!isClosed(update) && pr.title === update.title && pr.is_draft === (update.is_draft ?? pr.is_draft))) {
-        props.prUpdates?.delete(key)
-      }
-    })
+    // A failed refresh carries no items; what is on screen stays.
+    if (!res.error) {
+      const before = new Map(rawResult.value?.items?.map((pr) => [pr.html_url, pr]))
+      changedRows.value = new Set(res.items?.filter((pr) => {
+        const old = before.get(pr.html_url)
+        return old && (old.title !== pr.title || old.is_draft !== pr.is_draft || old.updated_at !== pr.updated_at)
+      }).map((pr) => pr.html_url))
+      if (background) rowMotionOnce('settle')
+      rawResult.value = res
+      // GitHub's search index lags edits and merges; drop an update once search reflects it.
+      const returned = new Map(res.items?.map((pr) => [prKey(pr), pr]))
+      props.prUpdates?.forEach((update, key) => {
+        const pr = returned.get(key)
+        if (!pr || (!isClosed(update) && pr.title === update.title && pr.is_draft === (update.is_draft ?? pr.is_draft))) {
+          props.prUpdates?.delete(key)
+        }
+      })
+    }
 
     // The previous error stays on screen until the retry answers.
     errorMsg.value = res.error || null
@@ -583,6 +696,7 @@ function openPR(pr: model.PRListItem): void {
     repo: pr.repo,
     number: pr.number,
     title: pr.title,
+    state: 'open',
     is_draft: pr.is_draft,
     html_url: pr.html_url,
   })
@@ -620,3 +734,12 @@ onActivated(() => {
   activatedOnce = true
 })
 </script>
+
+<style scoped>
+.pr-row-flash {
+  animation: pr-row-flash var(--transition-duration-slower) var(--ease-out);
+}
+@keyframes pr-row-flash {
+  from { background-color: var(--color-accent); }
+}
+</style>

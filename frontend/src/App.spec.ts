@@ -58,10 +58,10 @@ describe('App PR list sync', () => {
     const TitleStrip = defineComponent({ emits: ['back'], setup: (_, { emit }) => () => h('button', { id: 'back', onClick: () => emit('back') }) })
     const wrapper = mount(App, { global: { stubs: { SideRail: true, TitleStrip } } })
     await flushPromises()
-    const rows = () => wrapper.findAll('ul[role="list"] > li').map((r) => r.text())
+    const rows = () => wrapper.findAll('[role="list"] > li').map((r) => r.text())
     expect(rows()).toHaveLength(2)
 
-    await wrapper.get('ul[role="list"] > li button').trigger('click')
+    await wrapper.get('[role="list"] > li button').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('review')
 
@@ -70,6 +70,23 @@ describe('App PR list sync', () => {
 
     expect(listOpenPRs).toHaveBeenCalledTimes(2)
     expect(rows()).toEqual([expect.stringContaining('PR 2')])
+  })
+})
+
+describe('App page motion', () => {
+  it('brings a review in from below and the list back from above', async () => {
+    takeLaunch.mockResolvedValue(null)
+    listOpenPRs.mockResolvedValue({ items: [pr(1)] })
+    const TitleStrip = defineComponent({ emits: ['back'], setup: (_, { emit }) => () => h('button', { id: 'back', onClick: () => emit('back') }) })
+    const wrapper = mount(App, { global: { stubs: { SideRail: true, TitleStrip } } })
+    await flushPromises()
+    const enter = () => wrapper.get('main > transition-stub').attributes('enteractiveclass')
+
+    await wrapper.get('[role="list"] > li button').trigger('click')
+    expect(enter()).toContain('slide-in-from-bottom-2')
+
+    await wrapper.get('#back').trigger('click')
+    expect(enter()).toContain('slide-in-from-top-2')
   })
 })
 
@@ -92,7 +109,7 @@ describe('App leaving a review after merge', () => {
     await flushPromises()
 
     expect(wrapper.find('#close-review').exists()).toBe(false)
-    expect(wrapper.find('ul[role="list"]').exists()).toBe(true)
+    expect(wrapper.find('[role="list"]').exists()).toBe(true)
     expect(quit).not.toHaveBeenCalled()
   })
 

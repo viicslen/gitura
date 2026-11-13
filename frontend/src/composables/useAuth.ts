@@ -69,13 +69,14 @@ async function pollDeviceFlow() {
 export function useAuth() {
   /** Start GitHub OAuth device flow and begin polling automatically. */
   async function startDeviceFlow() {
-    error.value = null
     deviceFlowInfo.value = null
     pollIntervalMs = 5000
     stopPolling()
 
     try {
       const info = await App.StartDeviceFlow()
+      // Cleared only now, so a failed attempt's message stays up until the retry answers.
+      error.value = null
       deviceFlowInfo.value = info
 
       // Open the verification URL in the user's default browser.

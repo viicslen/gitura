@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { renderGitHubMarkdown } from '@/lib/markdown'
 import { onTaskChange, type TaskToggle } from '@/lib/taskList'
+import { glideDetails, keepDetailsOpen, settleDetails } from './detailsGlide'
 
 const props = defineProps<{
   content: string
@@ -12,11 +13,22 @@ const props = defineProps<{
   toggleTask?: TaskToggle
 }>()
 
+const container = ref<HTMLElement | null>(null)
+keepDetailsOpen(container)
+
 const html = computed(() => renderGitHubMarkdown(props.content, { ...props, tasks: !!props.toggleTask }))
 </script>
 
 <template>
-  <div class="markdown-body text-sm text-foreground" @change="onTaskChange($event, toggleTask)" v-html="html" />
+  <div
+    ref="container"
+    class="markdown-body text-sm text-foreground"
+    @change="onTaskChange($event, toggleTask)"
+    @click="glideDetails"
+    @transitionend="settleDetails"
+    @transitioncancel="settleDetails"
+    v-html="html"
+  />
 </template>
 
 <style scoped>
@@ -46,16 +58,10 @@ const html = computed(() => renderGitHubMarkdown(props.content, { ...props, task
   cursor: pointer;
   user-select: none;
 }
+/* detailsGlide.ts sets the heights this runs between. */
 .markdown-body :deep(details) {
   cursor: default;
-}
-.markdown-body :deep(details[open] > :not(summary)) {
-  animation: details-in var(--transition-duration-fast) var(--ease-out);
-}
-@keyframes details-in {
-  from {
-    opacity: 0;
-  }
+  transition: height var(--transition-duration-base) var(--ease-out);
 }
 .markdown-body :deep(code) {
   font-family: var(--font-mono);
