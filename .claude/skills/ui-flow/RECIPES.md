@@ -8,11 +8,11 @@ easings are the tokens below — the snippets name them, never a literal.
 
 ```css
 :root {
-  --motion-faster: 75ms;     /* exit of fast; pointer-out */
-  --motion-fast: 100ms;      /* frequent, low end */
-  --motion-base: 150ms;      /* frequent */
-  --motion-slow: 220ms;      /* occasional */
-  --motion-slower: 360ms;    /* rare */
+  --motion-faster: 80ms;     /* exit of fast; pointer-out */
+  --motion-fast: 130ms;      /* frequent, low end */
+  --motion-base: 180ms;      /* frequent */
+  --motion-slow: 260ms;      /* occasional */
+  --motion-slower: 400ms;    /* rare */
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -24,7 +24,7 @@ and make the system's default transition duration and easing point at
 
 ## Reduced motion
 
-Every edge becomes a cut; progress indicators keep moving so nothing looks
+Every edge becomes a pop; progress indicators keep moving so nothing looks
 frozen:
 
 ```css
@@ -86,8 +86,12 @@ Stack both in one grid cell so the box never collapses, and crossfade:
   look broken.
 - When the two states differ in size, fix the size of the container first
   (min-height, aspect-ratio, skeleton with the final shape), then crossfade.
-- Enter-only is the cheapest swap: the old state cuts, the new one fades in
-  from the frame it exists. Nothing waits.
+- Settling (the old state gone in one frame, the new one fading in) is the
+  rung below this one. It needs its reason; "cheapest" is not one.
+- Content swapped inside a panel that stays (the detail of the selected item,
+  a file's contents): key the content on what it shows and crossfade the
+  keyed element, with the outgoing one out of flow so the panel keeps its
+  size.
 - Icon swaps: one icon rotated (`chevron`) beats two icons swapped; otherwise
   crossfade with a small scale.
 
@@ -114,11 +118,24 @@ while hidden.
 
 - Padding and borders go on a wrapper inside the collapsing child, or the row
   never reaches zero.
-- This is the costly tier: every frame lays out whatever sits below. Fine for
-  an accordion in a settings panel.
-- Inside a large document, skip the height animation: let the space open in
-  one frame and fade the revealed content (opacity, optional 4px translate).
-  Closing is then a cut.
+- This is the costly tier: every frame lays out whatever sits below. Build it,
+  run it against the largest case, and read the frame times before deciding it
+  is too expensive. Static siblings that only change position are cheap to lay
+  out; script that re-measures them every frame (a resize observer, a scroll
+  sync) is what usually drops frames, and that script can be paused for the
+  length of the animation.
+- If it does drop frames: open the space in one frame, move everything below
+  with one `transform` on a shared wrapper back to where it was, and animate
+  that transform to zero (FLIP on the wrapper, not on each row).
+- Only after both fail: open the space in one frame and fade the revealed
+  content. Write the measurement on the row.
+- Closing mirrors opening on the same rung.
+- When script is paused for the animation, whatever depended on it (scroll
+  sync, connectors) is driven from one height read per frame instead, or it
+  lags behind the glide.
+- `content-visibility: auto` makes an entering block open to its placeholder
+  size and then snap. Native `<details>` needs script to animate, and
+  `overflow: clip` while it does.
 - Rotate the chevron with a transform either way.
 
 ## List add, remove, move
@@ -133,8 +150,9 @@ FLIP: record positions, apply the change, animate the delta with `transform`.
 - A FLIP container measures every child on every re-render. Keep it away from
   lists that re-render constantly (streaming output, per-keystroke filters)
   and cap it on lists that can reach hundreds of rows.
-- Filtering and sorting move many items at once: past about a dozen visible
-  movers, key the list on the filter and fade it in as one block.
+- Filtering and sorting move many items at once. Measure how many rows glide
+  without dropping frames and cap the per-row glide there; above the cap, key
+  the list on the filter and fade it in as one block.
 - Items present at first render do not animate. Where the framework mounts the
   transition together with its content, gate it with a flag that turns true
   after mount.
@@ -174,12 +192,17 @@ from one side, back from the other.
 @keyframes page-in { from { opacity: 0; transform: translateY(6px); } }
 ```
 
-- Enter-only: the old page cuts out, the new one settles in. It costs no
-  waiting and no double-mounted pages. Put the class on the page root; a
-  transition wrapper without leave styles still holds the old page a few
-  frames.
+- The old page fades out over the exit token while the new one enters on top
+  (both absolutely positioned in the content area for that moment). When
+  double-mounting two heavy pages drops frames, settle instead: the old page
+  goes in one frame and the new one enters. Put the enter class on the page
+  root; a transition wrapper without leave styles still holds the old page a
+  few frames.
 - The class replays when a kept-alive page reactivates, which is what gives
   "back" its animation.
+- On a surface the size of a page or tab panel, fade with an opacity-only
+  keyframe. Kit enter utilities also animate `transform`, which alone can drop
+  frames at that size.
 - Page-owned content living in the chrome (a title, toolbar actions) fades
   with its page; the chrome itself stays still.
 - A page that opens on a loader needs no enter of its own: the content's
@@ -224,13 +247,15 @@ half-lit rows:
 - Content inserted above the viewport must not move what the user is reading:
   rely on scroll anchoring (`overflow-anchor`) or adjust `scrollTop` by the
   inserted height in the same frame.
-- Keyboard-driven "next item" scrolling is a cut (`behavior: 'auto'`).
+- Scrolling driven by a held or repeated key pops (`behavior: 'auto'`).
 
 ## Theme and global switches
 
 Hundreds of elements each running their own colour transition look like a
 smear. Suppress transitions for the frame of the switch, or wrap it in
-`document.startViewTransition()` for a single root crossfade.
+`document.startViewTransition()` for a single root crossfade. The view
+transition captures the whole page first; on a heavy screen that capture frame
+can run past 100ms, so measure it before keeping it.
 
 ## Stack notes
 
@@ -245,7 +270,16 @@ smear. Suppress transitions for the frame of the switch, or wrap it in
 - `v-show` and `<KeepAlive>` replay keyframe classes on everything inside.
 - `<TransitionGroup>` needs single-root children and re-measures all of them
   on every update when a move class is set.
-- Test utils stub transitions; specs keep passing either way.
+- A `<Transition>` around each row of a `v-for` cannot run a leave: the row
+  is gone with its list entry. Keep leaving rows in a list of their own until
+  the exit ends.
+- Teleported children are removed when their owner unmounts, before any leave
+  runs. Put the `<Transition>` inside the teleport target, or fade a clone.
+- When a transition ends Vue removes its class tokens from the element, and a
+  base class with the same name (`grid`, `duration-*`) goes with them. Keep
+  the element's own classes distinct from its transition classes.
+- Test utils render `<Transition>` and `<TransitionGroup>` as stub elements, so
+  a spec selecting the group by its tag (`ul[role=list]`) stops matching.
 
 **Tailwind (v4) with tw-animate-css**
 
@@ -261,6 +295,13 @@ smear. Suppress transitions for the frame of the switch, or wrap it in
   both delays.
 - Theme tokens are emitted only when a utility uses them; mark motion tokens
   `@theme static` if hand-written CSS reads them.
+- Unlayered third-party CSS (a toast library) beats every utility; override it
+  in unlayered CSS with `!important`.
+- An important utility (`duration-fast!`) beats the reduced-motion rule; keep
+  `!` off motion classes.
+- `delay-*` also delays the leave of the element it sits on.
+- `focus-visible:duration-0` on a kit button zeroes every transition while the
+  button has keyboard focus, the same trap as the hover recipe.
 - `scale-*`, `rotate-*` and `translate-*` set the individual `scale`, `rotate`
   and `translate` properties, so name those in `transition-[…]`.
 

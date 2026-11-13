@@ -3,6 +3,7 @@ import { isTestFile } from '@/lib/testFiles'
 import * as App from '@/bindings/gitura/internal/app/app'
 import type * as model from '@/bindings/gitura/internal/model'
 import { errorMessage } from '@/lib/utils'
+import { toast } from 'vue-sonner'
 import { toggleRef } from '@/composables/useToggles'
 
 /**
@@ -17,6 +18,8 @@ export function useDiffReview() {
   const viewedError = ref('')
 
   const currentFilePath = ref<string | null>(null)
+  /** The file `currentDiff` belongs to; trails `currentFilePath` while the next diff loads. */
+  const shownFilePath = ref<string | null>(null)
   const currentDiff = ref<model.ParsedDiffDTO | null>(null)
   const diffLoading = ref(false)
   const diffError = ref('')
@@ -32,6 +35,9 @@ export function useDiffReview() {
 
   const currentFile = computed<model.PRFileDTO | null>(
     () => files.value.find((f) => f.filename === currentFilePath.value) ?? null,
+  )
+  const shownFile = computed<model.PRFileDTO | null>(
+    () => files.value.find((f) => f.filename === shownFilePath.value) ?? null,
   )
 
   const isHidden = (f: model.PRFileDTO) => (hideViewed.value && f.viewed) || (hideTests.value && isTestFile(f.filename))
@@ -65,21 +71,24 @@ export function useDiffReview() {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
+  /** An earlier error stays until this load answers, so a retry does not blank the message first. */
   async function loadFiles(): Promise<void> {
     filesLoading.value = true
-    filesError.value = ''
     try {
       const pending = new Map(files.value.filter((f) => viewedSaving.value.has(f.filename)).map((f) => [f.filename, f.viewed]))
       files.value = (await App.GetPRFiles()).map((f) => {
         const viewed = pending.get(f.filename)
         return viewed === undefined ? f : { ...f, viewed }
       })
+      filesError.value = ''
       await loadViewed()
       if (startFile.value && currentFilePath.value === null) {
         await selectFile(startFile.value.filename)
       }
     } catch (err) {
       filesError.value = errorMessage(err)
+      // The error screen only shows when there are no files, so a failed refresh needs its own notice.
+      if (files.value.length) toast.error('Could not refresh files: ' + filesError.value)
     } finally {
       filesLoading.value = false
     }
@@ -98,18 +107,20 @@ export function useDiffReview() {
 
   let diffRequest = 0
 
-  /** `keep` refetches the open file's diff without clearing it, so its view and scroll stay. */
+  /**
+   * The diff on screen (or the error) stays until the next one answers, so files swap without a blank in between.
+   * `keep` refetches the open file's diff without marking it loading, so its view and scroll stay.
+   */
   async function selectFile(path: string, keep = false): Promise<void> {
     const request = ++diffRequest
     currentFilePath.value = path
-    diffError.value = ''
-    if (!keep) {
-      diffLoading.value = true
-      currentDiff.value = null
-    }
+    if (!keep) diffLoading.value = true
     try {
       const diff = await App.GetFileDiff(path)
-      if (request === diffRequest) currentDiff.value = diff
+      if (request !== diffRequest) return
+      currentDiff.value = diff
+      shownFilePath.value = path
+      diffError.value = ''
     } catch (err) {
       if (request === diffRequest) diffError.value = errorMessage(err)
     } finally {
@@ -210,6 +221,7 @@ export function useDiffReview() {
     filesError,
     currentFilePath,
     currentFile,
+    shownFile,
     currentDiff,
     diffLoading,
     diffError,

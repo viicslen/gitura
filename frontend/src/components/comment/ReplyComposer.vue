@@ -14,6 +14,8 @@ import type * as model from '@/bindings/gitura/internal/model'
 import { ReplyToComment } from '@/bindings/gitura/internal/app/app'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import BusyLabel from '@/components/motion/BusyLabel.vue'
+import { crossfade } from '@/components/motion/motion'
 
 const props = defineProps<{
   threadRootId: number
@@ -38,11 +40,11 @@ async function submit(): Promise<void> {
   const rootId = props.threadRootId
   const sent = draft.value
   sendingThreads[rootId] = true
-  inlineError.value = ''
 
   try {
     const comment = await ReplyToComment(rootId, sent)
     if (replyDrafts[rootId] === sent) delete replyDrafts[rootId]
+    inlineError.value = ''
     emit('reply-sent', comment)
   } catch (err) {
     inlineError.value = errorMessage(err)
@@ -65,7 +67,7 @@ function handleKeydown(event: KeyboardEvent): void {
       v-model="draft"
       placeholder="Write a reply…"
       rows="3"
-      class="resize-none"
+      class="resize-none "
       :disabled="submitting"
       @keydown="handleKeydown"
     />
@@ -75,11 +77,15 @@ function handleKeydown(event: KeyboardEvent): void {
 
       <div class="flex-1" />
 
-      <p v-if="inlineError" class="min-w-0 text-xs text-destructive truncate">
-        {{ inlineError }}
-      </p>
-      <span v-else class="text-xs text-muted-foreground">
-        Ctrl+Enter to submit
+      <span class="grid min-w-0 justify-items-end">
+        <Transition v-bind="crossfade">
+          <p v-if="inlineError" :key="inlineError" class="[grid-area:1/1] max-w-full text-xs text-destructive truncate">
+            {{ inlineError }}
+          </p>
+          <span v-else class="[grid-area:1/1] text-xs text-muted-foreground">
+            Ctrl+Enter to submit
+          </span>
+        </Transition>
       </span>
 
       <Button
@@ -88,7 +94,7 @@ function handleKeydown(event: KeyboardEvent): void {
         :disabled="!draft.trim() || submitting"
         @click="submit"
       >
-        {{ submitting ? 'Sending…' : 'Reply' }}
+        <BusyLabel :busy="submitting">Reply</BusyLabel>
       </Button>
     </div>
   </div>

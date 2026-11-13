@@ -5,7 +5,10 @@ import type * as model from '@/bindings/gitura/internal/model'
 import { CommitSuggestion } from '@/bindings/gitura/internal/app/app'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, GitCommit, Loader2 } from '@lucide/vue'
+import { CheckCircle2, GitCommit } from '@lucide/vue'
+import BusyLabel from '@/components/motion/BusyLabel.vue'
+import SwapBox from '@/components/motion/SwapBox.vue'
+import { collapse, collapsible } from '@/components/motion/motion'
 
 const props = defineProps<{
   comment: model.ReviewCommentDTO
@@ -52,9 +55,9 @@ async function handleCommit() {
     return
   }
   submitting.value = true
-  error.value = ''
   try {
     const result = await CommitSuggestion(props.comment.id, commitMessage.value.trim())
+    error.value = ''
     committed.value = result
     showInput.value = false
     emit('committed', result)
@@ -88,25 +91,23 @@ async function handleCommit() {
       aria-label="Suggested code"
     ><template v-for="(line, i) in suggestionLines" :key="i"><span class="block bg-green-500/15 text-green-800 dark:text-green-300">+{{ line }}</span></template></pre>
 
-    <!-- Success state -->
-    <div
-      v-if="committed"
-      class="flex items-center gap-2 px-3 py-2 border-t border-border bg-muted/20 text-sm text-green-700 dark:text-green-400 animate-in fade-in-0 animation-duration-fast ease-out"
-    >
-      <CheckCircle2 class="h-4 w-4 shrink-0" aria-hidden="true" />
-      <span>Committed: </span>
-      <a
-        :href="committed.html_url"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="font-mono underline hover:no-underline"
-        aria-label="View commit on GitHub"
-      >{{ committed.commit_sha.slice(0, 7) }}</a>
-    </div>
+    <SwapBox class="border-t border-border">
+      <div
+        v-if="committed"
+        class="flex items-center gap-2 px-3 py-2 bg-muted/20 text-sm text-green-700 dark:text-green-400"
+      >
+        <CheckCircle2 class="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span>Committed: </span>
+        <a
+          :href="committed.html_url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="font-mono underline hover:no-underline"
+          aria-label="View commit on GitHub"
+        >{{ committed.commit_sha.slice(0, 7) }}</a>
+      </div>
 
-    <!-- Commit form -->
-    <div v-else class="px-3 py-2 border-t border-border space-y-2">
-      <div v-if="!showInput">
+      <div v-else-if="!showInput" class="px-3 py-2">
         <Button
           size="sm"
           variant="outline"
@@ -119,29 +120,29 @@ async function handleCommit() {
         </Button>
       </div>
 
-      <div v-else class="space-y-2 animate-in fade-in-0 animation-duration-fast ease-out">
+      <div v-else class="px-3 py-2">
         <div class="flex gap-2">
           <Input
             v-model="commitMessage"
             placeholder="Commit message…"
-            class="text-sm h-8 flex-1"
+            class="text-sm h-8 flex-1 "
             aria-label="Commit message"
             :disabled="submitting"
             @keydown.enter="handleCommit"
           />
           <Button
             size="sm"
-            class="relative"
+           
             :disabled="submitting || !commitMessage.trim()"
             aria-label="Confirm and commit suggestion"
             @click="handleCommit"
           >
-            <span :class="submitting && 'invisible'">Commit</span>
-            <Loader2 v-if="submitting" class="absolute inset-0 m-auto h-4 w-4 animate-spin" aria-hidden="true" />
+            <BusyLabel :busy="submitting">Commit</BusyLabel>
           </Button>
           <Button
             size="sm"
             variant="ghost"
+           
             :disabled="submitting"
             aria-label="Cancel committing suggestion"
             @click="showInput = false; error = ''"
@@ -149,8 +150,12 @@ async function handleCommit() {
             Cancel
           </Button>
         </div>
-        <p v-if="error" class="text-xs text-destructive" role="alert">{{ error }}</p>
+        <Transition v-bind="collapse">
+          <div v-if="error" :class="collapsible">
+            <div class="min-h-0"><p class="pt-2 text-xs text-destructive" role="alert">{{ error }}</p></div>
+          </div>
+        </Transition>
       </div>
-    </div>
+    </SwapBox>
   </div>
 </template>

@@ -75,7 +75,9 @@ Motion: durations and easing come from the tokens in `frontend/src/style.css`
 (`duration-faster|fast|base|slow|slower`; `ease-out` is the default). Time
 `animate-in` / `animate-out` with `animation-duration-*`, since a bare
 `duration-*` turns on `transition: all`. Name the properties in every
-transition.
+transition. Shared transition presets and helpers (collapse, crossfade,
+`Reveal`, `GlideList`, `SwapBox`, `BusyLabel`) live in
+`frontend/src/components/motion/`; reuse them before writing a new one.
 
 <!-- MANUAL ADDITIONS START -->
 ## App State Storage

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // While reviewing, the rail also switches the review view.
+import { computed } from 'vue'
 import { FileDiff, GitPullRequest, LayoutList, MessagesSquare } from '@lucide/vue'
 import logoUrl from '@/assets/images/logo.svg'
 import UserMenu from './UserMenu.vue'
@@ -8,7 +9,7 @@ import type { PRRef } from '@/types/pr'
 
 const { reviewTab, tabBadges } = useReviewTabs()
 
-defineProps<{ meta: PRRef | null; login: string; avatarSrc?: string; focused?: boolean }>()
+const props = defineProps<{ meta: PRRef | null; login: string; avatarSrc?: string; focused?: boolean }>()
 const emit = defineEmits<{ (e: 'home'): void; (e: 'settings'): void; (e: 'logout'): void }>()
 
 const VIEWS = [
@@ -22,6 +23,13 @@ function viewLabel(v: (typeof VIEWS)[number]): string {
   return count ? `${v.label} (${count} ${v.counted})` : v.label
 }
 
+// Where the selection highlight sits: on "Pull requests", or on the active view below the divider (h-9 buttons, gap-1).
+const selectionY = computed(() => {
+  if (!props.meta) return '0'
+  const views = `${VIEWS.findIndex((v) => v.value === reviewTab.value)} * 2.5rem`
+  return props.focused ? `calc(${views})` : `calc(${views} + 3.25rem + 1px)`
+})
+
 const item = 'relative grid place-items-center h-9 w-9 rounded-md'
 const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 </script>
@@ -31,38 +39,49 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
     <div class="h-10 w-full grid place-items-center" style="--wails-draggable: drag">
       <img :src="logoUrl" alt="gitura" class="h-6 w-6" draggable="false" />
     </div>
-    <div class="flex flex-col items-center gap-1 mt-1">
+    <div class="relative flex flex-col items-center gap-1 mt-1">
+      <div
+        v-if="meta || !focused"
+        class="absolute top-0 left-0 h-9 w-9 rounded-md bg-accent transition-transform duration-fast ease-in-out"
+        :style="{ transform: `translateY(${selectionY})` }"
+        aria-hidden="true"
+      />
       <button
         v-if="!focused"
-        :class="[item, !meta ? 'bg-accent text-foreground' : idle]"
+        :class="[item, !meta ? 'text-foreground' : idle]"
         aria-label="Pull requests"
         title="Pull requests"
         @click="emit('home')"
       ><GitPullRequest class="h-4 w-4" /></button>
-      <template v-if="meta">
-        <div v-if="!focused" class="h-px w-6 bg-border my-1 animate-in fade-in-0" />
-        <button
-          v-for="v in VIEWS"
-          :key="v.value"
-          :class="[item, 'animate-in fade-in-0', reviewTab === v.value ? 'bg-accent text-foreground' : idle]"
-          :aria-label="viewLabel(v)"
-          :aria-current="reviewTab === v.value ? 'page' : undefined"
-          :title="viewLabel(v)"
-          @click="reviewTab = v.value"
-        >
-          <component :is="v.icon" class="h-4 w-4" />
-          <Transition
-            enter-active-class="animate-in fade-in-0 zoom-in-75 ease-out animation-duration-fast"
-            leave-active-class="animate-out fade-out-0 zoom-out-75 ease-out animation-duration-faster"
+      <Transition
+        enter-active-class="animate-in fade-in-0 slide-in-from-top-1"
+        leave-active-class="animate-out fade-out-0 slide-out-to-top-1 animation-duration-fast"
+      >
+        <div v-if="meta" class="flex flex-col items-center gap-1">
+          <div v-if="!focused" class="h-px w-6 bg-border my-1" />
+          <button
+            v-for="v in VIEWS"
+            :key="v.value"
+            :class="[item, reviewTab === v.value ? 'text-foreground' : idle]"
+            :aria-label="viewLabel(v)"
+            :aria-current="reviewTab === v.value ? 'page' : undefined"
+            :title="viewLabel(v)"
+            @click="reviewTab = v.value"
           >
-            <span
-              v-if="tabBadges[v.value]"
-              class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[0.625rem] font-semibold leading-4 text-center tabular-nums"
-              aria-hidden="true"
-            >{{ tabBadges[v.value] > 99 ? '99+' : tabBadges[v.value] }}</span>
-          </Transition>
-        </button>
-      </template>
+            <component :is="v.icon" class="h-4 w-4" />
+            <Transition
+              enter-active-class="animate-in fade-in-0 zoom-in-75 ease-out animation-duration-fast"
+              leave-active-class="animate-out fade-out-0 zoom-out-75 ease-out animation-duration-faster"
+            >
+              <span
+                v-if="tabBadges[v.value]"
+                class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[0.625rem] font-semibold leading-4 text-center tabular-nums"
+                aria-hidden="true"
+              >{{ tabBadges[v.value] > 99 ? '99+' : tabBadges[v.value] }}</span>
+            </Transition>
+          </button>
+        </div>
+      </Transition>
     </div>
     <div class="flex-1" />
     <div class="pb-3">

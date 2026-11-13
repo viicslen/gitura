@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Check, ChevronRight, ListFilter, MessageSquare } from '@lucide/vue'
-import { Badge } from '@/components/ui/badge'
+import { ListFilter } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,10 +8,12 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { isTestFile } from '@/lib/testFiles'
 import type * as model from '@/bindings/gitura/internal/model'
-import { buildFileTree, flattenFileTree } from '@/lib/fileTree'
+import { buildFileTree, flattenFileTree, treeKey } from '@/lib/fileTree'
+import DiffFileTree from './DiffFileTree.vue'
+import Reveal from '@/components/motion/Reveal.vue'
+import { loaderShown, SWAP, TEXT_SWAP } from '@/components/motion/motion'
 
 const props = defineProps<{
   files: model.PRFileDTO[]
@@ -38,30 +39,6 @@ const emit = defineEmits<{
   (e: 'set-viewed', paths: string[], viewed: boolean): void
 }>()
 
-type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline'
-
-interface StatusInfo {
-  label: string
-  variant: StatusVariant
-}
-
-const STATUS_NAMES: Record<string, string> = { added: 'Added', removed: 'Deleted', renamed: 'Renamed', copied: 'Copied' }
-
-function statusInfo(status: string): StatusInfo {
-  switch (status) {
-    case 'added':
-      return { label: 'A', variant: 'default' }
-    case 'removed':
-      return { label: 'D', variant: 'destructive' }
-    case 'renamed':
-      return { label: 'R', variant: 'secondary' }
-    case 'copied':
-      return { label: 'C', variant: 'secondary' }
-    default:
-      return { label: 'M', variant: 'outline' }
-  }
-}
-
 const shownFiles = computed(() => props.visibleFiles ?? props.files)
 const tree = computed(() => buildFileTree(shownFiles.value))
 const testCount = computed(() => props.files.filter((f) => isTestFile(f.filename)).length)
@@ -81,13 +58,6 @@ const changeSummary = computed(() => {
 const viewedCount = computed(() => props.files.filter((f) => f.viewed).length)
 const collapsed = ref(new Set<string>())
 const rows = computed(() => flattenFileTree(tree.value, collapsed.value))
-
-/** Every changed file under a folder, including ones the filters hide. */
-const filesIn = (dir: string) => props.files.filter((f) => f.filename.startsWith(`${dir}/`))
-
-function setFolderViewed(dir: string, viewed: boolean): void {
-  emit('set-viewed', filesIn(dir).map((f) => f.filename), viewed)
-}
 
 function toggle(path: string): void {
   const next = new Set(collapsed.value)
@@ -122,12 +92,13 @@ watch(() => props.active, (active) => {
 
 // One tab stop for the whole tree (the open file, else the first row); arrows move within it.
 const tabStop = computed(() => {
-  const i = rows.value.findIndex((r) => r.type === 'file' && r.file.filename === props.selectedPath)
-  return i >= 0 ? i : 0
+  const row = rows.value.find((r) => r.type === 'file' && r.file.filename === props.selectedPath) ?? rows.value[0]
+  return row ? treeKey(row) : ''
 })
 
 function onTreeKeydown(event: KeyboardEvent): void {
-  const items = Array.from((event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="treeitem"]'))
+  // A collapsed folder keeps its rows mounted but inert.
+  const items = Array.from((event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="treeitem"]')).filter((el) => !el.closest('[inert]'))
   const i = items.indexOf(document.activeElement as HTMLElement)
   if (i < 0) return
   switch (event.key) {
@@ -140,165 +111,113 @@ function onTreeKeydown(event: KeyboardEvent): void {
   event.preventDefault()
 }
 
-function handleKeydown(event: KeyboardEvent, action: () => void): void {
-  if (event.key === 'Enter' || event.key === ' ') {
-    event.preventDefault()
-    action()
-  }
-}
 </script>
 
 <template>
   <div class="flex flex-col h-full border-r border-border" aria-label="Changed files">
-    <div v-if="!loading && files.length > 0" class="relative h-9 shrink-0 border-b border-border px-3 flex items-center gap-2 text-xs">
-      <template v-if="viewedError">
-        <span class="min-w-0 flex-1 truncate text-muted-foreground" :title="viewedError">Viewed status unavailable</span>
-        <button type="button" class="shrink-0 text-muted-foreground underline underline-offset-2 hover:text-foreground" @click="emit('retry-viewed')">Retry</button>
-      </template>
-      <span v-else class="flex-1 truncate tabular-nums text-muted-foreground" :title="changeSummary">
-        {{ viewedCount }} of {{ files.length }} viewed
-      </span>
-      <div
-        v-if="!viewedError"
-        class="absolute inset-x-0 -bottom-px h-0.5 bg-primary/70 origin-left transition-transform"
-        :style="{ transform: `scaleX(${viewedCount / files.length})` }"
-        role="progressbar"
-        aria-label="Files viewed"
-        :aria-valuenow="viewedCount"
-        aria-valuemin="0"
-        :aria-valuemax="files.length"
-      />
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-6 -mr-1.5 gap-1 px-1.5 text-xs"
-            :class="filtering ? 'text-primary' : 'text-muted-foreground'"
-            :aria-label="filtering ? `Filter files, ${hiddenCount} hidden` : 'Filter files'"
-            title="Filter files"
-          >
-            <ListFilter class="h-3.5 w-3.5" />
-            <Transition enter-active-class="animate-in fade-in-0">
-              <span v-if="hiddenCount > 0" class="tabular-nums">{{ hiddenCount }} hidden</span>
+    <div class="relative h-9 shrink-0 border-b border-border px-3 flex items-center gap-2 text-xs">
+      <Transition enter-active-class="animate-in fade-in-0">
+        <div v-if="!loading && files.length > 0" class="flex min-w-0 flex-1 items-center gap-2">
+          <!-- Both states share one cell, so they cross-fade without moving the filter button. -->
+          <div class="grid min-w-0 flex-1 items-center">
+            <Transition v-bind="TEXT_SWAP">
+              <span v-if="viewedError" class="flex min-w-0 items-center gap-2 [grid-area:1/1]">
+                <span class="min-w-0 flex-1 truncate text-muted-foreground" :title="viewedError">Viewed status unavailable</span>
+                <button type="button" class="shrink-0 text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground" @click="emit('retry-viewed')">Retry</button>
+              </span>
+              <span v-else class="truncate tabular-nums text-muted-foreground [grid-area:1/1]" :title="changeSummary">
+                {{ viewedCount }} of {{ files.length }} viewed
+              </span>
             </Transition>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="w-60">
-          <DropdownMenuCheckboxItem v-model="hideViewed" @select.prevent>
-            <span class="flex-1">Hide viewed files</span>
-            <span class="text-xs text-muted-foreground tabular-nums">{{ viewedCount }}</span>
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem v-model="hideTests" @select.prevent>
-            <span class="flex-1">Hide test files</span>
-            <span class="text-xs text-muted-foreground tabular-nums">{{ testCount }}</span>
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem v-model="autoViewTests" :disabled="!hideTests" @select.prevent>
-            Mark hidden tests as viewed
-          </DropdownMenuCheckboxItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-
-    <!-- Loading skeleton; mt-9 holds the header row's place so the list doesn't shift when it loads -->
-    <div v-if="loading" class="mt-9 flex flex-col gap-1 p-2 animate-in fade-in-0 delay-200 fill-mode-backwards">
-      <div
-        v-for="i in 5"
-        :key="i"
-        class="h-8 rounded bg-muted animate-pulse"
-      />
-    </div>
-
-    <!-- Empty state -->
-    <div
-      v-else-if="files.length === 0"
-      class="flex-1 flex items-center justify-center text-xs text-muted-foreground p-4 text-center"
-    >
-      No changed files
-    </div>
-
-    <div
-      v-else-if="shownFiles.length === 0"
-      class="flex-1 flex flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted-foreground"
-    >
-      All {{ files.length }} files are hidden by filters.
-      <Button variant="outline" size="sm" class="h-7 text-xs" @click="showAll">Show all files</Button>
-    </div>
-
-    <!-- File list -->
-    <div v-else ref="listEl" class="flex-1 overflow-y-auto min-h-0">
-      <ul role="tree" aria-label="Changed files list" class="p-1" @keydown="onTreeKeydown">
-        <template v-for="(row, i) in rows" :key="row.type === 'dir' ? `dir:${row.path}` : row.file.filename">
-          <ContextMenu v-if="row.type === 'dir'">
-            <ContextMenuTrigger as-child>
-              <li
-                role="treeitem"
-                :aria-level="row.depth + 1"
-                :aria-expanded="row.expanded"
-                :tabindex="i === tabStop ? 0 : -1"
-                :title="row.path"
-                class="flex items-center gap-1 rounded-md py-1 pr-2 cursor-pointer select-none text-xs text-muted-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent"
-                :style="{ paddingLeft: `${row.depth * 12 + 4}px` }"
-                @click="toggle(row.path)"
-                @keydown="handleKeydown($event, () => toggle(row.path))"
+          </div>
+          <div
+            class="absolute inset-x-0 -bottom-px h-0.5 bg-primary/70 origin-left transition-[transform,opacity]"
+            :class="{ 'opacity-0': viewedError }"
+            :style="{ transform: `scaleX(${viewedCount / files.length})` }"
+            role="progressbar"
+            aria-label="Files viewed"
+            :aria-hidden="!!viewedError"
+            :aria-valuenow="viewedCount"
+            aria-valuemin="0"
+            :aria-valuemax="files.length"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-6 -mr-1.5 gap-1 px-1.5 text-xs"
+                :class="filtering ? 'text-primary' : 'text-muted-foreground'"
+                :aria-label="filtering ? `Filter files, ${hiddenCount} hidden` : 'Filter files'"
+                title="Filter files"
               >
-                <ChevronRight class="h-3.5 w-3.5 shrink-0 transition-transform duration-fast" :class="{ 'rotate-90': row.expanded }" />
-                <span class="min-w-0 truncate">{{ row.name }}</span>
-              </li>
-            </ContextMenuTrigger>
-            <ContextMenuContent class="w-52">
-              <ContextMenuItem :disabled="filesIn(row.path).every((f) => f.viewed)" @select="setFolderViewed(row.path, true)">
-                Mark folder as viewed
-              </ContextMenuItem>
-              <ContextMenuItem :disabled="!filesIn(row.path).some((f) => f.viewed)" @select="setFolderViewed(row.path, false)">
-                Mark folder as not viewed
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
-          <li
-            v-else
-            role="treeitem"
-            :aria-level="row.depth + 1"
-            :aria-selected="row.file.filename === selectedPath"
-            :tabindex="i === tabStop ? 0 : -1"
-            :title="row.file.filename"
-            class="flex items-center gap-2 py-1.5 pr-2 rounded-md cursor-pointer select-none text-xs outline-none
-                   hover:bg-accent hover:text-accent-foreground
-                   focus-visible:ring-2 focus-visible:ring-ring
-                   data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
-            :style="{ paddingLeft: `${row.depth * 12 + 8}px` }"
-            :data-selected="row.file.filename === selectedPath"
-            @click="emit('select', row.file.filename)"
-            @keydown="handleKeydown($event, () => emit('select', row.file.filename))"
-          >
-            <Badge
-              :variant="statusInfo(row.file.status).variant"
-              class="shrink-0 w-4 h-4 p-0 flex items-center justify-center text-[0.625rem] font-bold"
-              :aria-label="STATUS_NAMES[row.file.status] ?? 'Modified'"
-            >
-              {{ statusInfo(row.file.status).label }}
-            </Badge>
+                <ListFilter class="h-3.5 w-3.5" />
+                <Reveal axis="x" :open="hiddenCount > 0" class="tabular-nums" :class="{ '-ml-1': !hiddenCount }">{{ hiddenCount }} hidden</Reveal>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-60">
+              <DropdownMenuCheckboxItem v-model="hideViewed" @select.prevent>
+                <span class="flex-1">Hide viewed files</span>
+                <span class="text-xs text-muted-foreground tabular-nums">{{ viewedCount }}</span>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem v-model="hideTests" @select.prevent>
+                <span class="flex-1">Hide test files</span>
+                <span class="text-xs text-muted-foreground tabular-nums">{{ testCount }}</span>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem v-model="autoViewTests" :disabled="!hideTests" @select.prevent>
+                Mark hidden tests as viewed
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </Transition>
+    </div>
 
-            <span class="flex-1 min-w-0 truncate font-medium" :class="{ 'text-muted-foreground': row.file.viewed }">{{ row.name }}</span>
+    <div class="relative flex min-h-0 flex-1 flex-col">
+      <!-- Stays mounted so it can fade out; the bars only pulse while it is the loader. -->
+      <div class="pointer-events-none absolute inset-0 flex flex-col gap-1 p-2 transition-[opacity,visibility]" :class="loaderShown(!!loading)" aria-hidden="true">
+        <div
+          v-for="i in 5"
+          :key="i"
+          class="h-8 rounded bg-muted"
+          :class="{ 'animate-pulse': loading }"
+        />
+      </div>
 
-            <Check v-if="row.file.viewed" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" role="img" aria-label="Viewed" />
+      <Transition v-bind="SWAP">
+        <div v-if="loading" />
+        <div
+          v-else-if="files.length === 0"
+          class="flex-1 flex items-center justify-center text-xs text-muted-foreground p-4 text-center"
+        >
+          No changed files
+        </div>
 
-            <span
-              v-if="commentCounts?.[row.file.filename]"
-              class="shrink-0 flex items-center gap-0.5 text-[0.625rem] text-muted-foreground"
-              :aria-label="`${commentCounts[row.file.filename]} unresolved comments`"
-            >
-              <MessageSquare class="h-3 w-3" />{{ commentCounts[row.file.filename] }}
-            </span>
+        <div
+          v-else-if="shownFiles.length === 0"
+          class="flex-1 flex flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted-foreground"
+        >
+          All {{ files.length }} files are hidden by filters.
+          <Button variant="outline" size="sm" class="h-7 text-xs" @click="showAll">Show all files</Button>
+        </div>
 
-            <span v-if="!row.file.is_binary" class="shrink-0 flex gap-1 text-[0.625rem]">
-              <span v-if="row.file.additions > 0" class="text-green-600 dark:text-green-400">+{{ row.file.additions }}</span>
-              <span v-if="row.file.deletions > 0" class="text-red-500 dark:text-red-400">-{{ row.file.deletions }}</span>
-            </span>
-            <span v-else class="text-[0.625rem] text-muted-foreground shrink-0">bin</span>
-          </li>
-        </template>
-      </ul>
+        <div v-else ref="listEl" class="flex-1 overflow-y-auto min-h-0">
+          <ul role="tree" aria-label="Changed files list" class="p-1" @keydown="onTreeKeydown">
+            <DiffFileTree
+              :nodes="tree"
+              :depth="0"
+              :files="files"
+              :collapsed="collapsed"
+              :selected-path="selectedPath"
+              :tab-stop="tabStop"
+              :comment-counts="commentCounts"
+              @select="emit('select', $event)"
+              @toggle="toggle"
+              @set-viewed="(paths, viewed) => emit('set-viewed', paths, viewed)"
+            />
+          </ul>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>

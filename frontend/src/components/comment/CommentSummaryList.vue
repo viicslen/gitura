@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type * as model from '@/bindings/gitura/internal/model'
-import { Badge } from '@/components/ui/badge'
-import { Loader2, CheckCircle2, XCircle, MinusCircle } from '@lucide/vue'
-import { useRuns } from '@/composables/useRuns'
-import { useAvatarFallback } from '@/composables/useAvatarFallback'
+import { Button } from '@/components/ui/button'
+import CommentSummaryRow from './CommentSummaryRow.vue'
 
 const props = defineProps<{
   threads: model.CommentThreadDTO[]
+  /** Threads on the PR under any filter; tells "all resolved" from "none at all". */
+  total: number
   currentIndex: number
   showResolved: boolean
   commands: model.CommandDTO[]
@@ -16,11 +16,9 @@ const props = defineProps<{
   reviewNumbers?: model.PROverviewDTO['review_numbers']
 }>()
 
-const { runsForThread } = useRuns()
-const { avatarSrc, handleAvatarError, avatarInitial } = useAvatarFallback()
-
 const emit = defineEmits<{
   (e: 'select', index: number): void
+  (e: 'show-all'): void
   (e: 'ran'): void
 }>()
 
@@ -30,41 +28,36 @@ const visibleThreads = computed(() =>
     : props.threads.filter((t) => !t.resolved)
 )
 
+// Rows glide (fade in and out, slide to their new place) only up to this many threads on the PR: every moved row is
+// animated on its own, and a filter change dropped frames from about 36 threads up. A longer list cuts, and fades in as
+// one block on a filter change: the two classes below are the same fade under two animation names, so switching
+// between them replays it without remounting hundreds of rows.
+const GLIDE_MAX_THREADS = 30
+const rowMotion = computed(() =>
+  props.total <= GLIDE_MAX_THREADS
+    ? {
+        enterActiveClass: 'transition-opacity',
+        enterFromClass: 'opacity-0',
+        leaveActiveClass: 'absolute transition-opacity duration-fast pointer-events-none',
+        leaveToClass: 'opacity-0',
+        moveClass: 'transition-transform ease-in-out',
+      }
+    : {
+        css: false,
+        class: props.showResolved
+          ? 'animate-in fade-in-0 animation-duration-base'
+          : 'animate-out fade-out-0 direction-reverse animation-duration-base',
+      },
+)
 
-function rootComment(thread: model.CommentThreadDTO): model.ReviewCommentDTO | null {
-  return thread.comments?.[0] ?? null
+function select(index: number): void {
+  emit('select', index)
 }
 
-function excerpt(body: string): string {
-  if (!body) return ''
-  const trimmed = body.replace(/\n/g, ' ').trim()
-  return trimmed.length > 200 ? trimmed.slice(0, 200) + '…' : trimmed
-}
-
-function lastRunStatus(thread: model.CommentThreadDTO): 'running' | 'success' | 'error' | 'cancelled' | null {
-  const runs = runsForThread(thread.root_id).value
-  if (runs.length === 0) return null
-  const run = runs[0]
-  if (run.running) return 'running'
-  if (run.cancelled) return 'cancelled'
-  if (run.exit_code === 0) return 'success'
-  return 'error'
-}
-
-function handleKeydown(event: KeyboardEvent, index: number): void {
-  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-    event.preventDefault()
-    const target = index + (event.key === 'ArrowUp' ? -1 : 1)
-    if (target < 0 || target >= visibleThreads.value.length) return
-    emit('select', target)
-    document.getElementById(`thread-item-${target}`)?.focus()
-  } else if (event.key === 'Enter') {
-    emit('select', index)
-  }
-}
-
-function threadAvatarKey(thread: model.CommentThreadDTO): string {
-  return `thread:${thread.root_id}`
+function move(target: number): void {
+  if (target < 0 || target >= visibleThreads.value.length) return
+  emit('select', target)
+  document.getElementById(`thread-item-${target}`)?.focus()
 }
 
 function reviewLabel(thread: model.CommentThreadDTO): string {
@@ -74,115 +67,36 @@ function reviewLabel(thread: model.CommentThreadDTO): string {
 </script>
 
 <template>
-  <!-- Keyed on the filter so a filter change swaps the list as one block instead of moving every row. -->
-  <!-- shortcut: every row below a removed one gets a move transition; cap it if PRs with hundreds of threads stutter. -->
   <TransitionGroup
-    :key="showResolved ? 'all' : 'unresolved'"
     tag="div"
     role="listbox"
     :aria-activedescendant="visibleThreads.length > 0 ? `thread-item-${currentIndex}` : undefined"
     aria-label="Comment threads"
-    class="relative h-full overflow-y-auto animate-in fade-in-0 animation-duration-fast ease-out"
-    enter-active-class="transition-opacity"
-    enter-from-class="opacity-0"
-    leave-active-class="absolute transition-opacity duration-fast"
-    leave-to-class="opacity-0"
-    move-class="transition-transform ease-in-out"
+    class="relative h-full overflow-y-auto"
+    v-bind="rowMotion"
   >
     <div
       v-if="visibleThreads.length === 0"
       key="empty"
-      class="h-full w-full flex items-center justify-center text-muted-foreground text-sm p-4"
+      class="h-full w-full flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground"
     >
-      No comments to show.
+      <template v-if="!showResolved && total > 0">
+        All {{ total }} threads are resolved.
+        <Button variant="outline" size="sm" class="h-7 text-xs" @click="emit('show-all')">Show all threads</Button>
+      </template>
+      <template v-else>No comments to show.</template>
     </div>
 
-    <button
+    <!-- Handlers are passed by reference: an inline arrow would be new on every render and re-render every row. -->
+    <CommentSummaryRow
       v-for="(thread, index) in visibleThreads"
-      :id="`thread-item-${index}`"
       :key="thread.root_id"
-      role="option"
-      :aria-selected="index === currentIndex"
-      class="block w-full text-left px-3 py-2.5 border-b border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-      :class="[
-        index === currentIndex
-          ? 'bg-accent text-accent-foreground'
-          : 'hover:bg-muted/50',
-      ]"
-      @click="emit('select', index)"
-      @keydown="handleKeydown($event, index)"
-    >
-      <div class="flex items-start gap-2 min-w-0">
-        <!-- Avatar + run status indicator -->
-        <div class="flex flex-col items-center shrink-0 gap-0.5 mt-0.5">
-          <img
-            v-if="rootComment(thread)?.author_avatar && avatarSrc(threadAvatarKey(thread), rootComment(thread)!.author_avatar)"
-            :src="avatarSrc(threadAvatarKey(thread), rootComment(thread)!.author_avatar)"
-            :alt="rootComment(thread)!.author_login"
-            class="w-5 h-5 rounded-full"
-            @error="handleAvatarError(threadAvatarKey(thread), rootComment(thread)!.author_avatar)"
-          />
-          <span
-            v-else
-            class="w-5 h-5 rounded-full bg-background/95 border border-border text-[0.625rem] font-semibold text-foreground inline-flex items-center justify-center shadow-sm"
-            :title="rootComment(thread)?.author_login ?? 'Unknown'"
-            aria-hidden="true"
-          >
-            {{ avatarInitial(rootComment(thread)?.author_login ?? '') }}
-          </span>
-          <Loader2
-            v-if="lastRunStatus(thread) === 'running'"
-            class="w-3 h-3 text-muted-foreground animate-spin"
-          />
-          <CheckCircle2
-            v-else-if="lastRunStatus(thread) === 'success'"
-            class="w-3 h-3 text-green-500"
-          />
-          <XCircle
-            v-else-if="lastRunStatus(thread) === 'error'"
-            class="w-3 h-3 text-destructive"
-          />
-          <MinusCircle
-            v-else-if="lastRunStatus(thread) === 'cancelled'"
-            class="w-3 h-3 text-muted-foreground"
-          />
-        </div>
-        <div class="min-w-0 flex-1 pr-2">
-          <!-- Author row: name on left, Resolved badge on right -->
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="font-medium text-sm truncate max-w-[120px]">
-              {{ rootComment(thread)?.author_login ?? 'Unknown' }}
-            </span>
-            <span class="flex-1" />
-            <Badge
-              variant="secondary"
-              :class="[
-                'text-[0.625rem] font-normal shrink-0 border',
-                index === currentIndex
-                  ? 'bg-background/90 border-border text-foreground'
-                  : 'bg-muted border-transparent text-muted-foreground',
-              ]"
-            >
-              {{ reviewLabel(thread) }}
-            </Badge>
-            <Badge
-              v-if="thread.resolved && showResolved"
-              variant="outline"
-              class="text-xs shrink-0 text-muted-foreground border-muted-foreground/40"
-            >
-              Resolved
-            </Badge>
-          </div>
-          <!-- File path -->
-          <div class="text-xs text-muted-foreground truncate min-w-0">
-            {{ thread.path }}<span v-if="thread.line" class="text-muted-foreground/70">:{{ thread.line }}</span>
-          </div>
-          <!-- Excerpt -->
-          <p class="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-            {{ excerpt(rootComment(thread)?.body ?? '') }}
-          </p>
-        </div>
-      </div>
-    </button>
+      :thread="thread"
+      :index="index"
+      :selected="index === currentIndex"
+      :review-label="reviewLabel(thread)"
+      @select="select"
+      @move="move"
+    />
   </TransitionGroup>
 </template>

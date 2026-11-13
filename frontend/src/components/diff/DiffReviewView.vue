@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { errorMessage } from '@/lib/utils'
-import { onMounted, computed, nextTick, provide, ref, watch, watchEffect } from 'vue'
+import { onMounted, computed, nextTick, provide, reactive, ref, watch, watchEffect } from 'vue'
 import { ChevronLeft, ChevronRight, Copy, Send, SlidersHorizontal, Trash2 } from '@lucide/vue'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import Reveal from '@/components/motion/Reveal.vue'
+import { loaderShown, SETTLE, SWAP, TEXT_SWAP } from '@/components/motion/motion'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -72,6 +74,7 @@ const {
   filesError,
   currentFilePath,
   currentFile,
+  shownFile,
   currentDiff,
   diffLoading,
   diffError,
@@ -104,7 +107,8 @@ async function toggleViewed(path: string, viewed: boolean): Promise<void> {
     void nextFile().then(async () => {
       if (!keepFocus) return
       await nextTick()
-      document.getElementById('viewed-toggle')?.focus()
+      // The file being left is still fading out, with a checkbox of its own.
+      document.querySelector<HTMLElement>('#viewed-toggle:not([inert] *)')?.focus()
     })
   } else if (viewed) {
     const filtered = hideViewed.value || hideTests.value
@@ -136,10 +140,10 @@ watchEffect(() => {
   tabBadges.files = unviewedCount.value
 })
 
-const threadsForFile = computed(() => props.threads.filter((t) => t.path === currentFilePath.value))
+const threadsForFile = computed(() => props.threads.filter((t) => t.path === shownFile.value?.filename))
 const currentFilePosition = computed(() => currentFileIndex.value + 1)
 const draftsForFile = computed(() =>
-  (pendingReview.value?.comments ?? []).filter((c) => c.path === currentFilePath.value),
+  (pendingReview.value?.comments ?? []).filter((c) => c.path === shownFile.value?.filename),
 )
 const unresolvedCounts = computed(() => {
   const counts: Record<string, number> = {}
@@ -176,6 +180,28 @@ const draftsStale = computed(() => {
 })
 
 // ── Review submit panel state ──────────────────────────────────────────────
+// A dialog is still fading out while the review empties: it lists a snapshot taken when it opens, and resets on the next open.
+const dialog = reactive({ comments: [] as model.DraftCommentDTO[], staleSha: '' })
+let submitted = false
+let discarded = false
+function snapshotReview(): void {
+  dialog.comments = pendingReview.value?.comments ?? []
+  dialog.staleSha = draftsStale.value ? pendingReview.value?.head_sha.slice(0, 7) ?? '' : ''
+}
+function openSubmitPanel(): void {
+  if (submitted) {
+    submitted = submitLoading.value = false
+    reviewBody.value = ''
+    verdict.value = 'COMMENT'
+  }
+  snapshotReview()
+  submitPanelOpen.value = true
+}
+function openDiscardDialog(): void {
+  if (discarded) discarded = discardLoading.value = false
+  snapshotReview()
+  discardDialogOpen.value = true
+}
 const submitPanelOpen = ref(false)
 const verdict = ref<'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'>('COMMENT')
 const reviewBody = ref('')
@@ -201,6 +227,14 @@ provide('hasPendingReview', computed(() => pendingReview.value?.has_pending ?? f
 provide('draftsStale', draftsStale)
 provide('localReview', props.local)
 provide<DraftActions>('draftActions', { indexOf: draftIndex, update: updateDraftComment, remove: deleteDraftComment })
+
+// Holding two diffs at once for a cross-fade drops frames once either is large; those swap in one frame.
+const HEAVY_DIFF_LINES = 200
+const diffLines = (diff: model.ParsedDiffDTO | null) => (diff?.hunks ?? []).reduce((n, h) => n + h.lines.length, 0)
+const fileSwap = ref(SWAP)
+watch(currentDiff, (next, previous) => {
+  fileSwap.value = Math.max(diffLines(next), diffLines(previous)) > HEAVY_DIFF_LINES ? SETTLE : SWAP
+}, { flush: 'sync' })
 const changedPaths = computed(() => new Set(files.value.map((f) => f.filename)))
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -232,14 +266,12 @@ async function handleSubmitReview(): Promise<void> {
   submitLoading.value = true
   try {
     await submitReview({ verdict: verdict.value, body: reviewBody.value })
+    submitted = true
     submitPanelOpen.value = false
-    reviewBody.value = ''
-    verdict.value = 'COMMENT'
     toast('Review submitted')
     emit('threads-changed')
   } catch (err) {
     toast.error(errorMessage(err))
-  } finally {
     submitLoading.value = false
   }
 }
@@ -250,7 +282,7 @@ const commandName = ref('')
 const localMarkdown = computed(() => formatLocalReview(pendingReview.value?.comments ?? []))
 
 async function openLocalPanel(): Promise<void> {
-  submitPanelOpen.value = true
+  openSubmitPanel()
   try {
     commands.value = await GetCommands()
     const fallback = await GetDefaultCommandName()
@@ -276,11 +308,11 @@ async function sendLocalReview(): Promise<void> {
   try {
     await RunCommands([commandName.value], localMarkdown.value, {} as model.RunContext)
     await discardPendingReview()
+    submitted = true
     submitPanelOpen.value = false
     emit('ran')
   } catch (err) {
     toast.error(errorMessage(err))
-  } finally {
     submitLoading.value = false
   }
 }
@@ -290,11 +322,11 @@ async function handleDiscardReview(): Promise<void> {
   discardLoading.value = true
   try {
     await discardPendingReview()
+    discarded = true
     discardDialogOpen.value = false
     toast('Review discarded')
   } catch (err) {
     toast.error(errorMessage(err))
-  } finally {
     discardLoading.value = false
   }
 }
@@ -377,150 +409,177 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Transition enter-active-class="animate-in fade-in-0 zoom-in-95 ease-out" leave-active-class="animate-out fade-out-0 zoom-out-95 animation-duration-fast ease-out">
-        <Badge v-if="pendingCount > 0" variant="secondary" class="gap-1 text-xs tabular-nums">
+      <Reveal axis="x" :open="pendingCount > 0" class="shrink-0" :class="{ '-ml-2': !pendingCount }">
+        <Badge variant="secondary" class="gap-1 text-xs tabular-nums">
           {{ pendingCount }} pending
         </Badge>
-      </Transition>
+      </Reveal>
+      <!-- The filled variant has no border; a clear one keeps the width the outline variant has. -->
       <Button
         :variant="pendingCount > 0 ? 'default' : 'outline'"
         size="sm"
         class="h-7 gap-1.5"
+        :class="{ 'border border-transparent': pendingCount > 0 }"
         :disabled="local && pendingCount === 0"
-        @click="local ? openLocalPanel() : (submitPanelOpen = true)"
+        @click="local ? openLocalPanel() : openSubmitPanel()"
       >
         <Send class="h-3.5 w-3.5" />
-        {{ local ? 'Send comments' : pendingCount > 0 ? 'Finish review' : 'Review changes' }}
+        <template v-if="local">Send comments</template>
+        <!-- Both labels share one cell, so the button keeps its width when they swap. -->
+        <span v-else class="grid text-center">
+          <span
+            v-for="(label, pending) in ['Review changes', 'Finish review']"
+            :key="label"
+            class="[grid-area:1/1] transition-[opacity,visibility] duration-fast"
+            :class="{ 'invisible opacity-0': (pendingCount > 0) !== !!pending }"
+          >{{ label }}</span>
+        </span>
       </Button>
-      <Transition enter-active-class="animate-in fade-in-0" leave-active-class="animate-out fade-out-0">
+      <Reveal axis="x" :open="!!pendingReview?.has_pending" class="shrink-0" :class="{ '-ml-2': !pendingReview?.has_pending }">
+        <!-- The ring is inset because the reveal clips at the button's edge. -->
         <Button
-          v-if="pendingReview?.has_pending"
           variant="ghost"
           size="icon"
-          class="text-destructive hover:text-destructive"
+          class="text-destructive hover:text-destructive focus-visible:ring-inset"
           aria-label="Discard pending review"
           title="Discard pending review"
-          @click="discardDialogOpen = true"
+          @click="openDiscardDialog"
         >
           <Trash2 class="h-4 w-4" />
         </Button>
-      </Transition>
+      </Reveal>
     </div>
 
-    <!-- ── Error (files load) ─────────────────────────────────────────────── -->
-    <div
-      v-if="filesError"
-      class="flex-1 flex flex-col items-center justify-center gap-3 p-6"
-    >
-      <p class="text-sm text-destructive text-center">{{ filesError }}</p>
-      <Button variant="outline" size="sm" @click="loadFiles">Retry</Button>
-    </div>
-
-    <!-- ── Main split ─────────────────────────────────────────────────────── -->
-    <div v-else class="flex flex-1 min-h-0 overflow-hidden">
-      <!-- Sidebar -->
-      <div class="shrink-0 overflow-hidden" :style="{ width: `${clampWidth(sidebarWidth)}px` }">
-        <DiffFileSidebar
-          v-model:hide-viewed="hideViewed"
-          v-model:hide-tests="hideTests"
-          v-model:auto-view-tests="autoViewTests"
-          :files="files"
-          :visible-files="visibleFiles"
-          :viewed-error="viewedError"
-          @retry-viewed="loadViewed"
-          :comment-counts="unresolvedCounts"
-          :selected-path="currentFilePath"
-          :active="active"
-          :loading="filesLoading && !files.length"
-          @select="selectFile"
-          @set-viewed="markViewed"
-        />
-      </div>
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize file list"
-        :aria-valuenow="clampWidth(sidebarWidth)"
-        :aria-valuemin="SIDEBAR_MIN"
-        :aria-valuemax="SIDEBAR_MAX"
-        tabindex="0"
-        class="-ml-1 w-1 shrink-0 cursor-col-resize touch-none outline-none hover:bg-primary/40 focus-visible:bg-primary/40"
-        @pointerdown="startResize"
-        @pointermove="resize"
-        @pointerup="stopResize"
-        @pointercancel="stopResize"
-        @keydown.left.prevent="sidebarWidth = clampWidth(sidebarWidth - 16)"
-        @keydown.right.prevent="sidebarWidth = clampWidth(sidebarWidth + 16)"
-      />
-
-      <!-- Diff panel -->
-      <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <!-- Diff loading -->
+    <div class="relative flex min-h-0 flex-1 flex-col">
+      <Transition v-bind="SWAP">
+        <!-- ── Error (files load) ─────────────────────────────────────────────── -->
+        <!-- Only when there is nothing to show: a failed refresh keeps the files already loaded. -->
         <div
-          v-if="diffLoading"
-          class="flex-1 flex items-center justify-center text-sm text-muted-foreground animate-in fade-in-0 delay-200 fill-mode-backwards"
-        >
-          Loading diff…
-        </div>
-
-        <!-- Diff error -->
-        <div
-          v-else-if="diffError"
+          v-if="filesError && !files.length"
           class="flex-1 flex flex-col items-center justify-center gap-3 p-6"
         >
-          <p class="text-sm text-destructive text-center">{{ diffError }}</p>
-          <Button
-            v-if="currentFilePath"
-            variant="outline"
-            size="sm"
-            @click="selectFile(currentFilePath)"
-          >
-            Retry
-          </Button>
+          <!-- Stays up while the retry runs, and dims once the wait is real. A different message cross-fades in the same cell. -->
+          <div class="grid w-full transition-opacity" :class="{ 'opacity-50 delay-200': filesLoading }">
+            <Transition v-bind="TEXT_SWAP">
+              <p :key="filesError" class="text-sm text-destructive text-center [grid-area:1/1]">{{ filesError }}</p>
+            </Transition>
+          </div>
+          <Button variant="outline" size="sm" @click="loadFiles">Retry</Button>
         </div>
 
-        <!-- No file selected -->
-        <div
-          v-else-if="!currentFile"
-          class="flex-1 flex items-center justify-center text-sm text-muted-foreground"
-        >
-          Select a file to view its diff
-        </div>
+        <!-- ── Main split ─────────────────────────────────────────────────────── -->
+        <div v-else class="flex flex-1 min-h-0 overflow-hidden">
+          <!-- Sidebar -->
+          <div class="shrink-0 overflow-hidden" :style="{ width: `${clampWidth(sidebarWidth)}px` }">
+            <DiffFileSidebar
+              v-model:hide-viewed="hideViewed"
+              v-model:hide-tests="hideTests"
+              v-model:auto-view-tests="autoViewTests"
+              :files="files"
+              :visible-files="visibleFiles"
+              :viewed-error="viewedError"
+              @retry-viewed="loadViewed"
+              :comment-counts="unresolvedCounts"
+              :selected-path="currentFilePath"
+              :active="active"
+              :loading="filesLoading && !files.length"
+              @select="selectFile"
+              @set-viewed="markViewed"
+            />
+          </div>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize file list"
+            :aria-valuenow="clampWidth(sidebarWidth)"
+            :aria-valuemin="SIDEBAR_MIN"
+            :aria-valuemax="SIDEBAR_MAX"
+            tabindex="0"
+            class="-ml-1 w-1 shrink-0 cursor-col-resize touch-none outline-none hover:bg-primary/40 focus-visible:bg-primary/40"
+            @pointerdown="startResize"
+            @pointermove="resize"
+            @pointerup="stopResize"
+            @pointercancel="stopResize"
+            @keydown.left.prevent="sidebarWidth = clampWidth(sidebarWidth - 16)"
+            @keydown.right.prevent="sidebarWidth = clampWidth(sidebarWidth + 16)"
+          />
 
-        <!-- Diff content -->
-        <DiffFileView
-          v-else
-          :file="currentFile"
-          :diff="currentDiff"
-          :commentable="true"
-          :threads="threadsForFile"
-          :drafts="draftsForFile"
-          :drafts-stale="draftsStale"
-          :show-threads="showThreads"
-          :wrap-lines="wrapLines"
-          :unsent-comments="unsentComments"
-          class="flex-1 min-h-0 overflow-hidden"
-          :post-comment="postComment"
-          @resolve="emit('resolve', $event)"
-          @unresolve="emit('unresolve', $event)"
-          @reply-sent="emit('reply-sent', $event)"
-        >
-          <template #header-actions>
-            <label
-              class="flex shrink-0 cursor-pointer select-none items-center gap-1.5 border-l border-border pl-3 text-xs text-muted-foreground"
-              :title="currentFile.viewed ? 'Mark as not viewed' : 'Mark as viewed and go to the next file'"
+          <!-- Diff panel: what it shows stays until the next file's diff is here, then the two cross-fade. -->
+          <div class="relative flex-1 flex flex-col min-h-0 overflow-hidden">
+            <Transition v-bind="fileSwap" @before-leave="(el) => el.setAttribute('inert', '')">
+              <!-- Diff error -->
+              <div
+                v-if="diffError"
+                class="flex-1 flex flex-col items-center justify-center gap-3 p-6"
+              >
+                <div class="grid w-full">
+                  <Transition v-bind="TEXT_SWAP">
+                    <p :key="diffError" class="text-sm text-destructive text-center [grid-area:1/1]">{{ diffError }}</p>
+                  </Transition>
+                </div>
+                <Button
+                  v-if="currentFilePath"
+                  variant="outline"
+                  size="sm"
+                  @click="selectFile(currentFilePath)"
+                >
+                  Retry
+                </Button>
+              </div>
+
+              <!-- No file selected; blank while the first load runs, so the hint is not painted before the data -->
+              <div
+                v-else-if="!shownFile"
+                class="flex-1 flex items-center justify-center text-sm text-muted-foreground"
+              >
+                {{ filesLoading || diffLoading ? '' : 'Select a file to view its diff' }}
+              </div>
+
+              <!-- Diff content -->
+              <DiffFileView
+                v-else
+                :key="shownFile.filename"
+                :inert="diffLoading || undefined"
+                :file="shownFile"
+                :diff="currentDiff"
+                :commentable="true"
+                :threads="threadsForFile"
+                :drafts="draftsForFile"
+                :drafts-stale="draftsStale"
+                :show-threads="showThreads"
+                :wrap-lines="wrapLines"
+                :unsent-comments="unsentComments"
+                class="flex-1 min-h-0 overflow-hidden"
+                :post-comment="postComment"
+                @resolve="emit('resolve', $event)"
+                @unresolve="emit('unresolve', $event)"
+                @reply-sent="emit('reply-sent', $event)"
+              >
+                <template #header-actions>
+                  <label
+                    class="flex shrink-0 cursor-pointer select-none items-center gap-1.5 border-l border-border pl-3 text-xs text-muted-foreground"
+                    :title="shownFile.viewed ? 'Mark as not viewed' : 'Mark as viewed and go to the next file'"
+                  >
+                    <Checkbox
+                      id="viewed-toggle"
+                      :model-value="shownFile.viewed"
+                      :disabled="viewedSaving.has(shownFile.filename)"
+                      @update:model-value="(v) => shownFile && toggleViewed(shownFile.filename, v === true)"
+                    />
+                    Viewed
+                  </label>
+                </template>
+              </DiffFileView>
+            </Transition>
+            <div
+              class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background text-sm text-muted-foreground transition-[opacity,visibility]"
+              :class="loaderShown(diffLoading)"
             >
-              <Checkbox
-                id="viewed-toggle"
-                :model-value="currentFile.viewed"
-                :disabled="viewedSaving.has(currentFile.filename)"
-                @update:model-value="(v) => currentFile && toggleViewed(currentFile.filename, v === true)"
-              />
-              Viewed
-            </label>
-          </template>
-        </DiffFileView>
-      </div>
+              Loading diff…
+            </div>
+          </div>
+        </div>
+      </Transition>
     </div>
 
     <!-- ── Local review panel ─────────────────────────────────────────────── -->
@@ -529,13 +588,13 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
         <DialogHeader>
           <DialogTitle>Send comments</DialogTitle>
         </DialogHeader>
-        <div v-if="pendingCount > 0" class="flex min-w-0 flex-col gap-1">
+        <div v-if="dialog.comments.length" class="flex min-w-0 flex-col gap-1">
           <p class="text-xs font-medium text-muted-foreground">
-            {{ pendingCount }} pending comment{{ pendingCount === 1 ? '' : 's' }}
+            {{ dialog.comments.length }} pending comment{{ dialog.comments.length === 1 ? '' : 's' }}
           </p>
           <ul class="max-h-40 overflow-y-auto rounded-md border border-border text-xs">
             <li
-              v-for="(c, i) in pendingReview?.comments ?? []"
+              v-for="(c, i) in dialog.comments"
               :key="i"
               class="flex flex-col gap-0.5 border-b border-border px-2 py-1.5 last:border-b-0"
             >
@@ -609,14 +668,14 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           </label>
         </div>
 
-        <div v-if="pendingCount > 0" class="flex min-w-0 flex-col gap-1">
+        <div v-if="dialog.comments.length" class="flex min-w-0 flex-col gap-1">
           <p class="text-xs font-medium text-muted-foreground">
-            {{ pendingCount }} pending comment{{ pendingCount === 1 ? '' : 's' }}
-            <span v-if="draftsStale"> · will be posted on earlier commit {{ pendingReview?.head_sha.slice(0, 7) }}</span>
+            {{ dialog.comments.length }} pending comment{{ dialog.comments.length === 1 ? '' : 's' }}
+            <span v-if="dialog.staleSha"> · will be posted on earlier commit {{ dialog.staleSha }}</span>
           </p>
           <ul class="max-h-40 overflow-y-auto rounded-md border border-border text-xs">
             <li
-              v-for="(c, i) in pendingReview?.comments ?? []"
+              v-for="(c, i) in dialog.comments"
               :key="i"
               class="flex flex-col gap-0.5 border-b border-border px-2 py-1.5 last:border-b-0"
             >
@@ -654,8 +713,8 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           <DialogTitle>Discard pending review?</DialogTitle>
         </DialogHeader>
         <p class="text-sm text-muted-foreground">
-          This will delete all {{ pendingReview?.comments?.length ?? 0 }} pending
-          comment{{ (pendingReview?.comments?.length ?? 0) !== 1 ? 's' : '' }} and cannot be undone.
+          This will delete all {{ dialog.comments.length }} pending
+          comment{{ dialog.comments.length !== 1 ? 's' : '' }} and cannot be undone.
         </p>
         <DialogFooter>
           <Button variant="ghost" @click="discardDialogOpen = false">Keep review</Button>

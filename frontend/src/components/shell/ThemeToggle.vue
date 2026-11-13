@@ -11,6 +11,7 @@ const label = computed(() => {
   if (mode.value === 'dark') return 'Dark'
   return 'System'
 })
+const icons = { light: Sun, dark: Moon, auto: Monitor }
 </script>
 
 <template>
@@ -20,9 +21,14 @@ const label = computed(() => {
     :aria-label="`Theme: ${label}. Click to cycle.`"
     @click="cycleTheme"
   >
-    <Sun v-if="mode === 'light'" class="size-4 animate-in fade-in-0 zoom-in-75 ease-out animation-duration-fast" />
-    <Moon v-else-if="mode === 'dark'" class="size-4 animate-in fade-in-0 zoom-in-75 ease-out animation-duration-fast" />
-    <Monitor v-else class="size-4 animate-in fade-in-0 zoom-in-75 ease-out animation-duration-fast" />
+    <span class="grid">
+      <Transition
+        enter-active-class="animate-in fade-in-0 zoom-in-75 animation-duration-fast"
+        leave-active-class="animate-out fade-out-0 zoom-out-75 animation-duration-faster"
+      >
+        <component :is="icons[mode]" :key="mode" class="col-start-1 row-start-1 size-4" />
+      </Transition>
+    </span>
     <span class="sr-only">{{ label }}</span>
   </Button>
 </template>

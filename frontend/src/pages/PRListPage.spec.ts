@@ -25,12 +25,10 @@ vi.mock('@/bindings/gitura/internal/app/app', () => ({ ListOpenPRs: listOpenPRs 
 
 describe('PRListPage org filter', () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['setTimeout'] })
     listOpenPRs.mockImplementation(() => Promise.resolve({ items: [pr('FmTod', 'app', 1), pr('FmTod2', 'config', 2)] }))
   })
   afterEach(() => {
     usePRFilters(() => {}).clearAllFilters()
-    vi.useRealTimers()
   })
 
   it('treats a typed org name as picked, excluding orgs that share its prefix', async () => {
@@ -42,10 +40,9 @@ describe('PRListPage org filter', () => {
     await input.trigger('focus')
     await input.setValue('fmtod')
     await input.trigger('blur')
-    vi.advanceTimersByTime(200)
     await flushPromises()
 
-    const rows = wrapper.findAll('ul[role="list"] > li')
+    const rows = wrapper.findAll('[role="list"] > li')
     expect(rows.map((r) => r.text())).toEqual([expect.stringContaining('FmTod/app')])
     expect((input.element as HTMLInputElement).value).toBe('FmTod')
   })
@@ -57,10 +54,9 @@ describe('PRListPage org filter', () => {
     const input = wrapper.get('input[aria-label="Filter by organisation"]')
     await input.setValue('fmt')
     await input.trigger('blur')
-    vi.advanceTimersByTime(200)
     await flushPromises()
 
-    expect(wrapper.findAll('ul[role="list"] > li')).toHaveLength(2)
+    expect(wrapper.findAll('[role="list"] > li')).toHaveLength(2)
   })
 
   it('applies review-view updates until search reflects them', async () => {
@@ -72,7 +68,7 @@ describe('PRListPage org filter', () => {
     const wrapper = mount(PRListPage, { props: { prUpdates } })
     await flushPromises()
 
-    expect(wrapper.findAll('ul[role="list"] > li').map((r) => r.text())).toEqual([expect.stringContaining('Renamed')])
+    expect(wrapper.findAll('[role="list"] > li').map((r) => r.text())).toEqual([expect.stringContaining('Renamed')])
     expect([...prUpdates.keys()]).toEqual(['FmTod/app#1', 'FmTod2/config#2'])
   })
 
@@ -85,7 +81,7 @@ describe('PRListPage org filter', () => {
     await wrapper.get('button[aria-label="Refresh pull request list"]').trigger('click')
 
     expect(wrapper.find('[aria-label="Loading pull requests"]').exists()).toBe(false)
-    expect(wrapper.findAll('ul[role="list"] > li')).toHaveLength(2)
+    expect(wrapper.findAll('[role="list"] > li')).toHaveLength(2)
   })
 
   it('keeps the error on screen while a retry is in flight', async () => {
@@ -97,5 +93,17 @@ describe('PRListPage org filter', () => {
     listOpenPRs.mockReturnValueOnce(new Promise(() => {}))
     await wrapper.get('button[aria-label="Refresh pull request list"]').trigger('click')
     expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+  })
+
+  it('keeps the list when a refresh answers with an error', async () => {
+    const wrapper = mount(PRListPage)
+    await flushPromises()
+
+    listOpenPRs.mockResolvedValueOnce({ items: [], error: 'rate limited', rate_limit_reset: '2026-01-01T00:10:00Z' })
+    await wrapper.get('button[aria-label="Refresh pull request list"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('rate limit')
+    expect(wrapper.findAll('[role="list"] > li')).toHaveLength(2)
   })
 })

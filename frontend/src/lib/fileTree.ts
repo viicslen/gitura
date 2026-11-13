@@ -6,6 +6,10 @@ export type FileTreeRow<T> =
   | { type: 'dir'; path: string; name: string; depth: number; expanded: boolean }
   | { type: 'file'; name: string; file: T; depth: number }
 
+/** Identifies a folder or file across the tree and its flattened rows. */
+export const treeKey = (n: { type: 'dir'; path: string } | { type: 'file'; file: { filename: string } }): string =>
+  n.type === 'dir' ? `dir:${n.path}` : n.file.filename
+
 /**
  * Groups files by folder, keeping the input order, and merges folders whose only
  * child is another folder into one node (`frontend/src`), as JetBrains does.

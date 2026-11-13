@@ -38,11 +38,12 @@
 /* Motion budget, by how often an edge is triggered: fast = frequent (low end), base = frequent, slow = occasional,
    slower = rare. An exit takes the next token down. static: scoped component CSS reads these too. */
 @theme static {
-  --transition-duration-faster: 75ms;
-  --transition-duration-fast: 100ms;
-  --transition-duration-base: 150ms;
-  --transition-duration-slow: 220ms;
-  --transition-duration-slower: 360ms;
+  --transition-duration-faster: 80ms;
+  --transition-duration-fast: 130ms;
+  --transition-duration-base: 180ms;
+  --transition-duration-slow: 260ms;
+  --transition-duration-slower: 400ms;
+  --default-transition-duration: var(--transition-duration-base);
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
   --default-transition-timing-function: var(--ease-out);
 }
@@ -138,6 +139,15 @@
 
 /* Light mode: align hljs background with app muted color */
 .hljs { background: var(--color-muted); }
+
+/* Toasts on the motion tokens instead of sonner's 400ms `ease`; important, because sonner's CSS is unlayered. */
+[data-sonner-toast] {
+  transition-duration: var(--transition-duration-slow) !important;
+  transition-timing-function: var(--ease-out) !important;
+}
+[data-sonner-toast][data-removed="true"] {
+  transition-duration: var(--transition-duration-base) !important;
+}
 
 /* Reduced motion: every edge becomes a cut; spinners stay so progress never looks frozen. */
 @media (prefers-reduced-motion: reduce) {

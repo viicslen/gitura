@@ -16,19 +16,25 @@ const props = defineProps<{ path: string }>()
 
 const base = useLocalStorage<'merge-base' | 'HEAD'>('gitura.localBase', 'merge-base')
 const started = ref(false)
+const starting = ref(false)
 const error = ref('')
 const refreshing = ref(false)
 const runPanelOpen = ref(false)
 const diffReviewRef = ref<InstanceType<typeof DiffReviewView> | null>(null)
 const unsentComments: UnsentComments = reactive(new Map())
 
+// A failed start keeps its message on screen until the retry answers.
 async function start(): Promise<void> {
-  error.value = ''
+  if (starting.value) return
+  starting.value = true
   try {
     await StartLocalReview(props.path, base.value)
     started.value = true
+    error.value = ''
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    starting.value = false
   }
 }
 
@@ -36,6 +42,7 @@ let reloadAgain = false
 
 // A change landing mid-reload may be missing from it, so reload once more afterwards.
 async function reload(): Promise<void> {
+  if (error.value || !started.value) return start()
   if (refreshing.value) {
     reloadAgain = true
     return
@@ -82,7 +89,6 @@ onUnmounted(() => {
         variant="ghost"
         size="icon"
         class="h-7 w-7 text-muted-foreground hover:text-foreground"
-        :disabled="!started"
         aria-label="Refresh local changes"
         title="Refresh local changes"
         style="--wails-draggable: no-drag"
@@ -105,27 +111,36 @@ onUnmounted(() => {
       </Button>
     </Teleport>
 
-    <div v-if="error" class="flex-1 flex flex-col items-center justify-center gap-3 p-6 animate-in fade-in-0">
-      <p class="text-sm text-destructive text-center">{{ error }}</p>
-      <Button variant="outline" size="sm" @click="start()">Retry</Button>
+    <div class="relative flex min-h-0 flex-1 flex-col">
+      <Transition enter-active-class="animate-in fade-in-0" leave-active-class="absolute inset-0 animate-out fade-out-0 animation-duration-fast">
+        <div v-if="error" class="flex-1 flex flex-col items-center justify-center gap-3 p-6">
+          <p class="text-sm text-destructive text-center">{{ error }}</p>
+          <Button variant="outline" size="sm" @click="start()">
+            <RefreshCw :class="starting && 'animate-spin delay-200'" />
+            Retry
+          </Button>
+        </div>
+        <div v-else-if="!started" class="flex-1 flex items-center justify-center text-muted-foreground">
+          <div class="animate-in fade-in-0 delay-200 fill-mode-backwards">
+            <RefreshCw class="h-6 w-6 animate-spin" />
+          </div>
+        </div>
+        <div v-else class="flex min-h-0 flex-1 flex-col">
+          <DiffReviewView
+            ref="diffReviewRef"
+            local
+            :threads="[]"
+            :show-threads="false"
+            :is-own-pr="false"
+            head-sha=""
+            :active="true"
+            :unsent-comments="unsentComments"
+            class="flex-1 min-h-0 overflow-hidden"
+            @ran="runPanelOpen = true"
+          />
+          <RunPanel :open="runPanelOpen" @close="runPanelOpen = false" />
+        </div>
+      </Transition>
     </div>
-    <div v-else-if="!started" class="flex-1 flex items-center justify-center text-muted-foreground animate-in fade-in-0 delay-200 fill-mode-backwards">
-      <RefreshCw class="h-6 w-6 animate-spin" />
-    </div>
-    <template v-else>
-      <DiffReviewView
-        ref="diffReviewRef"
-        local
-        :threads="[]"
-        :show-threads="false"
-        :is-own-pr="false"
-        head-sha=""
-        :active="true"
-        :unsent-comments="unsentComments"
-        class="flex-1 min-h-0 overflow-hidden"
-        @ran="runPanelOpen = true"
-      />
-      <RunPanel :open="runPanelOpen" @close="runPanelOpen = false" />
-    </template>
   </div>
 </template>

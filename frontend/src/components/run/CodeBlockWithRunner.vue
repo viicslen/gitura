@@ -30,7 +30,7 @@ const { } = useRuns()
     <!-- SplitRunButton: always visible on all code blocks -->
     <div
       v-if="commands.length > 0"
-      class="absolute top-2 right-2 transition-opacity duration-fast opacity-0 group-hover/codeblock:opacity-100 group-hover/codeblock:duration-0 focus-within:opacity-100 has-[[data-state=open]]:opacity-100"
+      class="absolute top-2 right-2 transition-opacity duration-faster opacity-0 group-hover/codeblock:opacity-100 group-hover/codeblock:duration-0 focus-within:opacity-100 has-[[data-state=open]]:opacity-100"
     >
       <SplitRunButton
         :commands="commands"

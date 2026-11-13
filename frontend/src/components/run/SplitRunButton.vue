@@ -52,6 +52,7 @@ const primaryCommand = computed((): model.CommandDTO | null => {
 })
 
 async function runCommand(cmd: model.CommandDTO): Promise<void> {
+  if (running.value) return
   running.value = true
   try {
     await RunCommands([cmd.name], props.input, {
@@ -65,8 +66,7 @@ async function runCommand(cmd: model.CommandDTO): Promise<void> {
 }
 
 function handlePrimary(): void {
-  if (!primaryCommand.value || running.value) return
-  void runCommand(primaryCommand.value)
+  if (primaryCommand.value) void runCommand(primaryCommand.value)
 }
 
 const btnSize = computed(() => props.size ?? 'sm')
@@ -77,17 +77,24 @@ const btnSize = computed(() => props.size ?? 'sm')
     <!-- Primary action button -->
     <Button
       :size="btnSize"
-      :disabled="running"
+      :aria-busy="running"
       variant="ghost"
       class="rounded-r-none border-r-0 gap-1.5 bg-muted/60 hover:bg-muted"
       @click="handlePrimary"
     >
-      <!-- RunCommands answers as soon as the run starts, so the spinner only replaces the icon when that wait is real -->
+      <!-- RunCommands answers as soon as the run starts: the spinner replaces the icon, and nothing is disabled, only when that wait is real -->
       <span class="grid *:col-start-1 *:row-start-1">
         <Play class="h-3 w-3 text-green-500 transition-opacity" :class="running && 'opacity-0 delay-200'" />
-        <span v-if="running" class="animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards">
-          <Loader2 class="h-3 w-3 animate-spin text-green-500" />
-        </span>
+        <Transition
+          enter-active-class="transition-opacity delay-200"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-fast"
+          leave-to-class="opacity-0"
+        >
+          <span v-if="running">
+            <Loader2 class="h-3 w-3 animate-spin text-green-500" />
+          </span>
+        </Transition>
       </span>
       <span v-if="label" class="text-xs">{{ label }}</span>
     </Button>
@@ -97,7 +104,6 @@ const btnSize = computed(() => props.size ?? 'sm')
       <DropdownMenuTrigger as-child>
         <Button
           :size="btnSize"
-          :disabled="running"
           variant="ghost"
           class="rounded-l-none px-1 bg-muted/60 hover:bg-muted"
           :aria-label="`Run with a different command`"
@@ -113,7 +119,6 @@ const btnSize = computed(() => props.size ?? 'sm')
         <DropdownMenuItem
           v-for="cmd in commands"
           :key="cmd.name"
-          :disabled="running"
           class="flex flex-col items-start gap-0.5 cursor-pointer"
           @click="runCommand(cmd)"
         >

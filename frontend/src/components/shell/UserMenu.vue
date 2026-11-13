@@ -37,14 +37,20 @@ function setMode(value: unknown): void {
       <span v-else class="grid h-7 w-7 place-items-center rounded-full bg-muted text-xs">{{ login.slice(0, 1) }}</span>
     </DropdownMenuTrigger>
     <DropdownMenuContent side="right" align="end" class="w-52">
-      <DropdownMenuRadioGroup :model-value="mode" class="flex gap-1 p-1" aria-label="Theme" @update:model-value="setMode">
+      <DropdownMenuRadioGroup :model-value="mode" class="relative flex gap-1 p-1" aria-label="Theme" @update:model-value="setMode">
+        <!-- One third of the row inside p-1 and two gap-1 gaps, slid onto the checked theme. -->
+        <span
+          class="pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-1rem)/3)] rounded-md border border-ring transition-transform duration-fast ease-in-out"
+          :style="{ transform: `translateX(calc(${themes.findIndex((t) => t.value === mode)} * (100% + 0.25rem)))` }"
+          aria-hidden="true"
+        />
         <DropdownMenuRadioItem
           v-for="t in themes"
           :key="t.value"
           :value="t.value"
           :aria-label="t.label"
           :title="t.label"
-          class="grid h-9 flex-1 place-items-center rounded-md border border-transparent text-muted-foreground outline-hidden select-none hover:bg-accent hover:text-foreground focus:bg-accent focus:text-foreground data-[state=checked]:border-ring data-[state=checked]:text-foreground"
+          class="grid h-9 flex-1 place-items-center rounded-md text-muted-foreground outline-hidden select-none hover:bg-accent hover:text-foreground focus:bg-accent focus:text-foreground data-[state=checked]:text-foreground"
           @select.prevent
         >
           <component :is="t.icon" class="size-4" aria-hidden="true" />

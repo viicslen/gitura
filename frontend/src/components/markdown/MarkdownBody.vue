@@ -4,6 +4,7 @@ import { marked } from 'marked'
 import hljs from 'highlight.js/lib/common'
 import { renderGitHubMarkdown } from '@/lib/markdown'
 import { onTaskChange, type TaskToggle } from '@/lib/taskList'
+import { glideDetails, keepDetailsOpen, settleDetails } from './detailsGlide'
 
 interface RunCommandEntry {
   name: string
@@ -37,6 +38,7 @@ marked.use({
 })
 
 const containerRef = ref<HTMLElement | null>(null)
+keepDetailsOpen(containerRef)
 function closeOpenDropdowns(): void {
   const container = containerRef.value
   if (!container) return
@@ -85,21 +87,24 @@ async function attachCopyButtons(): Promise<void> {
     // ── Copy button (leftmost) ──────────────────────────────────────────────
     const copyBtn = document.createElement('button')
     copyBtn.className = 'copy-btn'
-    copyBtn.textContent = 'Copy'
+    // Both labels share one cell, so the result fades over "Copy" and the button keeps its width.
+    const idleLabel = document.createElement('span')
+    idleLabel.textContent = 'Copy'
+    const resultLabel = document.createElement('span')
+    resultLabel.textContent = 'Copied!'
+    copyBtn.append(idleLabel, resultLabel)
     copyBtn.setAttribute('aria-label', 'Copy code')
     copyBtn.addEventListener('click', async () => {
       const text = pre.querySelector('code')?.innerText ?? pre.innerText
       try {
         await navigator.clipboard.writeText(text)
-        copyBtn.textContent = 'Copied!'
-        copyBtn.classList.add('copied')
+        resultLabel.textContent = 'Copied!'
+        copyBtn.dataset.result = 'copied'
       } catch {
-        copyBtn.textContent = 'Failed'
+        resultLabel.textContent = 'Failed'
+        copyBtn.dataset.result = 'failed'
       } finally {
-        setTimeout(() => {
-          copyBtn.textContent = 'Copy'
-          copyBtn.classList.remove('copied')
-        }, 2000)
+        setTimeout(() => delete copyBtn.dataset.result, 2000)
       }
     })
     // ── Run split button (rightmost, only when commands provided) ──────────
@@ -176,6 +181,9 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
     ref="containerRef"
     class="markdown-body text-sm text-foreground"
     @change="onTaskChange($event, toggleTask, taskIndexOffset)"
+    @click="glideDetails"
+    @transitionend="settleDetails"
+    @transitioncancel="settleDetails"
     v-html="html"
   />
 </template>
@@ -199,16 +207,10 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   cursor: pointer;
   user-select: none;
 }
+/* detailsGlide.ts sets the heights this runs between. */
 .markdown-body :deep(details) {
   cursor: default;
-}
-.markdown-body :deep(details[open] > :not(summary)) {
-  animation: details-in var(--transition-duration-fast) var(--ease-out);
-}
-@keyframes details-in {
-  from {
-    opacity: 0;
-  }
+  transition: height var(--transition-duration-base) var(--ease-out);
 }
 .markdown-body :deep(code) {
   font-family: var(--font-mono);
@@ -250,7 +252,8 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   top: 0.4rem;
   right: 3.5rem;
   opacity: 0;
-  transition: opacity var(--transition-duration-fast), background-color var(--transition-duration-fast);
+  transition: opacity var(--transition-duration-faster), background-color var(--transition-duration-fast),
+    color var(--transition-duration-fast), border-color var(--transition-duration-fast);
   padding: 0 0.55rem;
   height: 1.5rem;
   box-sizing: border-box;
@@ -262,13 +265,21 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   color: var(--color-foreground);
   border: 1px solid var(--color-border);
   line-height: 1;
-  display: flex;
-  align-items: center;
+  display: grid;
+  place-items: center;
+}
+.markdown-body :deep(.copy-btn > span) {
+  grid-area: 1 / 1;
+  transition: opacity var(--transition-duration-fast) var(--ease-out);
+}
+.markdown-body :deep(.copy-btn:not([data-result]) > span:last-child),
+.markdown-body :deep(.copy-btn[data-result] > span:first-child) {
+  opacity: 0;
 }
 .markdown-body :deep(.copy-btn:hover) {
   background: color-mix(in srgb, var(--color-foreground) 10%, var(--color-background));
 }
-.markdown-body :deep(.copy-btn.copied) {
+.markdown-body :deep(.copy-btn[data-result='copied']) {
   color: var(--color-primary);
   border-color: var(--color-primary);
 }
@@ -281,7 +292,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   align-items: stretch;
   gap: 0;
   opacity: 0;
-  transition: opacity var(--transition-duration-fast);
+  transition: opacity var(--transition-duration-faster);
   border-radius: 4px;
   height: 1.5rem;
   box-sizing: border-box;
@@ -318,9 +329,16 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   padding-right: 0.3rem;
   margin-left: -1px;
 }
-/* dropdown */
+/* dropdown: kept in the layout so it can fade both ways; max-height stops the closed menu adding scroll height */
 .markdown-body :deep(.run-dropdown) {
-  display: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: scale(0.96);
+  transform-origin: top right;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity var(--transition-duration-faster) var(--ease-out), transform var(--transition-duration-faster) var(--ease-out),
+    visibility var(--transition-duration-faster), max-height 0s var(--transition-duration-faster);
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
@@ -333,7 +351,12 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   padding: 4px 0;
 }
 .markdown-body :deep(.run-dropdown.open) {
-  display: block;
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  max-height: none;
+  transition: opacity var(--transition-duration-fast) var(--ease-out), transform var(--transition-duration-fast) var(--ease-out),
+    visibility var(--transition-duration-fast);
 }
 .markdown-body :deep(.run-dropdown-label) {
   padding: 4px 10px 2px;

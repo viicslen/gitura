@@ -17,6 +17,8 @@ import CommentDetailPanel from '@/components/comment/CommentDetailPanel.vue'
 import RunPanel from '@/components/run/RunPanel.vue'
 import DiffReviewView from '@/components/diff/DiffReviewView.vue'
 import PROverviewPanel from '@/components/pr/PROverviewPanel.vue'
+import BusyLabel from '@/components/motion/BusyLabel.vue'
+import { collapse, collapseX, collapsible, collapsibleX } from '@/components/motion/motion'
 import { useCommentThreads } from '@/composables/useCommentThreads'
 import { useRuns } from '@/composables/useRuns'
 import { useAuth } from '@/composables/useAuth'
@@ -31,6 +33,7 @@ import { useKeybindings, keyLabel } from '@/composables/useKeybindings'
 import type { UnsentComments } from '@/lib/diffLayout'
 
 const { reviewTab, tabBadges } = useReviewTabs()
+const tabIn = { enterActiveClass: 'transition-opacity duration-base', enterFromClass: 'opacity-0', leaveActiveClass: 'hidden' }
 
 const props = defineProps<{
   prItem: PRRef
@@ -122,7 +125,6 @@ watchEffect(() => {
   tabBadges.conversation = threads.value.filter((t) => !t.resolved).length
 })
 
-// Lives here, not in DiffReviewView, because a failed refresh unmounts the Files view.
 const unsentComments: UnsentComments = reactive(new Map())
 
 function handleReplySent(comment: model.ReviewCommentDTO): void {
@@ -163,8 +165,7 @@ provide('commentDeleted', handleReviewActivity)
 async function refreshPRView(): Promise<void> {
   refreshing.value = true
   try {
-    await loadPR()
-    await diffReviewRef.value?.reload()
+    if (await loadPR()) await diffReviewRef.value?.reload()
   } catch (err) {
     toast.error('Could not refresh PR data: ' + errorMessage(err))
   } finally {
@@ -191,7 +192,6 @@ async function runAction(): Promise<void> {
   const action = confirmingAction.value
   if (!action) return
   actionRunning.value = true
-  actionError.value = ''
   try {
     await (action === 'close' ? ClosePR() : MergePR(action))
     confirmOpen.value = false
@@ -298,28 +298,36 @@ watch(
       </Button>
     </Teleport>
     <Teleport defer to="#title-strip-actions">
-      <DropdownMenu v-if="prSummary?.state === 'open'">
-        <DropdownMenuTrigger as-child>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-7 ml-1 gap-1.5 px-2.5 text-xs animate-in fade-in-0 animation-duration-fast ease-out border-emerald-500/40 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
-            aria-label="Merge or close pull request"
-            title="Merge or close pull request"
-            style="--wails-draggable: no-drag"
-          >
-            <GitMerge class="h-3.5 w-3.5" />
-            Merge
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem :disabled="prSummary.is_draft" @select="askAction('merge')">{{ prActionLabels.merge }}</DropdownMenuItem>
-          <DropdownMenuItem :disabled="prSummary.is_draft" @select="askAction('squash')">{{ prActionLabels.squash }}</DropdownMenuItem>
-          <DropdownMenuItem :disabled="prSummary.is_draft" @select="askAction('rebase')">{{ prActionLabels.rebase }}</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem class="text-destructive" @select="askAction('close')">{{ prActionLabels.close }}</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <!-- In the strip from the start, not once the PR has loaded: the list only holds open PRs, so an unknown state counts
+           as open. It closes up once the PR is merged or closed. -->
+      <Transition v-bind="collapseX('-ml-0.5!')">
+        <span v-if="(prSummary?.state ?? prItem.state ?? 'open') === 'open'" class="ml-1" :class="collapsibleX">
+          <span class="min-w-0">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="h-7 gap-1.5 px-2.5 text-xs border-emerald-500/40 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+                  aria-label="Merge or close pull request"
+                  title="Merge or close pull request"
+                  style="--wails-draggable: no-drag"
+                >
+                  <GitMerge class="h-3.5 w-3.5" />
+                  Merge
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem :disabled="!prSummary || prSummary.is_draft" @select="askAction('merge')">{{ prActionLabels.merge }}</DropdownMenuItem>
+                <DropdownMenuItem :disabled="!prSummary || prSummary.is_draft" @select="askAction('squash')">{{ prActionLabels.squash }}</DropdownMenuItem>
+                <DropdownMenuItem :disabled="!prSummary || prSummary.is_draft" @select="askAction('rebase')">{{ prActionLabels.rebase }}</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem class="text-destructive" :disabled="!prSummary" @select="askAction('close')">{{ prActionLabels.close }}</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </span>
+        </span>
+      </Transition>
     </Teleport>
 
     <Dialog :open="confirmOpen" @update:open="(open: boolean) => { if (!open && !actionRunning) confirmOpen = false }">
@@ -327,189 +335,213 @@ watch(
         <DialogHeader>
           <DialogTitle>{{ confirmingAction && prActionLabels[confirmingAction] }}?</DialogTitle>
         </DialogHeader>
-        <p class="text-sm text-muted-foreground">
-          {{ confirmingAction === 'close'
-            ? `Close #${prSummary?.number} without merging.`
-            : `${confirmingAction && prActionLabels[confirmingAction]} ${prSummary?.head_branch} into ${prSummary?.base_branch}. Fails if new commits were pushed since this PR was loaded.` }}
-        </p>
-        <p v-if="actionError" class="text-sm text-destructive">{{ actionError }}</p>
+        <div>
+          <p class="text-sm text-muted-foreground">
+            {{ confirmingAction === 'close'
+              ? `Close #${prSummary?.number} without merging.`
+              : `${confirmingAction && prActionLabels[confirmingAction]} ${prSummary?.head_branch} into ${prSummary?.base_branch}. Fails if new commits were pushed since this PR was loaded.` }}
+          </p>
+          <Transition v-bind="collapse">
+            <div v-if="actionError" :class="collapsible">
+              <div class="min-h-0"><p class="pt-2 text-sm text-destructive">{{ actionError }}</p></div>
+            </div>
+          </Transition>
+        </div>
         <DialogFooter>
           <Button variant="ghost" :disabled="actionRunning" @click="confirmOpen = false">Cancel</Button>
           <Button :variant="confirmingAction === 'close' ? 'destructive' : 'default'" :disabled="actionRunning" @click="runAction()">
-            {{ actionRunning ? 'Working…' : confirmingAction && prActionLabels[confirmingAction] }}
+            <BusyLabel :busy="actionRunning">{{ confirmingAction && prActionLabels[confirmingAction] }}</BusyLabel>
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
 
-    <!-- ── Loading state ───────────────────────────────────────────────────── -->
-    <div v-if="loading && !prSummary" class="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground animate-in fade-in-0 animation-duration-base ease-out delay-200 fill-mode-backwards">
-      <RefreshCw class="h-6 w-6 animate-spin" />
-      <div class="text-sm">Loading review…</div>
-      <div v-if="loadProgress.loaded > 0" class="text-xs">
-        {{ loadProgress.loaded }} thread{{ loadProgress.loaded !== 1 ? 's' : '' }} loaded
-        <span v-if="loadProgress.total > 0"> of {{ loadProgress.total }}</span>
-      </div>
-    </div>
-
-    <!-- ── Error state ─────────────────────────────────────────────────────── -->
-    <div
-      v-else-if="error"
-      class="flex-1 flex flex-col items-center justify-center gap-3 p-6 animate-in fade-in-0 animation-duration-fast ease-out"
-    >
-      <p class="text-sm text-destructive text-center">{{ error }}</p>
-      <Button variant="outline" size="sm" @click="loadPR()">
-        Retry
-      </Button>
-    </div>
-
-    <!-- ── Content area ────────────────────────────────────────────────────── -->
-    <template v-else>
-      <!-- Conversation view -->
-      <div v-show="reviewTab === 'conversation'" class="flex flex-1 min-h-0 overflow-hidden animate-in fade-in-0 animation-duration-fast ease-out">
-        <!-- Left: thread list with its own filter -->
-        <div class="w-72 shrink-0 border-r border-border flex flex-col min-h-0">
-          <div class="h-10 shrink-0 border-b border-border px-3 flex items-center gap-2">
-            <span class="text-xs font-medium">Threads</span>
-            <div class="ml-auto flex shrink-0 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="Thread filter">
-              <button
-                class="rounded px-2 py-0.5 transition-[color,background-color,box-shadow] duration-fast"
-                :class="!showResolved ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
-                :aria-pressed="!showResolved"
-                @click="showResolved && toggleShowResolved()"
-              >Unresolved <span class="tabular-nums opacity-60">{{ threads.filter((t) => !t.resolved).length }}</span></button>
-              <button
-                class="rounded px-2 py-0.5 transition-[color,background-color,box-shadow] duration-fast"
-                :class="showResolved ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'"
-                :aria-pressed="showResolved"
-                @click="!showResolved && toggleShowResolved()"
-              >All <span class="tabular-nums opacity-60">{{ threads.length }}</span></button>
-            </div>
-          </div>
-          <div
-            v-if="!showResolved && queue.length === 0 && threads.length > 0"
-            class="flex-1 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground animate-in fade-in-0 animation-duration-fast ease-out"
-          >
-            All {{ threads.length }} threads are resolved.
-            <Button variant="outline" size="sm" class="h-7 text-xs" @click="toggleShowResolved()">Show all threads</Button>
-          </div>
-          <div v-else class="flex-1 min-h-0 overflow-y-auto">
-            <CommentSummaryList
-              :threads="queue"
-              :review-numbers="overview?.review_numbers"
-              :current-index="currentIndex"
-              :show-resolved="showResolved"
-              :commands="commands"
-              :default-command-name="defaultCommandName"
-              @select="handleSelect"
-              @ran="handleRan"
-            />
-          </div>
-        </div>
-
-        <!-- Right: thread pager, detail, run tools -->
-        <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
-          <div v-if="queue.length > 0" class="h-10 shrink-0 border-b border-border px-4 flex items-center gap-1 text-xs">
-            <span class="text-muted-foreground tabular-nums">Thread {{ currentIndex + 1 }} of {{ queue.length }}</span>
-            <span class="flex-1" />
-            <span class="hidden lg:inline text-muted-foreground/70 mr-2"><kbd class="font-sans">{{ keyLabel(bindings.prevThread) }}</kbd> <kbd class="font-sans">{{ keyLabel(bindings.nextThread) }}</kbd> to move</span>
-            <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="!canGoBack" @click="goPrev()">
-              <ChevronLeft class="h-3.5 w-3.5" /> Previous
-            </Button>
-            <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="!canGoForward" @click="goNext()">
-              Next <ChevronRight class="h-3.5 w-3.5" />
-            </Button>
-          </div>
-          <CommentDetailPanel
-            :thread="currentThread"
-            :is-at-end="isAtEnd && queue.length > 0"
-            :commands="commands"
-            :default-command-name="defaultCommandName"
-            class="flex-1 overflow-hidden"
-            @resolve="handleResolve"
-            @unresolve="handleUnresolve"
-            @reply-sent="handleReplySent"
-            @suggestion-committed="handleSuggestionCommitted"
-            @ran="handleRan"
-          />
-          <!-- Run history panel (pinned to bottom of right panel) -->
-          <RunPanel
-            :open="runPanelOpen"
-            :current-thread-root-id="currentThread?.root_id"
-            @close="runPanelOpen = false"
-          />
-          <!-- Command tools: where commands run and what they produced -->
-          <div v-if="commands.length > 0" class="h-9 shrink-0 border-t border-border px-2 flex items-center gap-1 text-xs">
-            <DropdownMenu>
-              <DropdownMenuTrigger as-child>
-                <Button variant="ghost" size="sm" class="h-7 gap-1.5 text-xs min-w-0 max-w-[60%]" aria-label="Local checkout for commands">
-                  <FolderOpen class="h-3.5 w-3.5 shrink-0" />
-                  <span class="text-muted-foreground shrink-0">Run in</span>
-                  <span class="font-mono truncate" :class="!localPath && 'text-muted-foreground italic font-sans'">{{ localPath || 'not set' }}</span>
-                  <ChevronDown class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" class="w-80 p-2">
-                <div class="flex items-center gap-2">
-                  <Input
-                    :value="localPath"
-                    placeholder="Local repo path..."
-                    class="h-8 text-xs font-mono"
-                    aria-label="Local repository path"
-                    @change="(e: Event) => saveLocalPath((e.target as HTMLInputElement).value)"
+    <!-- Loader, error and content share one cell, so the loader fades out over what replaces it. -->
+    <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-1">
+      <Transition leave-active-class="transition-opacity duration-fast pointer-events-none" leave-to-class="opacity-0">
+        <!-- A tab fades in while the old one hides at once: fading the two over each other dropped frames, and so did
+             animate-in, whose keyframes also animate transform. -->
+        <div v-if="prSummary" class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 [grid-area:1/1]">
+          <Transition v-bind="tabIn">
+            <div v-show="reviewTab === 'conversation'" class="flex min-h-0 min-w-0 overflow-hidden [grid-area:1/1]">
+              <!-- Left: thread list with its own filter -->
+              <div class="w-72 shrink-0 border-r border-border flex flex-col min-h-0">
+                <div class="h-10 shrink-0 border-b border-border px-3 flex items-center gap-2">
+                  <span class="min-w-0 truncate text-xs font-medium">Threads</span>
+                  <!-- Equal columns, so the thumb can slide between them with a transform alone. -->
+                  <div class="relative ml-auto grid shrink-0 grid-cols-2 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="Thread filter">
+                    <span
+                      aria-hidden="true"
+                      class="absolute inset-y-0.5 left-0.5 w-[calc(50%-0.125rem)] rounded bg-background shadow-sm transition-[translate] duration-fast ease-in-out"
+                      :class="showResolved && 'translate-x-full'"
+                    />
+                    <button
+                      class="relative rounded px-2 py-0.5 transition-colors duration-fast"
+                      :class="!showResolved ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                      :aria-pressed="!showResolved"
+                      @click="showResolved && toggleShowResolved()"
+                    >Unresolved <span class="tabular-nums opacity-60">{{ threads.filter((t) => !t.resolved).length }}</span></button>
+                    <button
+                      class="relative rounded px-2 py-0.5 transition-colors duration-fast"
+                      :class="showResolved ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                      :aria-pressed="showResolved"
+                      @click="!showResolved && toggleShowResolved()"
+                    >All <span class="tabular-nums opacity-60">{{ threads.length }}</span></button>
+                  </div>
+                </div>
+                <div class="flex-1 min-h-0 overflow-y-auto">
+                  <CommentSummaryList
+                    :threads="queue"
+                    :total="threads.length"
+                    :review-numbers="overview?.review_numbers"
+                    :current-index="currentIndex"
+                    :show-resolved="showResolved"
+                    :commands="commands"
+                    :default-command-name="defaultCommandName"
+                    @select="handleSelect"
+                    @show-all="toggleShowResolved()"
+                    @ran="handleRan"
                   />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    class="h-8 shrink-0"
-                    aria-label="Browse for local repository folder"
-                    @click="browseForPath()"
-                  >
-                    Browse
+                </div>
+              </div>
+
+              <!-- Right: thread pager, detail, run tools -->
+              <div class="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+                <!-- Stays when no thread is listed, so the detail below never jumps. -->
+                <div class="h-10 shrink-0 border-b border-border px-4 flex items-center gap-1 text-xs">
+                  <span class="text-muted-foreground tabular-nums">{{ queue.length > 0 ? `Thread ${currentIndex + 1} of ${queue.length}` : 'No threads' }}</span>
+                  <span class="flex-1" />
+                  <span class="hidden lg:inline text-muted-foreground/70 mr-2"><kbd class="font-sans">{{ keyLabel(bindings.prevThread) }}</kbd> <kbd class="font-sans">{{ keyLabel(bindings.nextThread) }}</kbd> to move</span>
+                  <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="!canGoBack" @click="goPrev()">
+                    <ChevronLeft class="h-3.5 w-3.5" /> Previous
+                  </Button>
+                  <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="!canGoForward" @click="goNext()">
+                    Next <ChevronRight class="h-3.5 w-3.5" />
                   </Button>
                 </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="ml-auto h-7 gap-1.5 text-xs"
-              :class="runPanelOpen ? 'text-foreground' : 'text-muted-foreground'"
-              :aria-expanded="runPanelOpen"
-              @click="runPanelOpen = !runPanelOpen"
-            >
-              <Terminal class="h-3.5 w-3.5" />
-              Run history
-              <span v-if="pendingRunCount > 0" class="rounded-full bg-primary px-1.5 text-[0.625rem] text-primary-foreground tabular-nums">{{ pendingRunCount }}</span>
-              <ChevronUp class="h-3.5 w-3.5 transition-transform" :class="runPanelOpen && 'rotate-180'" />
-            </Button>
+                <CommentDetailPanel
+                  :thread="currentThread"
+                  :index="currentIndex"
+                  :is-at-end="isAtEnd && queue.length > 0"
+                  :commands="commands"
+                  :default-command-name="defaultCommandName"
+                  class="flex-1 overflow-hidden"
+                  @resolve="handleResolve"
+                  @unresolve="handleUnresolve"
+                  @reply-sent="handleReplySent"
+                  @suggestion-committed="handleSuggestionCommitted"
+                  @ran="handleRan"
+                />
+                <!-- Run history panel (pinned to bottom of right panel) -->
+                <RunPanel
+                  :open="runPanelOpen"
+                  :current-thread-root-id="currentThread?.root_id"
+                  @close="runPanelOpen = false"
+                />
+                <!-- Command tools: where commands run and what they produced -->
+                <div v-if="commands.length > 0" class="h-9 shrink-0 border-t border-border px-2 flex items-center gap-1 text-xs">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <Button variant="ghost" size="sm" class="h-7 gap-1.5 text-xs min-w-0 max-w-[60%]" aria-label="Local checkout for commands">
+                        <FolderOpen class="h-3.5 w-3.5 shrink-0" />
+                        <span class="text-muted-foreground shrink-0">Run in</span>
+                        <span class="font-mono truncate" :class="!localPath && 'text-muted-foreground italic font-sans'">{{ localPath || 'not set' }}</span>
+                        <ChevronDown class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" side="top" class="w-80 p-2">
+                      <div class="flex items-center gap-2">
+                        <Input
+                          :value="localPath"
+                          placeholder="Local repo path..."
+                          class="h-8 text-xs font-mono"
+                          aria-label="Local repository path"
+                          @change="(e: Event) => saveLocalPath((e.target as HTMLInputElement).value)"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="h-8 shrink-0"
+                          aria-label="Browse for local repository folder"
+                          @click="browseForPath()"
+                        >
+                          Browse
+                        </Button>
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="ml-auto h-7 gap-1.5 text-xs"
+                    :class="runPanelOpen ? 'text-foreground' : 'text-muted-foreground'"
+                    :aria-expanded="runPanelOpen"
+                    @click="runPanelOpen = !runPanelOpen"
+                  >
+                    <Terminal class="h-3.5 w-3.5" />
+                    Run history
+                    <!-- Opens sideways so the label glides aside instead of jumping when a run starts or ends. -->
+                    <Transition v-bind="collapseX('-ml-1.5!')">
+                      <span v-if="pendingRunCount > 0" :class="collapsibleX">
+                        <span class="min-w-0">
+                          <span class="rounded-full bg-primary px-1.5 text-[0.625rem] text-primary-foreground tabular-nums">{{ pendingRunCount }}</span>
+                        </span>
+                      </span>
+                    </Transition>
+                    <ChevronUp class="h-3.5 w-3.5 transition-transform" :class="runPanelOpen && 'rotate-180'" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Transition>
+
+          <Transition v-bind="tabIn">
+            <PROverviewPanel
+              v-show="reviewTab === 'overview'"
+              v-model:show-resolved-reviews="showResolvedReviews"
+              :overview="overview"
+              class="min-h-0 min-w-0 [grid-area:1/1]"
+            />
+          </Transition>
+
+          <Transition v-bind="tabIn">
+            <DiffReviewView
+              v-show="reviewTab === 'files'"
+              ref="diffReviewRef"
+              :threads="threads"
+              v-model:show-threads="showDiffThreads"
+              :is-own-pr="isOwnPR"
+              :head-sha="prSummary?.head_sha ?? ''"
+              :active="reviewTab === 'files'"
+              :unsent-comments="unsentComments"
+              class="min-h-0 min-w-0 overflow-hidden [grid-area:1/1]"
+              @resolve="handleResolve"
+              @unresolve="handleUnresolve"
+              @reply-sent="handleReplySent"
+              @threads-changed="handleReviewActivity"
+            />
+          </Transition>
+        </div>
+
+        <div v-else-if="error" class="[grid-area:1/1] flex flex-col items-center justify-center gap-3 p-6 animate-in fade-in-0 animation-duration-base">
+          <p class="text-sm text-destructive text-center">{{ error }}</p>
+          <Button variant="outline" size="sm" :disabled="loading" @click="loadPR()">
+            <BusyLabel :busy="loading">Retry</BusyLabel>
+          </Button>
+        </div>
+
+        <div v-else class="[grid-area:1/1] grid place-items-center">
+          <!-- Delayed, so a fast load goes straight to the content. -->
+          <div class="flex flex-col items-center gap-3 text-muted-foreground animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards">
+            <RefreshCw class="h-6 w-6 animate-spin" />
+            <div class="text-sm">Loading review…</div>
+            <div class="text-xs tabular-nums" :class="{ invisible: loadProgress.loaded === 0 }">
+              {{ loadProgress.loaded }} thread{{ loadProgress.loaded !== 1 ? 's' : '' }} loaded
+              <span v-if="loadProgress.total > 0"> of {{ loadProgress.total }}</span>
+            </div>
           </div>
         </div>
-      </div>
-
-      <PROverviewPanel
-        v-show="reviewTab === 'overview'"
-        v-model:show-resolved-reviews="showResolvedReviews"
-        :overview="overview"
-        class="flex-1 min-h-0 overflow-hidden animate-in fade-in-0 animation-duration-fast ease-out"
-      />
-
-      <!-- Files changed view -->
-      <DiffReviewView
-        v-show="reviewTab === 'files'"
-        ref="diffReviewRef"
-        :threads="threads"
-        v-model:show-threads="showDiffThreads"
-        :is-own-pr="isOwnPR"
-        :head-sha="prSummary?.head_sha ?? ''"
-        :active="reviewTab === 'files'"
-        :unsent-comments="unsentComments"
-        class="flex-1 min-h-0 overflow-hidden animate-in fade-in-0 animation-duration-fast ease-out"
-        @resolve="handleResolve"
-        @unresolve="handleUnresolve"
-        @reply-sent="handleReplySent"
-        @threads-changed="handleReviewActivity"
-      />
-    </template>
+      </Transition>
+    </div>
   </div>
 </template>
