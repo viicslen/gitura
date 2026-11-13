@@ -20,8 +20,11 @@ func TestSetAppearance_OtherSettingsAndRestart_BothPersist(t *testing.T) {
 		t.Fatalf("seed settings: %v", err)
 	}
 
-	want := model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large"}
+	want := model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large", Theme: "dark"}
 	a := New("")
+	if err := a.SetToggles(map[string]bool{"wrap_lines": false}); err != nil {
+		t.Fatalf("set toggles: %v", err)
+	}
 	if err := a.SetAppearance(want); err != nil {
 		t.Fatalf("set appearance: %v", err)
 	}
@@ -37,7 +40,7 @@ func TestSetAppearance_OtherSettingsAndRestart_BothPersist(t *testing.T) {
 		t.Fatalf("appearance on disk: got %+v want %+v", cfg.Appearance, want)
 	}
 	wantIgnored := []model.IgnoredCommenterDTO{{Login: "renovate"}, {Login: "bot"}}
-	if !reflect.DeepEqual(cfg.IgnoredCommenters, wantIgnored) || !reflect.DeepEqual(cfg.Commands, others.Commands) || cfg.DefaultCommandName != "agent" {
+	if !reflect.DeepEqual(cfg.IgnoredCommenters, wantIgnored) || !reflect.DeepEqual(cfg.Commands, others.Commands) || cfg.DefaultCommandName != "agent" || !reflect.DeepEqual(cfg.Toggles, map[string]bool{"wrap_lines": false}) {
 		t.Fatalf("other settings not preserved: %+v", cfg)
 	}
 
@@ -52,7 +55,7 @@ func TestSetAppearance_OtherSettingsAndRestart_BothPersist(t *testing.T) {
 
 func TestSetAppearance_AfterSetKeybindings_KeepsBoth(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	appearance := model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large"}
+	appearance := model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large", Theme: "dark"}
 	keys := map[string]string{"nextFile": "j"}
 
 	a := New("")

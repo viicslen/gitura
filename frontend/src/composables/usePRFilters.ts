@@ -1,15 +1,19 @@
 import { ref, computed, readonly, watch } from 'vue'
 import type * as model from '@/bindings/gitura/internal/model'
+import { useToggles } from '@/composables/useToggles'
 
 // ── Module-level singleton state ─────────────────────────────────────────────
 // Declared outside the exported function so all component mounts share the same
 // reactive object — filter state persists across route navigations for the
 // lifetime of the JS session (FR-012).
 
+const { toggles } = useToggles()
 const includeAuthor = ref(true)
 const includeAssignee = ref(true)
 const includeReviewer = ref(true)
 const includeDrafts = ref(false)
+// Seeded from the saved defaults on first use; at import time they aren't loaded yet.
+let seeded = false
 const repo = ref('')
 const org = ref('')
 const author = ref('')
@@ -23,18 +27,36 @@ let stopWatches: (() => void)[] = []
 
 // ── Derived state ─────────────────────────────────────────────────────────────
 
+/** The involvement and draft filters the user chose as defaults in Settings. */
+function involvementDefaults() {
+  const t = toggles.value
+  // settings.toml is hand-editable; all three off would show nothing, so fall back to all on.
+  const any = t.pr_list_author || t.pr_list_assignee || t.pr_list_reviewer
+  return { author: !any || t.pr_list_author, assignee: !any || t.pr_list_assignee, reviewer: !any || t.pr_list_reviewer, drafts: t.pr_list_drafts }
+}
+
+function resetInvolvement(): void {
+  const d = involvementDefaults()
+  includeAuthor.value = d.author
+  includeAssignee.value = d.assignee
+  includeReviewer.value = d.reviewer
+  includeDrafts.value = d.drafts
+}
+
 /** True when any filter deviates from its default value. */
-const hasActiveFilters = computed(
-  () =>
-    !includeAuthor.value ||
-    !includeAssignee.value ||
-    !includeReviewer.value ||
-    includeDrafts.value ||
+const hasActiveFilters = computed(() => {
+  const d = involvementDefaults()
+  return (
+    includeAuthor.value !== d.author ||
+    includeAssignee.value !== d.assignee ||
+    includeReviewer.value !== d.reviewer ||
+    includeDrafts.value !== d.drafts ||
     repo.value.trim() !== '' ||
     org.value.trim() !== '' ||
     author.value.trim() !== '' ||
-    updatedAfter.value.trim() !== '',
-)
+    updatedAfter.value.trim() !== ''
+  )
+})
 
 // ── Constraint helper ─────────────────────────────────────────────────────────
 
@@ -103,10 +125,7 @@ function clearUpdatedAfter(): void {
  * Reset all filters to their defaults in a single reactive flush (FR-008).
  */
 function clearAllFilters(): void {
-  includeAuthor.value = true
-  includeAssignee.value = true
-  includeReviewer.value = true
-  includeDrafts.value = false
+  resetInvolvement()
   repo.value = ''
   org.value = ''
   pickedRepo.value = ''
@@ -218,6 +237,11 @@ export function usePRFilters(onFilterChange: () => void | Promise<void>) {
   // duplicate watchers when PRListPage.vue is re-mounted.
   stopWatches.forEach((stop) => stop())
   stopWatches = []
+
+  if (!seeded) {
+    resetInvolvement()
+    seeded = true
+  }
 
   // Only includeDrafts requires a new server-side request — all other filters
   // are applied client-side by applyFilters() and must NOT trigger a fetch.

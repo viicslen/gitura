@@ -234,12 +234,23 @@ export function GetPROverview(includeResolvedReviews: boolean): $CancellableProm
 }
 
 /**
+ * GetToggles returns the user's on/off preferences, keyed by toggle id.
+ * 
+ * Error prefix: "settings:" — load failure.
+ */
+export function GetToggles(): $CancellablePromise<{ [_ in string]?: boolean }> {
+    return $Call.ByID(3104845607).then(($result: any) => {
+        return $$createType15($result);
+    });
+}
+
+/**
  * GetViewedFiles returns the paths the user has marked as viewed on GitHub for the loaded PR.
  * It is separate from GetPRFiles so the file list still loads when this lookup fails.
  */
 export function GetViewedFiles(): $CancellablePromise<string[]> {
     return $Call.ByID(3160718169).then(($result: any) => {
-        return $$createType15($result);
+        return $$createType16($result);
     });
 }
 
@@ -260,7 +271,7 @@ export function IsFocused(): $CancellablePromise<boolean> {
  */
 export function ListOpenPRs(filters: model$0.PRListFilters): $CancellablePromise<model$0.PRListResult> {
     return $Call.ByID(1328633817, filters).then(($result: any) => {
-        return $$createType16($result);
+        return $$createType17($result);
     });
 }
 
@@ -271,7 +282,7 @@ export function ListOpenPRs(filters: model$0.PRListFilters): $CancellablePromise
  */
 export function ListSystemFonts(): $CancellablePromise<string[]> {
     return $Call.ByID(1934710823).then(($result: any) => {
-        return $$createType15($result);
+        return $$createType16($result);
     });
 }
 
@@ -287,7 +298,7 @@ export function ListSystemFonts(): $CancellablePromise<string[]> {
  */
 export function LoadPR(owner: string, repo: string, $number: number): $CancellablePromise<model$0.PullRequestSummary> {
     return $Call.ByID(19891564, owner, repo, $number).then(($result: any) => {
-        return $$createType17($result);
+        return $$createType18($result);
     });
 }
 
@@ -321,7 +332,7 @@ export function OpenFolderPicker(title: string, defaultDir: string): $Cancellabl
  */
 export function PollDeviceFlow(): $CancellablePromise<model$0.PollResult> {
     return $Call.ByID(536289881).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -332,7 +343,7 @@ export function PollDeviceFlow(): $CancellablePromise<model$0.PollResult> {
  */
 export function PostImmediateComment(comment: model$0.DraftCommentDTO): $CancellablePromise<model$0.ReviewCommentDTO> {
     return $Call.ByID(2936724426, comment).then(($result: any) => {
-        return $$createType19($result);
+        return $$createType20($result);
     });
 }
 
@@ -375,7 +386,7 @@ export function RemoveIgnoredCommenter(login: string): $CancellablePromise<void>
  */
 export function ReplyToComment(threadRootID: number, body: string): $CancellablePromise<model$0.ReviewCommentDTO> {
     return $Call.ByID(891857116, threadRootID, body).then(($result: any) => {
-        return $$createType19($result);
+        return $$createType20($result);
     });
 }
 
@@ -403,7 +414,7 @@ export function ResolveThread(threadRootID: number): $CancellablePromise<void> {
  */
 export function RunCommands(commandNames: string[], input: string, runCtx: model$0.RunContext): $CancellablePromise<model$0.RunResult[]> {
     return $Call.ByID(779693889, commandNames, input, runCtx).then(($result: any) => {
-        return $$createType21($result);
+        return $$createType22($result);
     });
 }
 
@@ -453,12 +464,21 @@ export function SetPRLocalPath(owner: string, repo: string, $number: number, loc
 }
 
 /**
+ * SetToggles replaces the user's on/off preferences.
+ * 
+ * Error prefix: "settings:" — load or save failure.
+ */
+export function SetToggles(toggles: { [_ in string]?: boolean }): $CancellablePromise<void> {
+    return $Call.ByID(2256061859, toggles);
+}
+
+/**
  * StartDeviceFlow initiates GitHub OAuth device flow.
  * Stores device_code in memory; returns display data to the frontend.
  */
 export function StartDeviceFlow(): $CancellablePromise<model$0.DeviceFlowInfo> {
     return $Call.ByID(539006732).then(($result: any) => {
-        return $$createType22($result);
+        return $$createType23($result);
     });
 }
 
@@ -492,7 +512,7 @@ export function StopLocalReview(): $CancellablePromise<void> {
  */
 export function SubmitReview(req: model$0.ReviewSubmitRequest): $CancellablePromise<model$0.ReviewSubmitResult> {
     return $Call.ByID(174168682, req).then(($result: any) => {
-        return $$createType23($result);
+        return $$createType24($result);
     });
 }
 
@@ -519,7 +539,7 @@ export function SyncPendingReview(): $CancellablePromise<model$0.PendingReviewDT
  */
 export function TakeLaunch(): $CancellablePromise<$models.Launch | null> {
     return $Call.ByID(4182159370).then(($result: any) => {
-        return $$createType25($result);
+        return $$createType26($result);
     });
 }
 
@@ -568,14 +588,15 @@ const $$createType11 = $Create.Map($Create.Any, $Create.Any);
 const $$createType12 = model$0.PRFileDTO.createFrom;
 const $$createType13 = $Create.Array($$createType12);
 const $$createType14 = model$0.PROverviewDTO.createFrom;
-const $$createType15 = $Create.Array($Create.Any);
-const $$createType16 = model$0.PRListResult.createFrom;
-const $$createType17 = model$0.PullRequestSummary.createFrom;
-const $$createType18 = model$0.PollResult.createFrom;
-const $$createType19 = model$0.ReviewCommentDTO.createFrom;
-const $$createType20 = model$0.RunResult.createFrom;
-const $$createType21 = $Create.Array($$createType20);
-const $$createType22 = model$0.DeviceFlowInfo.createFrom;
-const $$createType23 = model$0.ReviewSubmitResult.createFrom;
-const $$createType24 = $models.Launch.createFrom;
-const $$createType25 = $Create.Nullable($$createType24);
+const $$createType15 = $Create.Map($Create.Any, $Create.Any);
+const $$createType16 = $Create.Array($Create.Any);
+const $$createType17 = model$0.PRListResult.createFrom;
+const $$createType18 = model$0.PullRequestSummary.createFrom;
+const $$createType19 = model$0.PollResult.createFrom;
+const $$createType20 = model$0.ReviewCommentDTO.createFrom;
+const $$createType21 = model$0.RunResult.createFrom;
+const $$createType22 = $Create.Array($$createType21);
+const $$createType23 = model$0.DeviceFlowInfo.createFrom;
+const $$createType24 = model$0.ReviewSubmitResult.createFrom;
+const $$createType25 = $models.Launch.createFrom;
+const $$createType26 = $Create.Nullable($$createType25);

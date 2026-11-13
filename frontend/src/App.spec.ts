@@ -1,29 +1,35 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import App from './App.vue'
 
 const listOpenPRs = vi.fn()
+const isFocused = vi.fn(() => Promise.resolve(false))
+const quit = vi.fn()
+const takeLaunch = vi.fn((): Promise<unknown> => Promise.resolve(null))
+const onEvent = vi.hoisted(() => vi.fn())
 
 vi.mock('@/bindings/gitura/internal/app/app', () => ({
   GetAuthState: () => Promise.resolve({ is_authenticated: true, login: 'me', avatar_url: '' }),
   ListOpenPRs: (...args: unknown[]) => listOpenPRs(...args),
-  IsFocused: () => Promise.resolve(false),
+  IsFocused: () => isFocused(),
+  TakeLaunch: () => takeLaunch(),
 }))
 
 vi.mock('@wailsio/runtime', () => ({
+  Application: { Quit: () => quit() },
   Browser: { OpenURL: vi.fn() },
-  Events: { On: vi.fn() },
+  Events: { On: (...args: unknown[]) => onEvent(...args) },
 }))
 
 // Stands in for the review view reporting the PR's state after a merge.
 vi.mock('@/pages/PRReviewPage.vue', () => ({
   default: defineComponent({
     props: { prItem: { type: Object, required: true } },
-    emits: ['update-pr-meta'],
+    emits: ['update-pr-meta', 'close-review'],
     setup(props, { emit }) {
       emit('update-pr-meta', { ...props.prItem, state: 'merged' })
-      return () => h('div', 'review')
+      return () => h('button', { id: 'close-review', onClick: () => emit('close-review') }, 'review')
     },
   }),
 }))
@@ -64,5 +70,38 @@ describe('App PR list sync', () => {
 
     expect(listOpenPRs).toHaveBeenCalledTimes(2)
     expect(rows()).toEqual([expect.stringContaining('PR 2')])
+  })
+})
+
+describe('App leaving a review after merge', () => {
+  beforeEach(() => takeLaunch.mockResolvedValue({ pr: pr(3) }))
+
+  async function openLaunchedReview() {
+    const wrapper = mount(App, { global: { stubs: { SideRail: true, TitleStrip: true } } })
+    await flushPromises()
+    onEvent.mock.calls.findLast(([name]) => name === 'launch')?.[1]()
+    await flushPromises()
+    return wrapper
+  }
+
+  it('returns to the PR list', async () => {
+    listOpenPRs.mockResolvedValue({ items: [pr(1)] })
+    const wrapper = await openLaunchedReview()
+
+    await wrapper.get('#close-review').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('#close-review').exists()).toBe(false)
+    expect(wrapper.find('ul[role="list"]').exists()).toBe(true)
+    expect(quit).not.toHaveBeenCalled()
+  })
+
+  it('closes a --focus window', async () => {
+    isFocused.mockResolvedValueOnce(true)
+    const wrapper = await openLaunchedReview()
+
+    await wrapper.get('#close-review').trigger('click')
+
+    expect(quit).toHaveBeenCalledOnce()
   })
 })

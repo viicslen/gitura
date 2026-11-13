@@ -40,7 +40,7 @@ func (a *App) AddIgnoredCommenter(login string) error {
 	a.ignoredCommenters = append(a.ignoredCommenters, model.IgnoredCommenterDTO{
 		Login: login,
 	})
-	if err := settings.Save(settings.Config{IgnoredCommenters: a.ignoredCommenters, Commands: a.commands, DefaultCommandName: a.defaultCommandName, Appearance: a.appearance, Keybindings: a.keybindings}); err != nil {
+	if err := settings.Save(a.config()); err != nil {
 		// Roll back in-memory change.
 		a.ignoredCommenters = a.ignoredCommenters[:len(a.ignoredCommenters)-1]
 		return fmt.Errorf("settings: save: %w", err)
@@ -69,7 +69,9 @@ func (a *App) RemoveIgnoredCommenter(login string) error {
 	updated := make([]model.IgnoredCommenterDTO, 0, len(a.ignoredCommenters)-1)
 	updated = append(updated, a.ignoredCommenters[:idx]...)
 	updated = append(updated, a.ignoredCommenters[idx+1:]...)
-	if err := settings.Save(settings.Config{IgnoredCommenters: updated, Commands: a.commands, DefaultCommandName: a.defaultCommandName, Appearance: a.appearance, Keybindings: a.keybindings}); err != nil {
+	cfg := a.config()
+	cfg.IgnoredCommenters = updated
+	if err := settings.Save(cfg); err != nil {
 		return fmt.Errorf("settings: save: %w", err)
 	}
 	a.ignoredCommenters = updated

@@ -16,7 +16,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw } from '@lucide/vue'
+import { Switch } from '@/components/ui/switch'
+import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List } from '@lucide/vue'
+import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles } from '@/composables/useToggles'
 import {
   useAppearance,
   setAppearance,
@@ -30,6 +32,9 @@ import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingA
 
 const SECTIONS = [
   { value: 'appearance', label: 'Appearance', icon: Palette },
+  { value: 'review', label: TOGGLE_SECTIONS.review, icon: GitMerge },
+  { value: 'diff', label: TOGGLE_SECTIONS.diff, icon: FileDiff },
+  { value: 'prList', label: TOGGLE_SECTIONS.prList, icon: List },
   { value: 'commenters', label: 'Ignored commenters', icon: UserX },
   { value: 'commands', label: 'Commands', icon: Terminal },
   { value: 'keybindings', label: 'Keybindings', icon: Keyboard },
@@ -45,7 +50,12 @@ const appearanceRows: { key: AppearanceKey; label: string; hint: string }[] = [
   { key: 'text_font', label: 'Text font', hint: 'Used for prose, comments and the interface.' },
   { key: 'code_font', label: 'Code font', hint: 'Used for diffs and code blocks.' },
   { key: 'text_size', label: 'Text size', hint: 'Base size for text across the app.' },
+  { key: 'theme', label: 'Theme', hint: 'Also in the account menu.' },
 ]
+
+// ── Toggles ────────────────────────────────────────────────────────────────
+const { toggles } = useToggles()
+const toggleSections = Object.keys(TOGGLE_SECTIONS) as (keyof typeof TOGGLE_SECTIONS)[]
 
 // ── Ignored Commenters ─────────────────────────────────────────────────────
 const commenters = ref<model.IgnoredCommenterDTO[]>([])
@@ -253,6 +263,23 @@ async function handleRemoveCommand(name: string) {
               </Select>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent v-for="key in toggleSections" :key="key" :value="key">
+          <ul :class="card">
+            <li v-for="t in TOGGLES.filter((t) => t.section === key)" :key="t.id" :class="row">
+              <div class="min-w-0 flex-1">
+                <p :id="`toggle-${t.id}-label`" class="text-sm font-medium">{{ t.label }}</p>
+                <p class="text-xs text-muted-foreground">{{ toggleLock(t.id) || t.hint }}</p>
+              </div>
+              <Switch
+                :model-value="toggles[t.id]"
+                :disabled="!!toggleLock(t.id)"
+                :aria-labelledby="`toggle-${t.id}-label`"
+                @update:model-value="setToggle(t.id, $event)"
+              />
+            </li>
+          </ul>
         </TabsContent>
 
         <TabsContent value="commenters" class="space-y-3">

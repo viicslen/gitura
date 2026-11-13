@@ -22,6 +22,7 @@ import { useRuns } from '@/composables/useRuns'
 import { useAuth } from '@/composables/useAuth'
 import type { PRRef } from '@/types/pr'
 import type * as model from '@/bindings/gitura/internal/model'
+import { useToggles } from '@/composables/useToggles'
 import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
 import { toast } from 'vue-sonner'
 import { useReviewTabs } from '@/composables/useReviewTabs'
@@ -75,11 +76,12 @@ const pendingRunCount = computed(() => runs.value.filter((r) => r.running).lengt
 
 // ── DiffReviewView bridge ──────────────────────────────────────────────────
 const diffReviewRef = ref<InstanceType<typeof DiffReviewView> | null>(null)
-const showDiffThreads = ref(true)
+const { toggles } = useToggles()
+const showDiffThreads = ref(toggles.value.show_comments)
 
 const refreshing = ref(false)
 const overview = ref<model.PROverviewDTO | null>(null)
-const showResolvedReviews = ref(false)
+const showResolvedReviews = ref(toggles.value.show_resolved_reviews)
 
 const {
   threads,
@@ -192,6 +194,7 @@ async function runAction(): Promise<void> {
     confirmingAction.value = null
     toast.success(action === 'close' ? 'Pull request closed' : 'Pull request merged')
     await refreshPRView()
+    if (action !== 'close' && toggles.value.return_after_merge) emit('close-review')
   } catch (err) {
     actionError.value = errorMessage(err)
   } finally {

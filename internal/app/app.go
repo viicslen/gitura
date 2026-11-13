@@ -78,6 +78,8 @@ type App struct {
 	appearance model.AppearanceDTO
 	// keybindings maps shortcut action ids to keys; see settings.Config.Keybindings.
 	keybindings map[string]string
+	// toggles maps on/off preference ids to values; see settings.Config.Toggles.
+	toggles map[string]bool
 
 	// runCancels maps run IDs to their context cancel functions, allowing
 	// in-flight commands to be stopped via CancelRun.
@@ -158,11 +160,24 @@ func (a *App) loadConfig() error {
 	a.defaultCommandName = cfg.DefaultCommandName
 	a.appearance = cfg.Appearance
 	a.keybindings = cfg.Keybindings
+	a.toggles = cfg.Toggles
 	logger.L.Debug("config loaded",
 		"ignored_commenters", len(a.ignoredCommenters),
 		"commands", len(a.commands),
 	)
 	return nil
+}
+
+// config returns the in-memory settings, for saving with one field changed.
+func (a *App) config() settings.Config {
+	return settings.Config{
+		IgnoredCommenters:  a.ignoredCommenters,
+		Commands:           a.commands,
+		DefaultCommandName: a.defaultCommandName,
+		Appearance:         a.appearance,
+		Keybindings:        a.keybindings,
+		Toggles:            a.toggles,
+	}
 }
 
 // initGHClient sets up the authenticated GitHub client from a token.

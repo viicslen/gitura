@@ -46,6 +46,7 @@
           v-if="currentPage === 'review' && selectedPRItem"
           :pr-item="selectedPRItem"
           @update-pr-meta="handleUpdatePRMeta"
+          @close-review="focused ? Application.Quit() : handleCloseReview()"
         />
         <LocalReviewPage v-if="currentPage === 'local'" :path="localPath" />
       </template>
@@ -88,7 +89,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
 import { buildAvatarProxyURL } from '@/lib/avatar'
 import type { PRRef } from '@/types/pr'
-import { Browser, Events } from '@wailsio/runtime'
+import { Application, Browser, Events } from '@wailsio/runtime'
 import SideRail from '@/components/shell/SideRail.vue'
 import TitleStrip from '@/components/shell/TitleStrip.vue'
 

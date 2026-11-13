@@ -26,6 +26,7 @@ import type * as model from '@/bindings/gitura/internal/model'
 import type { UnsentComments } from '@/lib/diffLayout'
 import { toast } from 'vue-sonner'
 import { useLocalStorage, useWindowSize } from '@vueuse/core'
+import { toggleRef } from '@/composables/useToggles'
 import { GetCommands, GetDefaultCommandName, RunCommands } from '@/bindings/gitura/internal/app/app'
 import { Clipboard } from '@wailsio/runtime'
 import { formatLocalReview } from '@/lib/localReview'
@@ -152,7 +153,7 @@ const { width: windowWidth } = useWindowSize()
 // Keep at least 60% of the window for the diff, so a width saved on a wide screen can't squeeze it.
 const SIDEBAR_MAX = computed(() => Math.max(SIDEBAR_MIN, Math.min(640, Math.round(windowWidth.value * 0.4))))
 const sidebarWidth = useLocalStorage('gitura.diffSidebarWidth', 256)
-const wrapLines = useLocalStorage('gitura.diffWrapLines', true)
+const wrapLines = toggleRef('wrap_lines')
 
 const clampWidth = (w: number) => Math.round(Math.min(SIDEBAR_MAX.value, Math.max(SIDEBAR_MIN, w)))
 let resizeFrom: { x: number; width: number } | null = null

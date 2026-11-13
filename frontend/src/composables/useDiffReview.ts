@@ -1,9 +1,9 @@
 import { ref, computed } from 'vue'
-import { useLocalStorage } from '@vueuse/core'
 import { isTestFile } from '@/lib/testFiles'
 import * as App from '@/bindings/gitura/internal/app/app'
 import type * as model from '@/bindings/gitura/internal/model'
 import { errorMessage } from '@/lib/utils'
+import { toggleRef } from '@/composables/useToggles'
 
 /**
  * useDiffReview provides reactive state and actions for the diff review view.
@@ -23,10 +23,10 @@ export function useDiffReview() {
 
   const pendingReview = ref<model.PendingReviewDTO | null>(null)
 
-  const hideViewed = useLocalStorage('gitura.diffHideViewed', false)
-  const hideTests = useLocalStorage('gitura.diffHideTests', false)
+  const hideViewed = toggleRef('hide_viewed')
+  const hideTests = toggleRef('hide_tests')
   /** While test files are hidden, mark them viewed whenever the files load. */
-  const autoViewTests = useLocalStorage('gitura.diffAutoViewTests', false)
+  const autoViewTests = toggleRef('auto_view_tests')
 
   // ── Derived ────────────────────────────────────────────────────────────────
 

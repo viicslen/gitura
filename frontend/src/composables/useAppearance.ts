@@ -1,4 +1,5 @@
 import { reactive, readonly, ref, watchEffect } from 'vue'
+import { useColorMode } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { GetAppearance, ListSystemFonts, SetAppearance } from '@/bindings/gitura/internal/app/app'
 import type * as model from '@/bindings/gitura/internal/model'
@@ -33,6 +34,11 @@ export const appearanceOptions: Record<AppearanceKey, Option[]> = {
     { value: 'large', label: 'Large', css: '112.5%' },
     { value: 'larger', label: 'Larger', css: '125%' },
   ],
+  theme: [
+    { value: 'auto', label: 'System', css: '' },
+    { value: 'light', label: 'Light', css: '' },
+    { value: 'dark', label: 'Dark', css: '' },
+  ],
 }
 
 /** Installed fonts are saved as this prefix plus the family name. */
@@ -47,9 +53,17 @@ function fontOption(key: AppearanceKey, family: string): Option {
   return { value: FONT_PREFIX + family, label: family, css: `${JSON.stringify(family)}, ${fontFallbacks[key]}` }
 }
 
-const defaults: model.AppearanceDTO = { text_font: 'inter', code_font: 'jetbrains', text_size: 'default' }
+const defaults: model.AppearanceDTO = { text_font: 'inter', code_font: 'jetbrains', text_size: 'default', theme: 'auto' }
 
-const state = reactive<model.AppearanceDTO>({ ...defaults })
+// Browser storage keeps the last theme so the first paint uses it before settings.toml is read.
+const colorMode = useColorMode({
+  attribute: 'class',
+  modes: { light: 'light', dark: 'dark' },
+  storageKey: 'gitura-color-mode',
+  emitAuto: true,
+})
+
+const state = reactive<model.AppearanceDTO>({ ...defaults, theme: colorMode.value })
 /** One save at a time, since each sends the whole set; guarded here because disabling the selects drops keyboard focus. */
 const saving = ref(false)
 
@@ -66,6 +80,7 @@ export function applyAppearance(root: HTMLElement = document.documentElement) {
     root.style.setProperty('--font-mono', option('code_font', state.code_font)?.css ?? '')
     // Tailwind sizes are rem-based, so this scales text and spacing together.
     root.style.fontSize = option('text_size', state.text_size)?.css ?? ''
+    colorMode.value = state.theme === 'light' || state.theme === 'dark' ? state.theme : 'auto'
   })
 }
 
@@ -73,9 +88,13 @@ export function applyAppearance(root: HTMLElement = document.documentElement) {
 export async function loadAppearance() {
   try {
     const saved = await GetAppearance()
+    // Before the theme lived in settings.toml it was only in browser storage; carry it over once.
+    const migrateTheme = !saved.theme && state.theme !== defaults.theme
     for (const key of Object.keys(defaults) as AppearanceKey[]) {
+      if (key === 'theme' && migrateTheme) continue
       state[key] = option(key, saved[key]) ? saved[key] : defaults[key]
     }
+    if (migrateTheme) await SetAppearance({ ...state })
   } catch {
     // Keep defaults rather than block startup on a settings read failure.
   }

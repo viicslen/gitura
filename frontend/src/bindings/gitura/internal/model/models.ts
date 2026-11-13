@@ -14,6 +14,11 @@ export class AppearanceDTO {
     "code_font": string;
     "text_size": string;
 
+    /**
+     * Theme is "auto" (follow the system), "light" or "dark".
+     */
+    "theme": string;
+
     /** Creates a new AppearanceDTO instance. */
     constructor($$source: Partial<AppearanceDTO> = {}) {
         if (!("text_font" in $$source)) {
@@ -24,6 +29,9 @@ export class AppearanceDTO {
         }
         if (!("text_size" in $$source)) {
             this["text_size"] = "";
+        }
+        if (!("theme" in $$source)) {
+            this["theme"] = "";
         }
 
         Object.assign(this, $$source);

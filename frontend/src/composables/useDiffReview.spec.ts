@@ -9,9 +9,12 @@ vi.mock('@/bindings/gitura/internal/app/app', () => ({
   GetFileDiff: vi.fn().mockResolvedValue({}),
   GetPRFiles: vi.fn(),
   GetViewedFiles: vi.fn(),
+  GetToggles: vi.fn().mockResolvedValue({}),
+  SetToggles: vi.fn().mockResolvedValue(undefined),
 }))
 
 const { useDiffReview } = await import('./useDiffReview')
+const { loadToggles } = await import('./useToggles')
 
 const diffNamed = (filename: string) => model.ParsedDiffDTO.createFrom({ filename, hunks: [] })
 
@@ -75,8 +78,8 @@ describe('useDiffReview.setViewedMany', () => {
 })
 
 describe('useDiffReview file filters', () => {
-  it('counts unviewed files, leaving out test files only while they are hidden', () => {
-    localStorage.clear()
+  it('counts unviewed files, leaving out test files only while they are hidden', async () => {
+    await loadToggles()
     const review = useDiffReview()
     review.files.value = [
       model.PRFileDTO.createFrom({ filename: 'a.go', viewed: false }),
@@ -91,7 +94,7 @@ describe('useDiffReview file filters', () => {
   })
 
   it('moves between shown files from wherever the open file sits, numbering against all files', async () => {
-    localStorage.clear()
+    await loadToggles()
     const review = useDiffReview()
     review.files.value = ['a.go', 'a_test.go', 'b.go', 'c.go', 'd.go'].map(
       (filename) => model.PRFileDTO.createFrom({ filename, viewed: filename === 'b.go' }),
@@ -147,7 +150,7 @@ describe('useDiffReview refetch', () => {
 
 describe('useDiffReview start file', () => {
   it('opens the first shown file that has not been viewed yet', async () => {
-    localStorage.clear()
+    await loadToggles()
     vi.mocked(App.GetPRFiles).mockResolvedValueOnce(['a.go', 'b_test.go', 'c.go', 'd.go'].map((filename) => model.PRFileDTO.createFrom({ filename, viewed: false })))
     vi.mocked(App.GetViewedFiles).mockResolvedValueOnce(['a.go'])
     const review = useDiffReview()
