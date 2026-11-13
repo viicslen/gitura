@@ -7,7 +7,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
@@ -23,8 +22,6 @@ var githubClientID = "Ov23liFakeClientIDDev"
 var appIcon []byte
 
 func main() {
-	configureLinuxWebView()
-
 	a := app.New(githubClientID)
 	opts := application.Options{
 		Name:        "gitura",
@@ -57,26 +54,10 @@ func main() {
 		Frameless:        true, // the app draws its own title strip and window controls
 		BackgroundColour: application.NewRGB(9, 9, 11),
 		URL:              "/",
-		// Keep the GPU policy off for GPUs that fail EGL/GBM.
-		Linux: application.LinuxWindow{Icon: appIcon, WebviewGpuPolicy: application.WebviewGpuPolicyNever},
+		Linux:            application.LinuxWindow{Icon: appIcon},
 	})
 
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
-	}
-}
-
-// configureLinuxWebView applies conservative WebKitGTK defaults for Linux GPUs
-// that fail EGL/GBM initialisation and otherwise abort before rendering.
-func configureLinuxWebView() {
-	if runtime.GOOS != "linux" {
-		return
-	}
-
-	if _, exists := os.LookupEnv("WEBKIT_DISABLE_COMPOSITING_MODE"); !exists {
-		_ = os.Setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1")
-	}
-	if _, exists := os.LookupEnv("WEBKIT_DISABLE_DMABUF_RENDERER"); !exists {
-		_ = os.Setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
 	}
 }
