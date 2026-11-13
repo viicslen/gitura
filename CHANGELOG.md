@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/viicslen/gitura/compare/v1.0.1...v1.1.0) (2026-11-13)
+
+
+### Features
+
+* **launch:** open the branch's PR from --local once everything is pushed ([8799bfe](https://github.com/viicslen/gitura/commit/8799bfe7610a45ee14e348c45b1ece644b2a147c))
+* **launch:** open the branch's PR from --local when nothing is left unpushed ([#55](https://github.com/viicslen/gitura/issues/55)) ([8799bfe](https://github.com/viicslen/gitura/commit/8799bfe7610a45ee14e348c45b1ece644b2a147c))
+
+
+### Bug Fixes
+
+* **ui:** put the Refresh button next to the PR title ([ff0d8e1](https://github.com/viicslen/gitura/commit/ff0d8e1c91d5980702c19c7b8510de82f6f66b45))
+* **ui:** put the Refresh button next to the PR title it reloads ([#53](https://github.com/viicslen/gitura/issues/53)) ([ff0d8e1](https://github.com/viicslen/gitura/commit/ff0d8e1c91d5980702c19c7b8510de82f6f66b45))
+
 ## [1.0.1](https://github.com/viicslen/gitura/compare/v1.0.0...v1.0.1) (2026-11-12)
 
 
