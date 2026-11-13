@@ -126,6 +126,9 @@ func (a *App) TakeLaunch() (*Launch, error) {
 		if err != nil {
 			return nil, err
 		}
+		if pr := a.openPRForPushedBranch(dir); pr != nil {
+			return &Launch{PR: pr}, nil
+		}
 		return &Launch{LocalPath: dir}, nil
 	}
 	pr, err := a.resolveLaunchPR(t)
@@ -133,6 +136,24 @@ func (a *App) TakeLaunch() (*Launch, error) {
 		return nil, err
 	}
 	return &Launch{PR: pr}, nil
+}
+
+// openPRForPushedBranch returns the open PR for dir's branch when everything local is
+// committed and pushed, so there is nothing to review beyond the PR; nil otherwise.
+func (a *App) openPRForPushedBranch(dir string) *model.PullRequestSummary {
+	branch, ok := gitlocal.PushedBranch(a.ctx, dir)
+	if !ok {
+		return nil
+	}
+	pr, err := a.resolveLaunchPR(&launchTarget{dir: dir, ref: branch})
+	if err != nil {
+		logger.L.Debug("local launch: no PR for pushed branch", "branch", branch, "err", err)
+		return nil
+	}
+	if pr.State != "open" {
+		return nil
+	}
+	return pr
 }
 
 func (a *App) resolveLaunchPR(t *launchTarget) (*model.PullRequestSummary, error) {
