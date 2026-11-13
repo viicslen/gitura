@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/viicslen/gitura/compare/v1.2.0...v1.3.0) (2026-11-13)
+
+
+### Features
+
+* **linux:** render the webview on the GPU ([6e3900d](https://github.com/viicslen/gitura/commit/6e3900d030e4a2e0275e2c1f7514a1870e32c717))
+
+
+### Performance Improvements
+
+* **linux:** render the webview on the GPU now that Wails 3 handles NVIDIA ([#59](https://github.com/viicslen/gitura/issues/59)) ([4579202](https://github.com/viicslen/gitura/commit/4579202aac59b9b8c26bf7df7649dc333fbac162))
+
 ## [1.2.0](https://github.com/viicslen/gitura/compare/v1.1.0...v1.2.0) (2026-11-13)
 
 
