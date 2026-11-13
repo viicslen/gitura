@@ -28,28 +28,29 @@ type Launch struct {
 }
 
 type launchArgs struct {
-	target    *launchTarget
-	newWindow bool
+	target           *launchTarget
+	newWindow, focus bool
 }
 
-// parseArgs reads `[--new-window] [--repo owner/repo] [PR number | branch]` or
-// `[--new-window] --local [path]`; dir is the directory whose origin remote names the
+// parseArgs reads `[--new-window | --focus] [--repo owner/repo] [PR number | branch]` or
+// `[--new-window | --focus] --local [path]`; dir is the directory whose origin remote names the
 // repository when --repo is absent, and the default --local path.
 func parseArgs(args []string, dir string, usage io.Writer) (launchArgs, error) {
 	fs := flag.NewFlagSet("gitura", flag.ContinueOnError)
 	fs.SetOutput(usage)
 	repo := fs.String("repo", "", "`owner/repo` of the PR (default: the origin remote of the current directory)")
 	newWindow := fs.Bool("new-window", false, "open a separate window instead of reusing the running one")
+	focus := fs.Bool("focus", false, "open the PR or local changes in a separate window that shows only that review")
 	local := fs.Bool("local", false, "review the local changes of the repository at `path` (default: the current directory)")
 	fs.Usage = func() {
-		if _, err := fmt.Fprintln(fs.Output(), "Usage: gitura [--new-window] [--repo owner/repo] [PR number | branch]\n       gitura [--new-window] --local [path]"); err == nil {
+		if _, err := fmt.Fprintln(fs.Output(), "Usage: gitura [--new-window | --focus] [--repo owner/repo] [PR number | branch]\n       gitura [--new-window | --focus] --local [path]"); err == nil {
 			fs.PrintDefaults()
 		}
 	}
 	if err := fs.Parse(args); err != nil {
 		return launchArgs{}, err
 	}
-	la := launchArgs{newWindow: *newWindow}
+	la := launchArgs{newWindow: *newWindow || *focus, focus: *focus}
 	if *local {
 		if *repo != "" {
 			err := fmt.Errorf("--repo and --local can't be combined")
@@ -60,11 +61,16 @@ func parseArgs(args []string, dir string, usage io.Writer) (launchArgs, error) {
 	} else if ref := fs.Arg(0); ref != "" {
 		la.target = &launchTarget{dir: dir, repo: *repo, ref: ref}
 	}
+	if la.focus && la.target == nil {
+		err := fmt.Errorf("--focus needs a PR or --local")
+		_, _ = fmt.Fprintln(fs.Output(), err)
+		return launchArgs{}, err
+	}
 	return la, nil
 }
 
 // ConfigureLaunch applies the command line: it queues the PR or local changes to open and, unless
-// --new-window is given, makes later launches hand their PR to this window and exit.
+// --new-window or --focus is given, makes later launches hand their PR to this window and exit.
 // It returns flag.ErrHelp for -h. It is a function, not a method, so Wails doesn't bind it.
 func ConfigureLaunch(opts *application.Options, a *App, args []string, dir string, usage io.Writer) error {
 	la, err := parseArgs(args, dir, usage)
@@ -72,6 +78,7 @@ func ConfigureLaunch(opts *application.Options, a *App, args []string, dir strin
 		return err
 	}
 	a.launch.Store(la.target)
+	a.focus = la.focus
 	if la.newWindow {
 		return nil
 	}
@@ -103,6 +110,11 @@ func (a *App) secondInstance(data application.SecondInstanceData) {
 		a.launch.Store(la.target)
 		a.emit("launch")
 	}
+}
+
+// IsFocused reports whether this window was opened with --focus, so it shows only the launched review.
+func (a *App) IsFocused() bool {
+	return a.focus
 }
 
 // TakeLaunch resolves what the command line asked to open; it returns nil when there is

@@ -8,7 +8,7 @@ import type { PRRef } from '@/types/pr'
 
 const { reviewTab, tabBadges } = useReviewTabs()
 
-defineProps<{ meta: PRRef | null; login: string; avatarSrc?: string }>()
+defineProps<{ meta: PRRef | null; login: string; avatarSrc?: string; focused?: boolean }>()
 const emit = defineEmits<{ (e: 'home'): void; (e: 'settings'): void; (e: 'logout'): void }>()
 
 const VIEWS = [
@@ -33,13 +33,14 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
     </div>
     <div class="flex flex-col items-center gap-1 mt-1">
       <button
+        v-if="!focused"
         :class="[item, !meta ? 'bg-accent text-foreground' : idle]"
         aria-label="Pull requests"
         title="Pull requests"
         @click="emit('home')"
       ><GitPullRequest class="h-4 w-4" /></button>
       <template v-if="meta">
-        <div class="h-px w-6 bg-border my-1" />
+        <div v-if="!focused" class="h-px w-6 bg-border my-1" />
         <button
           v-for="v in VIEWS"
           :key="v.value"

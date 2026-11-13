@@ -93,6 +93,8 @@ type App struct {
 
 	// launch is the PR or local checkout to open once signed in; a second launch sets it from another goroutine.
 	launch atomic.Pointer[launchTarget]
+	// focus hides navigation away from the launched review; set once by ConfigureLaunch.
+	focus bool
 
 	// Device-flow state, held in memory only during the OAuth flow.
 	deviceCode string

@@ -32,6 +32,20 @@ func TestParseArgs_LocalWithRepo_ReturnsError(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestParseArgs_FocusWithoutTarget_ReturnsError(t *testing.T) {
+	_, err := parseArgs([]string{"--focus"}, "/w", io.Discard)
+	assert.Error(t, err)
+}
+
+func TestConfigureLaunch_Focus_SkipsSingleInstanceLockAndSetsFocus(t *testing.T) {
+	for _, args := range [][]string{{"--focus", "12"}, {"--focus", "--local"}} {
+		opts, a := &application.Options{}, New("")
+		require.NoError(t, ConfigureLaunch(opts, a, args, ".", io.Discard))
+		assert.Nil(t, opts.SingleInstance, args)
+		assert.True(t, a.IsFocused(), args)
+	}
+}
+
 func TestParseArgs_NoArgs_ReturnsNoTarget(t *testing.T) {
 	la, err := parseArgs(nil, "/w", io.Discard)
 	require.NoError(t, err)
