@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.4.0](https://github.com/viicslen/gitura/compare/v1.3.0...v1.4.0) (2026-11-13)
+
+
+### Features
+
+* **ui:** finish the motion pass so thread, file, list and page changes glide instead of popping ([#64](https://github.com/viicslen/gitura/issues/64)) ([94d3676](https://github.com/viicslen/gitura/commit/94d3676a3926a8cd42638f8d8d76664d84301a56))
+* **ui:** flow between states instead of cutting, and bring back the dead dialog and menu animations ([#61](https://github.com/viicslen/gitura/issues/61)) ([eecaf34](https://github.com/viicslen/gitura/commit/eecaf34c71dd049f2e33a4206d8d6f7f8da1fe70))
+* **ui:** flow page, list, panel and inline changes into their next state ([259b3e0](https://github.com/viicslen/gitura/commit/259b3e0df5f759d9fb449158bcb9cf92843cdb62))
+* **ui:** glide, crossfade or settle every remaining state change ([1b31cb2](https://github.com/viicslen/gitura/commit/1b31cb2fa0e48e9dc9583bee89d6843a90ba1107))
+
+
+### Bug Fixes
+
+* **dev:** bind the Vite dev server to IPv4 so the app window is not blank ([d8bcdce](https://github.com/viicslen/gitura/commit/d8bcdceff1593afa74762d1c4634d83c6d13eaa3))
+* **dev:** stop `just dev` opening a blank window ([#63](https://github.com/viicslen/gitura/issues/63)) ([37c7980](https://github.com/viicslen/gitura/commit/37c7980e881681004547293ed0524c635ddb1575))
+* **ui:** bring back dialog and menu animations and add motion tokens ([ec059e9](https://github.com/viicslen/gitura/commit/ec059e93e87dced6cfff81b98e822f5ec9b07ee2))
+
 ## [1.3.0](https://github.com/viicslen/gitura/compare/v1.2.0...v1.3.0) (2026-11-13)
 
 
