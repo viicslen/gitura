@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.1](https://github.com/viicslen/gitura/compare/v1.4.0...v1.4.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **ui:** keep wide tables inside their comment card instead of stretching it off-screen ([09b93cd](https://github.com/viicslen/gitura/commit/09b93cddb106243673fb9d82681f185da26044fd))
+* **ui:** keep wide tables inside their comment card instead of stretching it off-screen ([#65](https://github.com/viicslen/gitura/issues/65)) ([7c08d90](https://github.com/viicslen/gitura/commit/7c08d904bfea28e25a43ebf7df3075a19384fb0e))
+* **ui:** stop the PR filter sidebar showing a scrollbar when nothing overflows ([c08b8e4](https://github.com/viicslen/gitura/commit/c08b8e4949a224dc508e989d6b19b2c40b7e7d1d))
+* **ui:** stop the PR filter sidebar showing a scrollbar when nothing overflows ([#67](https://github.com/viicslen/gitura/issues/67)) ([483c4e4](https://github.com/viicslen/gitura/commit/483c4e4e076505ca41dd03586dc217f984696fc1))
+
 ## [1.4.0](https://github.com/viicslen/gitura/compare/v1.3.0...v1.4.0) (2026-11-13)
 
 
