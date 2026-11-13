@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "highlight.js/styles/github.min.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/inter/wght-italic.css";
@@ -32,6 +33,45 @@
   --color-input: hsl(240 5.9% 90%);
   --color-ring: hsl(240 10% 3.9%);
   --radius: 0.5rem;
+}
+
+/* Motion budget, by how often an edge is triggered: fast = frequent (low end), base = frequent, slow = occasional,
+   slower = rare. An exit takes the next token down. static: scoped component CSS reads these too. */
+@theme static {
+  --transition-duration-faster: 75ms;
+  --transition-duration-fast: 100ms;
+  --transition-duration-base: 150ms;
+  --transition-duration-slow: 220ms;
+  --transition-duration-slower: 360ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --default-transition-timing-function: var(--ease-out);
+}
+
+/* animate-in / animate-out run our keyframes and fall back to the motion tokens, not tw-animate's literal 150ms and `ease`.
+   Time them with animation-duration-*: a bare duration-* also turns on `transition: all` for the element. */
+@theme inline {
+  --animation-duration-faster: var(--transition-duration-faster);
+  --animation-duration-fast: var(--transition-duration-fast);
+  --animation-duration-base: var(--transition-duration-base);
+  --animation-duration-slow: var(--transition-duration-slow);
+  --animation-duration-slower: var(--transition-duration-slower);
+  --animate-in: flow-enter var(--tw-animation-duration, var(--tw-duration, var(--transition-duration-base))) var(--tw-ease, var(--ease-out)) var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal) var(--tw-animation-fill-mode, none);
+  --animate-out: flow-exit var(--tw-animation-duration, var(--tw-duration, var(--transition-duration-base))) var(--tw-ease, var(--ease-out)) var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal) var(--tw-animation-fill-mode, none);
+}
+
+/* tw-animate's enter/exit keyframes without `filter`, which they animate even when no blur is set.
+   The blur-in-* / blur-out-* utilities do nothing as a result. */
+@keyframes flow-enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0) scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1)) rotate(var(--tw-enter-rotate, 0));
+  }
+}
+@keyframes flow-exit {
+  to {
+    opacity: var(--tw-exit-opacity, 1);
+    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0) scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1)) rotate(var(--tw-exit-rotate, 0));
+  }
 }
 
 @layer base {
@@ -98,6 +138,16 @@
 
 /* Light mode: align hljs background with app muted color */
 .hljs { background: var(--color-muted); }
+
+/* Reduced motion: every edge becomes a cut; spinners stay so progress never looks frozen. */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin), ::before, ::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* Pointer cursor on all interactive elements */
 button, [role="button"], [role="switch"], label[for], summary { cursor: pointer; }

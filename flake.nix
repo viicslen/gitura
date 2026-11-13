@@ -32,7 +32,7 @@
 
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
-          outputHash = "sha256-N6jbjzjyuqT5LysKgJMaPX8a0MS5DsUM5GhhE5dgtd4=";
+          outputHash = "sha256-VBGEvzd4rbJjmt2drKBtM4LhK7ytmBpjgLsEqcnUgXc=";
         };
 
         # Build the Vue/Vite frontend and expose the dist directory.
