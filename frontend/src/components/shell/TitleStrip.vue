@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// PRReviewPage teleports Refresh into #title-strip-actions.
+// Pages teleport into #title-strip-pr-actions (next to the PR title) and #title-strip-actions (right side).
 import { ArrowLeft, ExternalLink } from '@lucide/vue'
 import PRStateBadge from './PRStateBadge.vue'
 import WindowControls from './WindowControls.vue'
@@ -36,6 +36,7 @@ const emit = defineEmits<{ (e: 'open-pr'): void; (e: 'back'): void }>()
       </template>
       <span v-else-if="localLabel" class="text-sm font-medium truncate min-w-[4rem]" :title="localLabel">{{ localLabel }}</span>
       <span v-else class="text-sm text-muted-foreground">{{ fallback }}</span>
+      <div id="title-strip-pr-actions" class="contents" />
     </div>
     <div class="flex items-center gap-0.5 pr-2" style="--wails-draggable: no-drag">
       <div id="title-strip-actions" class="contents" />

@@ -277,7 +277,7 @@ watch(
 <template>
   <div class="flex flex-col h-full">
     <!-- Refresh affects the whole PR, so it lives in the title strip. -->
-    <Teleport defer to="#title-strip-actions">
+    <Teleport defer to="#title-strip-pr-actions">
       <Button
         variant="ghost"
         size="icon"
@@ -290,6 +290,8 @@ watch(
       >
         <RefreshCw :class="['h-3.5 w-3.5', (loading || refreshing) && 'animate-spin']" />
       </Button>
+    </Teleport>
+    <Teleport defer to="#title-strip-actions">
       <DropdownMenu v-if="prSummary?.state === 'open'">
         <DropdownMenuTrigger as-child>
           <Button
