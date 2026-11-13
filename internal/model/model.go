@@ -292,6 +292,8 @@ type AppearanceDTO struct {
 	TextFont string `json:"text_font" toml:"text_font"`
 	CodeFont string `json:"code_font" toml:"code_font"`
 	TextSize string `json:"text_size" toml:"text_size"`
+	// Theme is "auto" (follow the system), "light" or "dark".
+	Theme string `json:"theme" toml:"theme"`
 }
 
 // RunContext carries optional provenance metadata attached to a command run.

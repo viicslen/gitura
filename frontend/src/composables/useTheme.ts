@@ -1,29 +1,19 @@
-import { useColorMode } from '@vueuse/core'
+import { computed } from 'vue'
+import { setAppearance, useAppearance } from '@/composables/useAppearance'
 
-/**
- * useTheme wraps @vueuse/core's useColorMode to provide a three-way
- * system / light / dark toggle with localStorage persistence.
- *
- * The mode is stored in localStorage under the key 'gitura-color-mode'.
- * @vueuse/core applies the 'dark' class to <html> automatically.
- */
+export type ThemeMode = 'auto' | 'light' | 'dark'
+
+/** The system / light / dark theme, saved in settings.toml as appearance.theme. */
 export function useTheme() {
-  const mode = useColorMode({
-    attribute: 'class',
-    modes: { light: 'light', dark: 'dark' },
-    storageKey: 'gitura-color-mode',
-    emitAuto: true,
+  const { appearance } = useAppearance()
+  const mode = computed<ThemeMode>({
+    get: () => (appearance.theme === 'light' || appearance.theme === 'dark' ? appearance.theme : 'auto'),
+    set: (value) => void setAppearance('theme', value),
   })
 
   /** Cycle through: system → light → dark → system */
   function cycleTheme() {
-    if (mode.value === 'auto') {
-      mode.value = 'light'
-    } else if (mode.value === 'light') {
-      mode.value = 'dark'
-    } else {
-      mode.value = 'auto'
-    }
+    mode.value = mode.value === 'auto' ? 'light' : mode.value === 'light' ? 'dark' : 'auto'
   }
 
   return { mode, cycleTheme }
