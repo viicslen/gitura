@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.0](https://github.com/viicslen/gitura/compare/v1.1.0...v1.2.0) (2026-11-13)
+
+
+### Features
+
+* **appearance:** save the theme in settings.toml and show it as icons in the account menu ([4aef992](https://github.com/viicslen/gitura/commit/4aef992e63af49162a0f052a99b5d25c26faa253))
+* **launch:** add --focus to open a review in its own restricted window ([e2ca296](https://github.com/viicslen/gitura/commit/e2ca296f5d75c008926dc419eaa2b128fee53e65))
+* **launch:** review a single PR or local changes from the CLI without the rest of the app ([#56](https://github.com/viicslen/gitura/issues/56)) ([e0b07e5](https://github.com/viicslen/gitura/commit/e0b07e54bab342d6aed548742a6d9a039a8c17c1))
+* **settings:** keep diff, review and PR list preferences in settings ([dbc15a9](https://github.com/viicslen/gitura/commit/dbc15a992de5ca54b95aa085d229c5dd07c7c9fe))
+* **settings:** keep theme, diff and PR list preferences in Settings, and optionally leave a review after merging ([#58](https://github.com/viicslen/gitura/issues/58)) ([0b401a6](https://github.com/viicslen/gitura/commit/0b401a68c0cde69d5af573a1ec48d37d3b6b8c50))
+
 ## [1.1.0](https://github.com/viicslen/gitura/compare/v1.0.1...v1.1.0) (2026-11-13)
 
 
