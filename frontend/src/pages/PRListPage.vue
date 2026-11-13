@@ -193,7 +193,7 @@
       <!-- Clear all -->
       <div
         class="transition-[opacity,translate,visibility]"
-        :class="filters.hasActiveFilters.value ? 'duration-base' : 'invisible opacity-0 translate-y-1 duration-fast'"
+        :class="filters.hasActiveFilters.value ? 'duration-base' : 'invisible opacity-0 -translate-y-1 duration-fast'"
       >
         <Button
           variant="ghost"
