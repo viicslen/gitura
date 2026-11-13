@@ -77,7 +77,7 @@ function replyAvatarKey(replyId: number): string {
   <!-- No thread selected -->
   <div
     v-if="!thread"
-    class="flex-1 flex items-center justify-center text-muted-foreground text-sm p-6"
+    class="flex-1 flex items-center justify-center text-muted-foreground text-sm p-6 animate-in fade-in-0 animation-duration-fast ease-out"
   >
     Select a comment to begin.
   </div>
@@ -133,7 +133,7 @@ function replyAvatarKey(replyId: number): string {
             <!-- Run button overlay on the comment body -->
             <div
               v-if="commands.length > 0"
-              class="absolute top-2 right-2 opacity-0 group-hover/body:opacity-100 transition-opacity"
+              class="absolute top-2 right-2 opacity-0 group-hover/body:opacity-100 focus-within:opacity-100"
             >
               <SplitRunButton
                 :commands="commands"
@@ -164,8 +164,14 @@ function replyAvatarKey(replyId: number): string {
         />
       </div>
 
-      <!-- Replies -->
-      <div v-if="replies.length > 0" class="space-y-3 border-l-2 border-border pl-4">
+      <!-- Replies: keyed per thread so only a reply added to the open thread fades in. -->
+      <TransitionGroup
+        :key="thread.root_id"
+        tag="div"
+        class="space-y-3 border-l-2 border-border pl-4 empty:hidden"
+        enter-active-class="transition-opacity"
+        enter-from-class="opacity-0"
+      >
         <div v-for="reply in replies" :key="reply.id" class="space-y-1">
           <div class="flex items-center gap-2">
             <img
@@ -192,7 +198,7 @@ function replyAvatarKey(replyId: number): string {
             </EditableComment>
           </div>
         </div>
-      </div>
+      </TransitionGroup>
 
       <!-- Reply composer + resolve/unresolve -->
       <div class="border-t border-border pt-3">

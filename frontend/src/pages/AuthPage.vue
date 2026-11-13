@@ -12,14 +12,14 @@
         <!-- Error state -->
         <div
           v-if="error"
-          class="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive"
+          class="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive animate-in fade-in-0"
           role="alert"
         >
           {{ error }}
         </div>
 
         <!-- Initial / idle state -->
-        <template v-if="!deviceFlowInfo && !polling">
+        <div v-if="!deviceFlowInfo && !polling" class="space-y-4 animate-in fade-in-0 slide-in-from-bottom-1 ease-out animation-duration-slow">
           <p class="text-sm text-muted-foreground">
             Click the button below to generate a one-time code. You will be
             redirected to GitHub to complete sign-in.
@@ -28,10 +28,10 @@
             <span v-if="loading">Starting…</span>
             <span v-else>Sign in with GitHub</span>
           </Button>
-        </template>
+        </div>
 
         <!-- Device flow in progress -->
-        <template v-else-if="deviceFlowInfo">
+        <div v-else-if="deviceFlowInfo" class="space-y-4 animate-in fade-in-0 slide-in-from-bottom-1 ease-out animation-duration-slow">
           <p class="text-sm text-muted-foreground">
             Enter the code below at
             <a
@@ -62,7 +62,7 @@
             <Button
               variant="ghost"
               class="flex-1"
-              @click="handleCancel"
+              @click="cancelDeviceFlow"
             >
               Cancel
             </Button>
@@ -73,7 +73,7 @@
             <span class="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" />
             Waiting for authorization…
           </div>
-        </template>
+        </div>
       </CardContent>
     </Card>
   </div>
@@ -92,7 +92,7 @@ import { Button } from '@/components/ui/button'
 import { Browser } from '@wailsio/runtime'
 import { useAuth } from '@/composables/useAuth'
 
-const { deviceFlowInfo, polling, error, startDeviceFlow } = useAuth()
+const { deviceFlowInfo, polling, error, startDeviceFlow, cancelDeviceFlow } = useAuth()
 const loading = ref(false)
 
 async function handleStart() {
@@ -105,11 +105,5 @@ function handleOpenGitHub() {
   if (deviceFlowInfo.value) {
     void Browser.OpenURL(deviceFlowInfo.value.verification_uri)
   }
-}
-
-function handleCancel() {
-  // Reset by triggering a new device flow attempt clears state in useAuth
-  // For now reload the composable state by navigating the parent
-  window.location.reload()
 }
 </script>

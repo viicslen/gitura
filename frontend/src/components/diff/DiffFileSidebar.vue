@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Check, ChevronDown, ChevronRight, ListFilter, MessageSquare } from '@lucide/vue'
+import { Check, ChevronRight, ListFilter, MessageSquare } from '@lucide/vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -179,7 +179,9 @@ function handleKeydown(event: KeyboardEvent, action: () => void): void {
             title="Filter files"
           >
             <ListFilter class="h-3.5 w-3.5" />
-            <span v-if="hiddenCount > 0" class="tabular-nums">{{ hiddenCount }} hidden</span>
+            <Transition enter-active-class="animate-in fade-in-0">
+              <span v-if="hiddenCount > 0" class="tabular-nums">{{ hiddenCount }} hidden</span>
+            </Transition>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" class="w-60">
@@ -198,8 +200,8 @@ function handleKeydown(event: KeyboardEvent, action: () => void): void {
       </DropdownMenu>
     </div>
 
-    <!-- Loading skeleton -->
-    <div v-if="loading" class="flex flex-col gap-1 p-2">
+    <!-- Loading skeleton; mt-9 holds the header row's place so the list doesn't shift when it loads -->
+    <div v-if="loading" class="mt-9 flex flex-col gap-1 p-2 animate-in fade-in-0 delay-200 fill-mode-backwards">
       <div
         v-for="i in 5"
         :key="i"
@@ -240,7 +242,7 @@ function handleKeydown(event: KeyboardEvent, action: () => void): void {
                 @click="toggle(row.path)"
                 @keydown="handleKeydown($event, () => toggle(row.path))"
               >
-                <component :is="row.expanded ? ChevronDown : ChevronRight" class="h-3.5 w-3.5 shrink-0" />
+                <ChevronRight class="h-3.5 w-3.5 shrink-0 transition-transform duration-fast" :class="{ 'rotate-90': row.expanded }" />
                 <span class="min-w-0 truncate">{{ row.name }}</span>
               </li>
             </ContextMenuTrigger>

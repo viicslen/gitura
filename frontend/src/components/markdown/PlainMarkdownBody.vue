@@ -49,6 +49,14 @@ const html = computed(() => renderGitHubMarkdown(props.content, { ...props, task
 .markdown-body :deep(details) {
   cursor: default;
 }
+.markdown-body :deep(details[open] > :not(summary)) {
+  animation: details-in var(--transition-duration-fast) var(--ease-out);
+}
+@keyframes details-in {
+  from {
+    opacity: 0;
+  }
+}
 .markdown-body :deep(code) {
   font-family: var(--font-mono);
   font-size: 0.9em;

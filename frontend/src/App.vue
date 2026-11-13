@@ -25,18 +25,27 @@
     />
 
     <!-- Theme toggle shown in top-right corner when not authenticated -->
-    <div v-if="!authState.is_authenticated" class="fixed top-12 right-4 z-50">
+    <div v-if="authChecked && !authState.is_authenticated" class="fixed top-12 right-4 z-50">
       <ThemeToggle />
     </div>
 
     <!-- Page routing -->
     <main class="flex-1 overflow-hidden">
-      <AuthPage v-if="!authState.is_authenticated" />
+      <div
+        v-if="!authChecked"
+        class="h-full grid place-items-center text-muted-foreground animate-in fade-in-0 delay-200 fill-mode-backwards"
+        role="status"
+        aria-label="Loading"
+      >
+        <RefreshCw class="h-6 w-6 animate-spin" />
+      </div>
+      <AuthPage v-else-if="!authState.is_authenticated" class="animate-in fade-in-0 ease-out animation-duration-slower" />
       <template v-else>
         <!-- KeepAlive preserves PRListPage scroll position and filter state when navigating to review -->
         <KeepAlive>
           <PRListPage
             v-if="currentPage === 'prList' && focused === false"
+            class="animate-in fade-in-0 slide-in-from-top-1 ease-out"
             :pr-updates="prUpdates"
             @open-review="handleOpenReview"
             @open-local="handleOpenLocal"
@@ -44,11 +53,16 @@
         </KeepAlive>
         <PRReviewPage
           v-if="currentPage === 'review' && selectedPRItem"
+          class="animate-in fade-in-0 slide-in-from-bottom-1 ease-out"
           :pr-item="selectedPRItem"
           @update-pr-meta="handleUpdatePRMeta"
           @close-review="focused ? Application.Quit() : handleCloseReview()"
         />
-        <LocalReviewPage v-if="currentPage === 'local'" :path="localPath" />
+        <LocalReviewPage
+          v-if="currentPage === 'local'"
+          class="animate-in fade-in-0 slide-in-from-bottom-1 ease-out"
+          :path="localPath"
+        />
       </template>
     </main>
 
@@ -58,11 +72,11 @@
       </DialogContent>
     </Dialog>
 
-    <Dialog :open="!!zoomedImage" @update:open="!$event && (zoomedImage = null)">
+    <Dialog v-model:open="zoomOpen">
       <DialogContent
         class="w-auto max-w-[95vw] sm:max-w-[95vw] p-0 border-0 bg-transparent shadow-none"
         :aria-describedby="undefined"
-        @click="zoomedImage = null"
+        @click="zoomOpen = false"
       >
         <DialogTitle class="sr-only">{{ zoomedImage?.alt || 'Image' }}</DialogTitle>
         <img v-if="zoomedImage" :src="zoomedImage.src" :alt="zoomedImage.alt" class="max-h-[90vh] max-w-[95vw] object-contain cursor-zoom-out rounded-md" />
@@ -84,6 +98,7 @@ import SettingsPage from '@/pages/SettingsPage.vue'
 import ThemeToggle from '@/components/shell/ThemeToggle.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
+import { RefreshCw } from '@lucide/vue'
 import { IsFocused, TakeLaunch } from '@/bindings/gitura/internal/app/app'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/composables/useAuth'
@@ -105,6 +120,8 @@ const authAvatarSrc = computed(() => buildAvatarProxyURL(authState.value.avatar_
 const railLayout = computed(() => authState.value.is_authenticated)
 // null until known, so a --focus window never mounts (and fetches) the PR list.
 const focused = ref<boolean | null>(null)
+// False until the saved token is verified, so a signed-in launch never shows the sign-in page.
+const authChecked = ref(false)
 
 function goHome() {
   if (focused.value !== false) return
@@ -115,6 +132,7 @@ function goHome() {
 onMounted(async () => {
   void IsFocused().then((f) => (focused.value = f), () => (focused.value = false))
   await refreshAuthState()
+  authChecked.value = true
 })
 
 // Opens what the command line asked for (`gitura 123`, `gitura my-branch`, `gitura --local`) once signed in.
@@ -183,10 +201,13 @@ useEventListener(document, 'click', openExternalLink)
 useEventListener(document, 'auxclick', openExternalLink)
 
 const zoomedImage = ref<{ src: string; alt: string } | null>(null)
+// Separate from zoomedImage so the image stays rendered through the dialog's close animation.
+const zoomOpen = ref(false)
 // Linked images (badges, preview buttons) keep their link behaviour.
 useEventListener(document, 'click', (event: MouseEvent) => {
   const img = event.target instanceof Element ? event.target.closest<HTMLImageElement>('.markdown-body img') : null
   if (!img || img.closest('a[href]')) return
   zoomedImage.value = { src: img.currentSrc || img.src, alt: img.alt }
+  zoomOpen.value = true
 })
 </script>

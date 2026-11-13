@@ -213,7 +213,7 @@ async function handleRemoveCommand(name: string) {
         v-for="s in SECTIONS"
         :key="s.value"
         :value="s.value"
-        class="h-8 flex-none justify-start gap-2 px-2 font-normal text-muted-foreground hover:bg-accent/60 hover:text-foreground data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-accent dark:data-[state=active]:border-transparent"
+        class="h-8 flex-none justify-start gap-2 px-2 font-normal text-muted-foreground transition-none hover:bg-accent/60 hover:text-foreground data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-accent dark:data-[state=active]:border-transparent"
       >
         <component :is="s.icon" aria-hidden="true" />
         {{ s.label }}
@@ -224,12 +224,12 @@ async function handleRemoveCommand(name: string) {
       <header class="flex h-12 shrink-0 items-center gap-2 border-b border-border pl-5 pr-12 text-sm">
         <DialogTitle class="text-sm font-normal text-muted-foreground">Settings</DialogTitle>
         <span class="text-muted-foreground" aria-hidden="true">/</span>
-        <span class="font-medium">{{ SECTIONS.find((s) => s.value === section)?.label }}</span>
+        <span :key="section" class="font-medium animate-in fade-in-0 animation-duration-fast">{{ SECTIONS.find((s) => s.value === section)?.label }}</span>
         <Button
           v-if="section === 'keybindings'"
           variant="ghost"
           size="sm"
-          class="ml-auto h-7 text-xs"
+          class="ml-auto h-7 text-xs animate-in fade-in-0"
           @click="handleResetBindings"
         >
           <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
@@ -237,7 +237,7 @@ async function handleRemoveCommand(name: string) {
         </Button>
       </header>
 
-      <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-5">
+      <div :key="section" class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-5 animate-in fade-in-0 animation-duration-fast">
         <TabsContent value="appearance">
           <div :class="card">
             <div v-for="r in appearanceRows" :key="r.key" :class="row">
@@ -307,11 +307,11 @@ async function handleRemoveCommand(name: string) {
               </Button>
             </div>
             <p v-if="loadError" class="px-4 py-3 text-xs text-destructive" role="alert">{{ loadError }}</p>
-            <div v-else-if="commenters.length === 0" class="flex flex-col items-center gap-2 py-6 text-muted-foreground">
+            <div v-else-if="commenters.length === 0" class="flex flex-col items-center gap-2 py-6 text-muted-foreground animate-in fade-in-0 animation-duration-fast">
               <UserX class="h-8 w-8 opacity-40" aria-hidden="true" />
               <p class="text-sm">No ignored commenters.</p>
             </div>
-            <ul v-else class="contents" aria-label="Ignored commenters list">
+            <TransitionGroup v-else tag="ul" class="contents" aria-label="Ignored commenters list" appear enter-active-class="animate-in fade-in-0 animation-duration-fast" leave-active-class="pointer-events-none animate-out fade-out-0 animation-duration-faster">
               <li v-for="item in commenters" :key="item.login" :class="[row, 'group py-2']">
                 <span class="flex-1 font-mono text-sm">{{ item.login }}</span>
                 <Button
@@ -325,9 +325,9 @@ async function handleRemoveCommand(name: string) {
                   <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
               </li>
-            </ul>
+            </TransitionGroup>
           </div>
-          <p v-if="addError" class="text-xs text-destructive" role="alert">{{ addError }}</p>
+          <p v-if="addError" class="text-xs text-destructive animate-in fade-in-0 animation-duration-fast" role="alert">{{ addError }}</p>
         </TabsContent>
 
         <TabsContent value="commands" class="space-y-3">
@@ -365,18 +365,18 @@ async function handleRemoveCommand(name: string) {
               </Button>
             </div>
             <p v-if="loadCmdError" class="px-4 py-3 text-xs text-destructive" role="alert">{{ loadCmdError }}</p>
-            <div v-else-if="commands.length === 0" class="flex flex-col items-center gap-2 py-6 text-muted-foreground">
+            <div v-else-if="commands.length === 0" class="flex flex-col items-center gap-2 py-6 text-muted-foreground animate-in fade-in-0 animation-duration-fast">
               <Terminal class="h-8 w-8 opacity-30" aria-hidden="true" />
               <p class="text-sm">No commands configured.</p>
             </div>
-            <ul v-else class="contents" aria-label="Commands list">
+            <TransitionGroup v-else tag="ul" class="contents" aria-label="Commands list" appear enter-active-class="animate-in fade-in-0 animation-duration-fast" leave-active-class="pointer-events-none animate-out fade-out-0 animation-duration-faster">
               <li v-for="cmd in commands" :key="cmd.name" :class="[row, 'group py-2.5']">
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-1.5">
                     <p class="text-sm font-medium">{{ cmd.name }}</p>
                     <Star
                       v-if="cmd.name === defaultCommandName"
-                      class="h-3 w-3 fill-current text-yellow-500"
+                      class="h-3 w-3 fill-current text-yellow-500 animate-in fade-in-0 zoom-in-75 ease-out animation-duration-fast"
                       aria-label="Default command"
                     />
                   </div>
@@ -405,9 +405,9 @@ async function handleRemoveCommand(name: string) {
                   <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
               </li>
-            </ul>
+            </TransitionGroup>
           </div>
-          <p v-if="addCmdError" class="text-xs text-destructive" role="alert">{{ addCmdError }}</p>
+          <p v-if="addCmdError" class="text-xs text-destructive animate-in fade-in-0 animation-duration-fast" role="alert">{{ addCmdError }}</p>
         </TabsContent>
 
         <TabsContent value="keybindings" class="space-y-3">
@@ -431,7 +431,7 @@ async function handleRemoveCommand(name: string) {
               </Button>
             </li>
           </ul>
-          <p v-if="bindError" class="text-xs text-destructive" role="alert">{{ bindError }}</p>
+          <p v-if="bindError" class="text-xs text-destructive animate-in fade-in-0 animation-duration-fast" role="alert">{{ bindError }}</p>
         </TabsContent>
       </div>
     </div>

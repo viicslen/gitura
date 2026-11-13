@@ -377,9 +377,11 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Badge v-if="pendingCount > 0" variant="secondary" class="gap-1 text-xs">
-        {{ pendingCount }} pending
-      </Badge>
+      <Transition enter-active-class="animate-in fade-in-0 zoom-in-95 ease-out" leave-active-class="animate-out fade-out-0 zoom-out-95 animation-duration-fast ease-out">
+        <Badge v-if="pendingCount > 0" variant="secondary" class="gap-1 text-xs tabular-nums">
+          {{ pendingCount }} pending
+        </Badge>
+      </Transition>
       <Button
         :variant="pendingCount > 0 ? 'default' : 'outline'"
         size="sm"
@@ -390,8 +392,9 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
         <Send class="h-3.5 w-3.5" />
         {{ local ? 'Send comments' : pendingCount > 0 ? 'Finish review' : 'Review changes' }}
       </Button>
-      <template v-if="pendingReview?.has_pending">
+      <Transition enter-active-class="animate-in fade-in-0" leave-active-class="animate-out fade-out-0">
         <Button
+          v-if="pendingReview?.has_pending"
           variant="ghost"
           size="icon"
           class="text-destructive hover:text-destructive"
@@ -401,7 +404,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
         >
           <Trash2 class="h-4 w-4" />
         </Button>
-      </template>
+      </Transition>
     </div>
 
     <!-- ── Error (files load) ─────────────────────────────────────────────── -->
@@ -455,7 +458,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
         <!-- Diff loading -->
         <div
           v-if="diffLoading"
-          class="flex-1 flex items-center justify-center text-sm text-muted-foreground"
+          class="flex-1 flex items-center justify-center text-sm text-muted-foreground animate-in fade-in-0 delay-200 fill-mode-backwards"
         >
           Loading diff…
         </div>

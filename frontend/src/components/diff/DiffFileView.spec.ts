@@ -163,6 +163,21 @@ describe('DiffFileView', () => {
     second.unmount()
   })
 
+  it('animates in only the inline rows added after the file is shown', async () => {
+    const unsentComments: UnsentComments = reactive(new Map())
+    unsentComments.set(file.filename, { target: { side: 'RIGHT', hunk: 0, line: 2 }, body: 'saved earlier' })
+    const props = { file, diff, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true, postComment: vi.fn(), unsentComments }
+    const wrapper = mount(DiffFileView, { props, attachTo: document.body })
+    await flushPromises()
+    expect(wrapper.find('transition-stub').attributes('appear')).toBe('false')
+
+    await wrapper.find('button[aria-label="Comment on new line 3"]').trigger('mousedown', { button: 0 })
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await flushPromises()
+    expect(wrapper.find('transition-stub').attributes('appear')).toBe('true')
+    wrapper.unmount()
+  })
+
   it('does not re-render the diff while typing a comment', async () => {
     let paneUpdates = 0
     const props = { file, diff, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true, postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments }

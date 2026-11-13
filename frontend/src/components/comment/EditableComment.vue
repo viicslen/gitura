@@ -90,7 +90,7 @@ function onKeydown(event: KeyboardEvent): void {
 </script>
 
 <template>
-  <div v-if="edit" class="space-y-2">
+  <div v-if="edit" class="space-y-2 animate-in fade-in-0 animation-duration-fast ease-out">
     <Textarea v-model="edit.text" rows="5" aria-label="Edit comment" :disabled="edit.saving" @keydown="onKeydown" />
     <div class="flex flex-wrap items-center gap-2">
       <p v-if="error" class="min-w-0 truncate text-xs text-destructive" :title="error">{{ error }}</p>

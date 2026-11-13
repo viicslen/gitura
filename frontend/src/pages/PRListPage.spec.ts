@@ -20,12 +20,14 @@ function pr(owner: string, repo: string, number: number) {
   }
 }
 
-vi.mock('@/bindings/gitura/internal/app/app', () => ({
-  ListOpenPRs: () => Promise.resolve({ items: [pr('FmTod', 'app', 1), pr('FmTod2', 'config', 2)] }),
-}))
+const listOpenPRs = vi.hoisted(() => vi.fn())
+vi.mock('@/bindings/gitura/internal/app/app', () => ({ ListOpenPRs: listOpenPRs }))
 
 describe('PRListPage org filter', () => {
-  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout'] }))
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    listOpenPRs.mockImplementation(() => Promise.resolve({ items: [pr('FmTod', 'app', 1), pr('FmTod2', 'config', 2)] }))
+  })
   afterEach(() => {
     usePRFilters(() => {}).clearAllFilters()
     vi.useRealTimers()
@@ -72,5 +74,28 @@ describe('PRListPage org filter', () => {
 
     expect(wrapper.findAll('ul[role="list"] > li').map((r) => r.text())).toEqual([expect.stringContaining('Renamed')])
     expect([...prUpdates.keys()]).toEqual(['FmTod/app#1', 'FmTod2/config#2'])
+  })
+
+  it('shows the skeleton on first load only and keeps the list on screen during a refresh', async () => {
+    const wrapper = mount(PRListPage)
+    expect(wrapper.find('[aria-label="Loading pull requests"]').exists()).toBe(true)
+    await flushPromises()
+
+    listOpenPRs.mockReturnValueOnce(new Promise(() => {}))
+    await wrapper.get('button[aria-label="Refresh pull request list"]').trigger('click')
+
+    expect(wrapper.find('[aria-label="Loading pull requests"]').exists()).toBe(false)
+    expect(wrapper.findAll('ul[role="list"] > li')).toHaveLength(2)
+  })
+
+  it('keeps the error on screen while a retry is in flight', async () => {
+    listOpenPRs.mockRejectedValueOnce(new Error('boom'))
+    const wrapper = mount(PRListPage)
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('boom')
+
+    listOpenPRs.mockReturnValueOnce(new Promise(() => {}))
+    await wrapper.get('button[aria-label="Refresh pull request list"]').trigger('click')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
   })
 })

@@ -202,6 +202,14 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
 .markdown-body :deep(details) {
   cursor: default;
 }
+.markdown-body :deep(details[open] > :not(summary)) {
+  animation: details-in var(--transition-duration-fast) var(--ease-out);
+}
+@keyframes details-in {
+  from {
+    opacity: 0;
+  }
+}
 .markdown-body :deep(code) {
   font-family: var(--font-mono);
   font-size: 0.9em;
@@ -217,6 +225,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
 .markdown-body :deep(.code-block-wrapper:hover .copy-btn),
 .markdown-body :deep(.code-block-wrapper:focus-within .copy-btn) {
   opacity: 1;
+  transition-duration: 0s;
 }
 .markdown-body :deep(pre) {
   background: var(--color-muted);
@@ -241,7 +250,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   top: 0.4rem;
   right: 3.5rem;
   opacity: 0;
-  transition: opacity 0.15s, background-color 0.15s;
+  transition: opacity var(--transition-duration-fast), background-color var(--transition-duration-fast);
   padding: 0 0.55rem;
   height: 1.5rem;
   box-sizing: border-box;
@@ -272,7 +281,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   align-items: stretch;
   gap: 0;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--transition-duration-fast);
   border-radius: 4px;
   height: 1.5rem;
   box-sizing: border-box;
@@ -280,6 +289,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
 .markdown-body :deep(.code-block-wrapper:hover .run-split),
 .markdown-body :deep(.code-block-wrapper:focus-within .run-split) {
   opacity: 1;
+  transition-duration: 0s;
 }
 .markdown-body :deep(.run-btn) {
   display: flex;
@@ -292,7 +302,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   color: #22c55e;
   border: 1px solid var(--color-border);
   line-height: 1;
-  transition: background-color 0.15s;
+  transition: background-color var(--transition-duration-fast);
   box-sizing: border-box;
 }
 .markdown-body :deep(.run-btn:hover) {
@@ -345,7 +355,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   background: transparent;
   border: none;
   color: var(--color-foreground);
-  transition: background-color 0.1s;
+  transition: background-color var(--transition-duration-fast);
 }
 .markdown-body :deep(.run-dropdown-item:hover) {
   background: color-mix(in srgb, var(--color-foreground) 8%, var(--color-popover, var(--color-background)));

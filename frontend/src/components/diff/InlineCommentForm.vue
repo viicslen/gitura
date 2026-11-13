@@ -67,7 +67,7 @@ function handleKeydown(event: KeyboardEvent): void {
       @keydown="handleKeydown"
     />
     <div class="flex flex-wrap items-center justify-end gap-2">
-      <span v-if="busy" class="mr-auto text-xs text-muted-foreground" role="status">Sending…</span>
+      <span v-if="busy" class="mr-auto text-xs text-muted-foreground animate-in fade-in-0 delay-200 fill-mode-backwards" role="status">Sending…</span>
       <span v-else-if="draftsStale" class="mr-auto text-xs text-muted-foreground">
         Your pending review was started on an earlier commit. Submit or discard it to add review comments here.
       </span>
