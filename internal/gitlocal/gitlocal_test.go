@@ -103,3 +103,31 @@ func TestFingerprint_UntrackedFileEdited_Changes(t *testing.T) {
 		t.Error("fingerprint did not change after editing an untracked file")
 	}
 }
+
+func TestPushedBranch_TracksLocalState(t *testing.T) {
+	ctx := context.Background()
+	remote, dir := t.TempDir(), t.TempDir()
+	run(t, remote, "init", "-q", "--bare", "-b", "main")
+	run(t, dir, "init", "-q", "-b", "feat")
+	run(t, dir, "remote", "add", "origin", remote)
+	write(t, dir, "a.txt", "a\n")
+	run(t, dir, "add", ".")
+	run(t, dir, "commit", "-q", "-m", "a")
+
+	if _, ok := PushedBranch(ctx, dir); ok {
+		t.Fatal("no upstream: want ok=false")
+	}
+	run(t, dir, "push", "-q", "-u", "origin", "feat")
+	if b, ok := PushedBranch(ctx, dir); !ok || b != "feat" {
+		t.Fatalf("pushed: got %q, %v", b, ok)
+	}
+	write(t, dir, "b.txt", "b\n")
+	if _, ok := PushedBranch(ctx, dir); ok {
+		t.Fatal("untracked file: want ok=false")
+	}
+	run(t, dir, "add", ".")
+	run(t, dir, "commit", "-q", "-m", "b")
+	if _, ok := PushedBranch(ctx, dir); ok {
+		t.Fatal("unpushed commit: want ok=false")
+	}
+}

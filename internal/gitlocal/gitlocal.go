@@ -205,3 +205,22 @@ func ParseRemoteURL(url string) (owner, repo string, ok bool) {
 	owner = s[strings.LastIndexAny(s, "/:")+1:]
 	return owner, repo, owner != "" && repo != ""
 }
+
+// PushedBranch returns the origin branch HEAD tracks when the working tree has no changes
+// (untracked files included) and no commits that aren't on that branch; ok is false otherwise.
+func PushedBranch(ctx context.Context, dir string) (branch string, ok bool) {
+	upstream, err := git(ctx, dir, "rev-parse", "--abbrev-ref", "@{upstream}")
+	branch, ok = strings.CutPrefix(strings.TrimSpace(upstream), "origin/")
+	if err != nil || !ok {
+		return "", false
+	}
+	status, err := git(ctx, dir, "status", "--porcelain")
+	if err != nil || status != "" {
+		return "", false
+	}
+	ahead, err := git(ctx, dir, "rev-list", "--count", "@{upstream}..HEAD")
+	if err != nil || strings.TrimSpace(ahead) != "0" {
+		return "", false
+	}
+	return branch, true
+}
