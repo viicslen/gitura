@@ -19,9 +19,10 @@ export const scaleIn = {
 /**
  * Base classes of an in-flow block that opens and closes so its siblings glide. Its single child needs `min-h-0` and no
  * padding or border of its own (they would keep the closed block from reaching zero); spacing goes on a margin of the
- * block or inside the child.
+ * block or inside the child. The `minmax(0,1fr)` column keeps wide content (tables, code) scrolling inside the block
+ * instead of widening it past its parent.
  */
-export const collapsible = 'grid transition-[grid-template-rows,margin,opacity]'
+export const collapsible = 'grid grid-cols-[minmax(0,1fr)] transition-[grid-template-rows,margin,opacity]'
 export const collapse = {
   enterActiveClass: '*:overflow-hidden',
   enterFromClass: 'grid-rows-[0fr] my-0! opacity-0',
