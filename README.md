@@ -29,7 +29,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 | Settings | Light theme |
 | -------- | ----------- |
 | ![Settings](https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-settings.png) | ![Light theme](https://github.com/viicslen/gitura/raw/assets/pr-screenshots/readme-review-light.png) |
-| Fonts and text size, ignored commenters, CLI commands to run on a comment, and keybindings | Dark, light, and system themes |
+| Theme, fonts and text size, review and file-list preferences, PR list defaults, ignored commenters, CLI commands to run on a comment, and keybindings | Dark, light, and system themes |
 
 ## Features
 
@@ -48,6 +48,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch its output stream live in the run panel
 - **Ignored commenters** — filter out CI bot noise by username
 - **Configurable shortcuts** — rebind the keys that move between files and threads in Settings → Keyboard
+- **Preferences in one place** — theme, line wrapping, hiding viewed or test files, and the PR list's default filters live in Settings and `settings.toml`; the quick toggles in the app use the same values. Settings → Review → Leave the review after merging goes back to the PR list once you merge from the review (a `--focus` window closes instead)
 - **Open a PR from the command line** — `gitura 123` or `gitura my-branch` opens that PR straight away; the repository comes from the current directory's `origin` remote, or pass `--repo owner/repo`. A running window is reused unless you pass `--new-window`. `--focus` opens it in its own window with only that review: no PR list, nothing to navigate away to, and the main window is left alone. `gitura --local [path]` reviews the local changes of a checkout instead (default: the current directory)
 - **Dark, light, and system themes**
 - **Readable type** — Inter and JetBrains Mono by default; switch to Atkinson Hyperlegible or system fonts and scale the text size in Settings

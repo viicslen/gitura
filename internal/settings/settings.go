@@ -30,6 +30,9 @@ type Config struct {
 	// Keybindings maps a shortcut action id (e.g. "nextFile") to a KeyboardEvent.key value.
 	// Actions missing here use the frontend's defaults.
 	Keybindings map[string]string `toml:"keybindings"`
+	// Toggles maps an on/off preference id (e.g. "wrap_lines") to its value.
+	// Ids missing here use the frontend's defaults.
+	Toggles map[string]bool `toml:"toggles"`
 }
 
 // ConfigDir returns the OS-appropriate configuration directory for gitura,
@@ -83,6 +86,7 @@ type decodedConfig struct {
 	DefaultCommandID   string                      `toml:"default_command_id"`
 	Appearance         model.AppearanceDTO         `toml:"appearance"`
 	Keybindings        map[string]string           `toml:"keybindings"`
+	Toggles            map[string]bool             `toml:"toggles"`
 }
 
 func readFile(path string) ([]byte, error) {
@@ -114,6 +118,7 @@ func buildConfig(raw decodedConfig) Config {
 		DefaultCommandName: raw.DefaultCommandName,
 		Appearance:         raw.Appearance,
 		Keybindings:        raw.Keybindings,
+		Toggles:            raw.Toggles,
 	}
 	for _, c := range raw.Commands {
 		cfg.Commands = append(cfg.Commands, model.CommandDTO{

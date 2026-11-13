@@ -45,13 +45,7 @@ func (a *App) AddCommand(cmd model.CommandDTO) ([]model.CommandDTO, error) {
 		}
 	}
 	a.commands = append(a.commands, cmd)
-	if err := settings.Save(settings.Config{
-		IgnoredCommenters:  a.ignoredCommenters,
-		Commands:           a.commands,
-		DefaultCommandName: a.defaultCommandName,
-		Appearance:         a.appearance,
-		Keybindings:        a.keybindings,
-	}); err != nil {
+	if err := settings.Save(a.config()); err != nil {
 		a.commands = a.commands[:len(a.commands)-1]
 		return nil, fmt.Errorf("settings: save: %w", err)
 	}
@@ -87,13 +81,9 @@ func (a *App) RemoveCommand(name string) ([]model.CommandDTO, error) {
 	if a.defaultCommandName == name {
 		a.defaultCommandName = ""
 	}
-	if err := settings.Save(settings.Config{
-		IgnoredCommenters:  a.ignoredCommenters,
-		Commands:           updated,
-		DefaultCommandName: a.defaultCommandName,
-		Appearance:         a.appearance,
-		Keybindings:        a.keybindings,
-	}); err != nil {
+	cfg := a.config()
+	cfg.Commands = updated
+	if err := settings.Save(cfg); err != nil {
 		return nil, fmt.Errorf("settings: save: %w", err)
 	}
 	a.commands = updated
@@ -120,13 +110,9 @@ func (a *App) SetKeybindings(bindings map[string]string) error {
 	if err := a.loadConfig(); err != nil {
 		return fmt.Errorf("settings: load: %w", err)
 	}
-	if err := settings.Save(settings.Config{
-		IgnoredCommenters:  a.ignoredCommenters,
-		Commands:           a.commands,
-		DefaultCommandName: a.defaultCommandName,
-		Appearance:         a.appearance,
-		Keybindings:        bindings,
-	}); err != nil {
+	cfg := a.config()
+	cfg.Keybindings = bindings
+	if err := settings.Save(cfg); err != nil {
 		return fmt.Errorf("settings: save: %w", err)
 	}
 	a.keybindings = maps.Clone(bindings)
@@ -165,13 +151,7 @@ func (a *App) SetDefaultCommandName(name string) error {
 		}
 	}
 	a.defaultCommandName = name
-	if err := settings.Save(settings.Config{
-		IgnoredCommenters:  a.ignoredCommenters,
-		Commands:           a.commands,
-		DefaultCommandName: a.defaultCommandName,
-		Appearance:         a.appearance,
-		Keybindings:        a.keybindings,
-	}); err != nil {
+	if err := settings.Save(a.config()); err != nil {
 		return err
 	}
 	return nil
@@ -195,13 +175,9 @@ func (a *App) SetAppearance(appearance model.AppearanceDTO) error {
 	if err := a.loadConfig(); err != nil {
 		return fmt.Errorf("settings: load: %w", err)
 	}
-	if err := settings.Save(settings.Config{
-		IgnoredCommenters:  a.ignoredCommenters,
-		Commands:           a.commands,
-		DefaultCommandName: a.defaultCommandName,
-		Appearance:         appearance,
-		Keybindings:        a.keybindings,
-	}); err != nil {
+	cfg := a.config()
+	cfg.Appearance = appearance
+	if err := settings.Save(cfg); err != nil {
 		return fmt.Errorf("settings: save: %w", err)
 	}
 	a.appearance = appearance
@@ -213,4 +189,30 @@ func (a *App) SetAppearance(appearance model.AppearanceDTO) error {
 // Error prefix: "fonts:" — the platform font listing failed.
 func (a *App) ListSystemFonts() ([]string, error) {
 	return fonts.List(a.ctx)
+}
+
+// GetToggles returns the user's on/off preferences, keyed by toggle id.
+//
+// Error prefix: "settings:" — load failure.
+func (a *App) GetToggles() (map[string]bool, error) {
+	if err := a.loadConfig(); err != nil {
+		return nil, fmt.Errorf("settings: load: %w", err)
+	}
+	return maps.Clone(a.toggles), nil
+}
+
+// SetToggles replaces the user's on/off preferences.
+//
+// Error prefix: "settings:" — load or save failure.
+func (a *App) SetToggles(toggles map[string]bool) error {
+	if err := a.loadConfig(); err != nil {
+		return fmt.Errorf("settings: load: %w", err)
+	}
+	cfg := a.config()
+	cfg.Toggles = toggles
+	if err := settings.Save(cfg); err != nil {
+		return fmt.Errorf("settings: save: %w", err)
+	}
+	a.toggles = maps.Clone(toggles)
+	return nil
 }
