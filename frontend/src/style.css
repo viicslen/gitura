@@ -46,6 +46,13 @@
   --default-transition-duration: var(--transition-duration-base);
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
   --default-transition-timing-function: var(--ease-out);
+  /* Showpiece motion (wow-* below): deliberately outside the budget above. */
+  --transition-duration-show: 700ms;
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Effect accents around the logo's emerald; a shade darker than the logo in light mode to hold contrast on white. */
+  --color-wow-1: #10b981;
+  --color-wow-2: #14b8a6;
+  --color-wow-3: #84cc16;
 }
 
 /* animate-in / animate-out run our keyframes and fall back to the motion tokens, not tw-animate's literal 150ms and `ease`.
@@ -56,6 +63,7 @@
   --animation-duration-base: var(--transition-duration-base);
   --animation-duration-slow: var(--transition-duration-slow);
   --animation-duration-slower: var(--transition-duration-slower);
+  --animation-duration-show: var(--transition-duration-show);
   --animate-in: flow-enter var(--tw-animation-duration, var(--tw-duration, var(--transition-duration-base))) var(--tw-ease, var(--ease-out)) var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal) var(--tw-animation-fill-mode, none);
   --animate-out: flow-exit var(--tw-animation-duration, var(--tw-duration, var(--transition-duration-base))) var(--tw-ease, var(--ease-out)) var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal) var(--tw-animation-fill-mode, none);
 }
@@ -74,6 +82,116 @@
     transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0) scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1)) rotate(var(--tw-exit-rotate, 0));
   }
 }
+
+/* A real spring where the webview has linear(); the bezier above overshoots once elsewhere. */
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017, 1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%, 1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%, 0.997 69.8%, 1.003 76.9%, 1.004 83.8%, 1);
+  }
+}
+
+/* Showpiece utilities. Enters stagger by `--i` (the item's index). The ones that draw a pseudo-element need a
+   positioned host, and v-pointer (components/motion/wow.ts) feeds --mx/--my/--px/--py to spotlight and tilt. */
+@property --wow-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@utility wow-rise {
+  animation: wow-rise var(--transition-duration-show) var(--ease-spring) both;
+  animation-delay: calc(min(var(--i, 0), 14) * 45ms);
+}
+@utility wow-pop {
+  animation: wow-pop var(--transition-duration-slower) var(--ease-spring) both;
+  animation-delay: calc(min(var(--i, 0), 14) * 45ms);
+}
+@utility wow-focus-in {
+  animation: wow-focus-in var(--transition-duration-show) var(--ease-out) both;
+}
+@utility wow-shake {
+  animation: wow-shake var(--transition-duration-slower) var(--ease-out);
+}
+@utility wow-draw {
+  stroke-dasharray: 1;
+  animation: wow-draw var(--transition-duration-slower) var(--ease-out) both;
+}
+@utility wow-tilt {
+  transform: perspective(60rem) rotateX(calc(var(--py, 0) * -10deg)) rotateY(calc(var(--px, 0) * 10deg));
+  transition: transform var(--transition-duration-slow) var(--ease-out);
+}
+@utility wow-spotlight {
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--transition-duration-slow) var(--ease-out);
+    background: radial-gradient(circle 14rem at var(--mx, 50%) var(--my, 50%), color-mix(in oklab, var(--color-wow-1) 18%, transparent), transparent 70%);
+  }
+  &:hover::before {
+    opacity: 1;
+  }
+}
+@utility wow-sheen {
+  overflow: hidden;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    translate: -100% 0;
+    background: linear-gradient(105deg, transparent 35%, color-mix(in oklab, var(--color-wow-2) 35%, transparent) 50%, transparent 65%);
+    animation: wow-sheen 900ms var(--ease-out) 150ms;
+  }
+}
+@utility wow-ring {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    box-shadow: 0 0 0 2px var(--color-wow-2);
+    animation: wow-ring var(--transition-duration-show) var(--ease-out);
+  }
+}
+@utility wow-glow {
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    padding: 1.5px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: conic-gradient(from var(--wow-angle), var(--color-wow-1), var(--color-wow-2), var(--color-wow-3), var(--color-wow-1));
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: wow-spin 2.4s linear infinite;
+  }
+}
+@utility wow-aurora {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(35% 40% at 25% 30%, color-mix(in oklab, var(--color-wow-1) 45%, transparent), transparent 70%),
+    radial-gradient(30% 35% at 75% 25%, color-mix(in oklab, var(--color-wow-2) 40%, transparent), transparent 70%),
+    radial-gradient(40% 40% at 55% 80%, color-mix(in oklab, var(--color-wow-3) 35%, transparent), transparent 70%);
+  filter: blur(48px);
+  animation: wow-drift 16s ease-in-out infinite alternate;
+}
+@keyframes wow-rise { from { opacity: 0; translate: 0 1.25rem; scale: 0.94; } }
+@keyframes wow-pop { from { opacity: 0; scale: 0.5; } }
+@keyframes wow-focus-in { from { opacity: 0; scale: 1.08; filter: blur(12px); } }
+@keyframes wow-shake { 20% { translate: -6px 0; } 40% { translate: 5px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; } }
+@keyframes wow-draw { from { stroke-dashoffset: 1; } }
+@keyframes wow-sheen { to { translate: 100% 0; } }
+@keyframes wow-ring { from { opacity: 0.9; scale: 1; } to { opacity: 0; scale: 2.2; } }
+@keyframes wow-spin { to { --wow-angle: 360deg; } }
+@keyframes wow-drift { to { transform: translate3d(6%, -4%, 0) rotate(25deg) scale(1.15); } }
 
 @layer base {
   * {
@@ -111,6 +229,9 @@
   --color-border: hsl(240 3.7% 15.9%);
   --color-input: hsl(240 3.7% 15.9%);
   --color-ring: hsl(240 4.9% 83.9%);
+  --color-wow-1: #34d399;
+  --color-wow-2: #2dd4bf;
+  --color-wow-3: #a3e635;
 }
 
 /* highlight.js — dark mode overrides (GitHub Dark Dimmed palette) */
@@ -156,6 +277,11 @@
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
+  }
+  /* The 1ms above would still leave staggered enters hidden for their delay, and the tilt following the pointer. */
+  [class*="wow-"] {
+    animation: none !important;
+    transform: none !important;
   }
 }
 
