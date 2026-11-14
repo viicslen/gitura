@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type * as model from '@/bindings/gitura/internal/model'
 import PlainMarkdownBody from '@/components/markdown/PlainMarkdownBody.vue'
 import EditableComment from '@/components/comment/EditableComment.vue'
@@ -8,7 +8,10 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
 import { taskToggler } from '@/lib/taskList'
-import { collapse, collapsible, crossfade, scaleIn } from '@/components/motion/motion'
+import { collapse, collapsible, crossfade } from '@/components/motion/motion'
+import CountUp from '@/components/motion/CountUp.vue'
+import DrawnCheck from '@/components/comment/DrawnCheck.vue'
+import { vPointer } from '@/components/motion/wow'
 
 const props = defineProps<{
   overview: model.PROverviewDTO | null
@@ -26,13 +29,30 @@ const hasOpenReview = computed(() => visibleReviews.value.some((r) => r.has_thre
 
 const sectionOrder = computed(() => (hasOpenReview.value ? ['reviews', 'general'] : ['general', 'reviews']))
 const reviewTotal = computed(() => Object.keys(props.overview?.review_numbers ?? {}).length)
-const reviewCount = computed(() => {
-  const shown = props.overview?.reviews.length ?? 0
-  return reviewTotal.value > shown ? `${shown} of ${reviewTotal.value}` : `${shown}`
-})
+
+// Left on, the opening cascade would replay on every return to this tab: it goes once it has started on screen.
+const cascade = ref(true)
+function cascadeStarted(): void {
+  setTimeout(() => { cascade.value = false }, 2200)
+}
+
+function cardIndex(section: string, index: number): number {
+  const [first] = sectionOrder.value
+  const before = section === first ? 0 : first === 'general' ? visibleGeneralComments.value.length : visibleReviews.value.length
+  return 1 + before + index
+}
+
+/** A card that arrives later (a submitted review, a new comment) is swept by light, and its state badge bursts a ring. */
+function celebrateNew(wrapper: Element): void {
+  const effects: [Element | null, string][] = [[wrapper.querySelector('[data-slot="card"]'), 'wow-sheen'], [wrapper.querySelector('[data-burst]'), 'wow-ring']]
+  for (const [el, effect] of effects) {
+    el?.classList.add(effect)
+    setTimeout(() => el?.classList.remove(effect), 1200)
+  }
+}
 
 // Off-screen cards skip rendering and stand in at their last rendered height, or 320px before they were ever rendered.
-const cardClass = 'gap-4 py-4 shadow-none [content-visibility:auto] [contain-intrinsic-size:auto_320px]'
+const cardClass = 'relative wow-spotlight gap-4 py-4 shadow-none [content-visibility:auto] [contain-intrinsic-size:auto_320px]'
 // A card that is opening is clipped, which counts as off-screen: it would open to 320px and then snap to its real height.
 const cardCollapse = { ...collapse, enterActiveClass: `${collapse.enterActiveClass} **:[content-visibility:visible]!` }
 
@@ -96,17 +116,18 @@ function avatarKey(prefix: string, id: number): string {
         </span>
       </div>
 
-      <div v-else class="[grid-area:1/1] min-h-0 overflow-y-auto">
+      <div v-else class="[grid-area:1/1] min-h-0 overflow-y-auto" @animationstart.once="cascadeStarted">
         <!-- The two sections trade places when the last open conversation is resolved; they glide instead of jumping. -->
         <TransitionGroup tag="div" class="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4" move-class="transition-transform duration-slow ease-in-out">
-          <Card key="description" class="shadow-none">
+          <Card key="description" v-pointer class="relative wow-spotlight shadow-none" :class="cascade && 'card-in'">
             <CardContent>
-              <ul v-if="overview.summary.labels?.length" class="mb-3 flex flex-wrap gap-1.5" aria-label="Labels">
+              <ul v-if="overview.summary.labels?.length" class="labels mb-3 flex flex-wrap gap-1.5" aria-label="Labels">
                 <li
                   v-for="label in overview.summary.labels"
                   :key="label.name"
                   :title="label.description || undefined"
                   class="rounded-full px-2 py-0.5 text-xs font-medium"
+                  :class="cascade && 'pop-late'"
                   :style="labelStyle(label.color)"
                 >{{ label.name }}</li>
               </ul>
@@ -126,13 +147,13 @@ function avatarKey(prefix: string, id: number): string {
 
           <template v-for="section in sectionOrder" :key="section">
             <section v-if="section === 'general'">
-              <div class="flex items-center justify-between">
+              <div class="flex items-center justify-between" :class="cascade && 'wow-rise'" :style="{ '--i': cardIndex('general', 0) }">
                 <h2 class="text-sm font-semibold">General comments</h2>
-                <span class="text-xs text-muted-foreground tabular-nums">{{ visibleGeneralComments.length }}</span>
+                <CountUp :value="visibleGeneralComments.length" class="text-xs text-muted-foreground" />
               </div>
 
               <!-- Margins on the items, not space-y: a card opening or closing takes its gap with it. -->
-              <TransitionGroup tag="div" v-bind="cardCollapse">
+              <TransitionGroup tag="div" v-bind="cardCollapse" @before-enter="celebrateNew">
                 <div v-if="visibleGeneralComments.length === 0" key="empty" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
                     <div class="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
@@ -141,9 +162,9 @@ function avatarKey(prefix: string, id: number): string {
                   </div>
                 </div>
 
-                <div v-for="comment in visibleGeneralComments" :key="comment.id" class="mt-3" :class="collapsible">
+                <div v-for="(comment, index) in visibleGeneralComments" :key="comment.id" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
-                    <Card :class="cardClass">
+                    <Card v-pointer :class="[cardClass, cascade && 'card-in']" :style="{ '--i': cardIndex('general', index) }">
                       <CardHeader class="px-4 pb-0">
                         <div class="flex items-center gap-3 min-w-0">
                           <img
@@ -151,6 +172,7 @@ function avatarKey(prefix: string, id: number): string {
                             :src="avatarSrc(avatarKey('pr-comment', comment.id), comment.author_avatar)"
                             :alt="comment.author_login"
                             class="h-7 w-7 rounded-full bg-muted"
+                            :class="cascade && 'wow-pop'"
                             @error="handleAvatarError(avatarKey('pr-comment', comment.id), comment.author_avatar)"
                           />
                           <span v-else :class="avatarFallbackClass">
@@ -176,7 +198,7 @@ function avatarKey(prefix: string, id: number): string {
             </section>
 
             <section v-else>
-              <div class="flex items-center justify-between">
+              <div class="flex items-center justify-between" :class="cascade && 'wow-rise'" :style="{ '--i': cardIndex('reviews', 0) }">
                 <h2 class="text-sm font-semibold">
                   Reviews
                   <Transition v-bind="crossfade">
@@ -193,14 +215,14 @@ function avatarKey(prefix: string, id: number): string {
                     class="grid justify-items-end text-xs text-muted-foreground tabular-nums after:invisible after:h-0 after:content-[attr(data-widest)] after:[grid-area:1/1]"
                     :data-widest="`${reviewTotal} of ${reviewTotal}`"
                   >
-                    <Transition v-bind="crossfade">
-                      <span :key="reviewCount" class="[grid-area:1/1]">{{ reviewCount }}</span>
-                    </Transition>
+                    <span class="[grid-area:1/1]">
+                      <CountUp :value="visibleReviews.length" /><template v-if="reviewTotal > visibleReviews.length"> of <CountUp :value="reviewTotal" /></template>
+                    </span>
                   </span>
                 </div>
               </div>
 
-              <TransitionGroup tag="div" v-bind="cardCollapse">
+              <TransitionGroup tag="div" v-bind="cardCollapse" @before-enter="celebrateNew">
                 <div v-if="visibleReviews.length === 0" key="empty" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
                     <div class="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
@@ -209,9 +231,9 @@ function avatarKey(prefix: string, id: number): string {
                   </div>
                 </div>
 
-                <div v-for="review in visibleReviews" :key="review.review_id" class="mt-3" :class="collapsible">
+                <div v-for="(review, index) in visibleReviews" :key="review.review_id" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
-                    <Card :class="cardClass">
+                    <Card v-pointer :class="[cardClass, cascade && 'card-in']" :style="{ '--i': cardIndex('reviews', index) }">
                       <CardHeader class="px-4 pb-0">
                         <div class="flex items-start gap-3 justify-between">
                           <div class="flex items-center gap-3 min-w-0">
@@ -220,6 +242,7 @@ function avatarKey(prefix: string, id: number): string {
                               :src="avatarSrc(avatarKey('review', review.review_id), review.author_avatar)"
                               :alt="review.author_login"
                               class="h-7 w-7 rounded-full bg-muted"
+                            :class="cascade && 'wow-pop'"
                               @error="handleAvatarError(avatarKey('review', review.review_id), review.author_avatar)"
                             />
                             <span v-else :class="avatarFallbackClass">
@@ -229,14 +252,22 @@ function avatarKey(prefix: string, id: number): string {
                               <div class="flex items-center gap-2 min-w-0 flex-wrap">
                                 <span class="text-sm font-medium truncate">{{ review.author_login }}</span>
                                 <Badge variant="secondary" class="text-[0.625rem] font-normal shrink-0">{{ reviewLabel(review) }}</Badge>
-                                <Badge variant="outline" class="text-[0.625rem] uppercase shrink-0">{{ reviewStateLabel(review) }}</Badge>
+                                <span data-burst class="relative inline-flex shrink-0 rounded-full" :class="cascade && 'pop-late'">
+                                  <Badge variant="outline" class="text-[0.625rem] uppercase">{{ reviewStateLabel(review) }}</Badge>
+                                </span>
                               </div>
                               <div class="text-xs text-muted-foreground">{{ formatTimestamp(review.submitted_at) }}</div>
                             </div>
                           </div>
-                          <Transition v-bind="scaleIn">
-                            <span v-if="review.all_threads_resolved" class="inline-flex shrink-0">
-                              <Badge variant="secondary" class="text-[0.625rem]">All conversations resolved</Badge>
+                          <!-- The explicit duration lets the ring finish: left to itself the enter ends with the shorter pop. -->
+                          <Transition
+                            enter-active-class="wow-pop wow-ring"
+                            leave-active-class="transition-[opacity,scale] duration-faster"
+                            leave-to-class="opacity-0 scale-90"
+                            :duration="{ enter: 700, leave: 80 }"
+                          >
+                            <span v-if="review.all_threads_resolved" class="relative inline-flex shrink-0 rounded-full">
+                              <Badge variant="secondary" class="text-[0.625rem]"><DrawnCheck /> All conversations resolved</Badge>
                             </span>
                           </Transition>
                         </div>
@@ -250,7 +281,7 @@ function avatarKey(prefix: string, id: number): string {
                         <div v-else class="text-sm text-muted-foreground">No review body.</div>
 
                         <div v-if="review.has_threads" class="text-xs text-muted-foreground">
-                          {{ review.resolved_thread_count }}/{{ review.total_thread_count }} linked conversation{{ review.total_thread_count !== 1 ? 's' : '' }} resolved
+                          <CountUp :value="review.resolved_thread_count" />/{{ review.total_thread_count }} linked conversation{{ review.total_thread_count !== 1 ? 's' : '' }} resolved
                         </div>
                       </CardContent>
                     </Card>
@@ -264,3 +295,33 @@ function avatarKey(prefix: string, id: number): string {
     </Transition>
   </div>
 </template>
+
+<style scoped>
+.card-in {
+  transform-origin: 50% 0;
+  animation: card-in var(--transition-duration-show) var(--ease-spring) backwards;
+  animation-delay: calc(min(var(--i, 0), 14) * 70ms);
+}
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: perspective(60rem) translateY(2.5rem) rotateX(-32deg) scale(0.92);
+  }
+}
+/* Lands after the card that carries it. */
+.pop-late {
+  animation: wow-pop var(--transition-duration-slower) var(--ease-spring) backwards;
+  animation-delay: calc(min(var(--i, 0), 14) * 70ms + 300ms);
+}
+.labels > :nth-child(2) { --i: 1; }
+.labels > :nth-child(3) { --i: 2; }
+.labels > :nth-child(4) { --i: 3; }
+.labels > :nth-child(n + 5) { --i: 4; }
+/* The global reduced-motion rule shortens animations but keeps their delay, which would leave these hidden for it. */
+@media (prefers-reduced-motion: reduce) {
+  .card-in,
+  .pop-late {
+    animation: none;
+  }
+}
+</style>

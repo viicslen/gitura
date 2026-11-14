@@ -105,7 +105,7 @@ function onKeydown(event: KeyboardEvent): void {
       <div class="flex flex-wrap items-center gap-2">
         <span class="grid min-w-0">
           <Transition v-bind="crossfade">
-            <p v-if="error" :key="error" class="[grid-area:1/1] truncate text-xs text-destructive" :title="error">{{ error }}</p>
+            <p v-if="error" :key="error" class="[grid-area:1/1] truncate text-xs text-destructive wow-shake" :title="error">{{ error }}</p>
             <span v-else class="[grid-area:1/1] text-xs text-muted-foreground">Ctrl+Enter to save · Esc to cancel</span>
           </Transition>
         </span>
@@ -150,7 +150,7 @@ function onKeydown(event: KeyboardEvent): void {
         </p>
         <Transition v-bind="collapse">
           <div v-if="deleteError" :class="collapsible">
-            <div class="min-h-0"><p class="pt-2 text-sm text-destructive">{{ deleteError }}</p></div>
+            <div class="min-h-0"><p class="pt-2 text-sm text-destructive wow-shake">{{ deleteError }}</p></div>
           </div>
         </Transition>
       </div>

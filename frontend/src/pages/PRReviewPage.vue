@@ -18,6 +18,8 @@ import RunPanel from '@/components/run/RunPanel.vue'
 import DiffReviewView from '@/components/diff/DiffReviewView.vue'
 import PROverviewPanel from '@/components/pr/PROverviewPanel.vue'
 import BusyLabel from '@/components/motion/BusyLabel.vue'
+import CountUp from '@/components/motion/CountUp.vue'
+import { confetti } from '@/components/motion/wow'
 import { collapse, collapseX, collapsible, collapsibleX } from '@/components/motion/motion'
 import { useCommentThreads } from '@/composables/useCommentThreads'
 import { useRuns } from '@/composables/useRuns'
@@ -27,13 +29,20 @@ import type * as model from '@/bindings/gitura/internal/model'
 import { useToggles } from '@/composables/useToggles'
 import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
 import { toast } from 'vue-sonner'
-import { useReviewTabs } from '@/composables/useReviewTabs'
+import { useReviewTabs, type ReviewTab } from '@/composables/useReviewTabs'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
 import { useKeybindings, keyLabel } from '@/composables/useKeybindings'
 import type { UnsentComments } from '@/lib/diffLayout'
 
 const { reviewTab, tabBadges } = useReviewTabs()
-const tabIn = { enterActiveClass: 'transition-opacity duration-base', enterFromClass: 'opacity-0', leaveActiveClass: 'hidden' }
+// A tab slides in from the side its button sits on, and the one it replaces drops back. The Files tab can hold a diff
+// of thousands of lines, so going to or from it only the arriving panel moves and the other is gone at once.
+const TAB_ORDER: ReviewTab[] = ['overview', 'conversation', 'files']
+const tabMotion = ref('tab-next')
+watch(reviewTab, (to, from) => {
+  const side = TAB_ORDER.indexOf(to) > TAB_ORDER.indexOf(from) ? 'next' : 'prev'
+  tabMotion.value = to === 'files' || from === 'files' ? `tab-lite-${side}` : `tab-${side}`
+}, { flush: 'sync' })
 
 const props = defineProps<{
   prItem: PRRef
@@ -145,8 +154,16 @@ async function refreshOverview(): Promise<void> {
   }
 }
 
+const resolvingId = ref<number | null>(null)
+const conversationPane = ref<HTMLElement | null>(null)
+const unresolvedCount = computed(() => threads.value.filter((t) => !t.resolved).length)
+
 async function handleResolve(rootId: number): Promise<void> {
+  // Set for the one render in which the row leaves the list: resolveThread marks the thread before its first await.
+  resolvingId.value = rootId
   await resolveThread(rootId)
+  resolvingId.value = null
+  if (unresolvedCount.value === 0) confetti(reviewTab.value === 'conversation' ? conversationPane.value : null)
   await refreshOverview()
 }
 
@@ -181,6 +198,11 @@ const confirmingAction = ref<PRAction | null>(null)
 const confirmOpen = ref(false)
 const actionRunning = ref(false)
 const actionError = ref('')
+const actionFailures = ref(0)
+const mergeButton = ref<HTMLElement | null>(null)
+const mergedStamp = ref(false)
+// Longer than the merged-stamp animation below, which ends invisible: a busy reload can start it late.
+const STAMP_MS = 2600
 
 function askAction(action: PRAction): void {
   actionError.value = ''
@@ -195,11 +217,17 @@ async function runAction(): Promise<void> {
   try {
     await (action === 'close' ? ClosePR() : MergePR(action))
     confirmOpen.value = false
+    if (action !== 'close') {
+      confetti(mergeButton.value, 160)
+      mergedStamp.value = true
+      setTimeout(() => { mergedStamp.value = false }, STAMP_MS)
+    }
     toast.success(action === 'close' ? 'Pull request closed' : 'Pull request merged')
     await refreshPRView()
     if (action !== 'close' && toggles.value.return_after_merge) emit('close-review')
   } catch (err) {
     actionError.value = errorMessage(err)
+    actionFailures.value++
   } finally {
     actionRunning.value = false
   }
@@ -281,7 +309,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
+  <div class="relative flex flex-col h-full">
     <!-- Refresh affects the whole PR, so it lives in the title strip. -->
     <Teleport defer to="#title-strip-pr-actions">
       <Button
@@ -302,7 +330,7 @@ watch(
            as open. It closes up once the PR is merged or closed. -->
       <Transition v-bind="collapseX('-ml-0.5!')">
         <span v-if="(prSummary?.state ?? prItem.state ?? 'open') === 'open'" class="ml-1" :class="collapsibleX">
-          <span class="min-w-0">
+          <span ref="mergeButton" class="min-w-0">
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button
@@ -343,13 +371,13 @@ watch(
           </p>
           <Transition v-bind="collapse">
             <div v-if="actionError" :class="collapsible">
-              <div class="min-h-0"><p class="pt-2 text-sm text-destructive">{{ actionError }}</p></div>
+              <div class="min-h-0"><p :key="actionFailures" class="pt-2 text-sm text-destructive wow-shake">{{ actionError }}</p></div>
             </div>
           </Transition>
         </div>
         <DialogFooter>
           <Button variant="ghost" :disabled="actionRunning" @click="confirmOpen = false">Cancel</Button>
-          <Button :variant="confirmingAction === 'close' ? 'destructive' : 'default'" :disabled="actionRunning" @click="runAction()">
+          <Button :variant="confirmingAction === 'close' ? 'destructive' : 'default'" class="relative" :class="actionRunning && 'wow-glow'" :disabled="actionRunning" @click="runAction()">
             <BusyLabel :busy="actionRunning">{{ confirmingAction && prActionLabels[confirmingAction] }}</BusyLabel>
           </Button>
         </DialogFooter>
@@ -359,10 +387,9 @@ watch(
     <!-- Loader, error and content share one cell, so the loader fades out over what replaces it. -->
     <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-1">
       <Transition leave-active-class="transition-opacity duration-fast pointer-events-none" leave-to-class="opacity-0">
-        <!-- A tab fades in while the old one hides at once: fading the two over each other dropped frames, and so did
-             animate-in, whose keyframes also animate transform. -->
-        <div v-if="prSummary" class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 [grid-area:1/1]">
-          <Transition v-bind="tabIn">
+        <!-- Clipped: a panel sliding in overshoots its place for a few frames. -->
+        <div v-if="prSummary" class="grid min-h-0 min-w-0 grid-cols-1 grid-rows-1 overflow-hidden [grid-area:1/1]">
+          <Transition :name="tabMotion">
             <div v-show="reviewTab === 'conversation'" class="flex min-h-0 min-w-0 overflow-hidden [grid-area:1/1]">
               <!-- Left: thread list with its own filter -->
               <div class="w-72 shrink-0 border-r border-border flex flex-col min-h-0">
@@ -380,13 +407,13 @@ watch(
                       :class="!showResolved ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'"
                       :aria-pressed="!showResolved"
                       @click="showResolved && toggleShowResolved()"
-                    >Unresolved <span class="tabular-nums opacity-60">{{ threads.filter((t) => !t.resolved).length }}</span></button>
+                    >Unresolved <CountUp :value="unresolvedCount" class="opacity-60" /></button>
                     <button
                       class="relative rounded px-2 py-0.5 transition-colors duration-fast"
                       :class="showResolved ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'"
                       :aria-pressed="showResolved"
                       @click="!showResolved && toggleShowResolved()"
-                    >All <span class="tabular-nums opacity-60">{{ threads.length }}</span></button>
+                    >All <CountUp :value="threads.length" class="opacity-60" /></button>
                   </div>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto">
@@ -398,6 +425,7 @@ watch(
                     :show-resolved="showResolved"
                     :commands="commands"
                     :default-command-name="defaultCommandName"
+                    :resolving-id="resolvingId"
                     @select="handleSelect"
                     @show-all="toggleShowResolved()"
                     @ran="handleRan"
@@ -406,10 +434,13 @@ watch(
               </div>
 
               <!-- Right: thread pager, detail, run tools -->
-              <div class="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+              <div ref="conversationPane" class="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
                 <!-- Stays when no thread is listed, so the detail below never jumps. -->
                 <div class="h-10 shrink-0 border-b border-border px-4 flex items-center gap-1 text-xs">
-                  <span class="text-muted-foreground tabular-nums">{{ queue.length > 0 ? `Thread ${currentIndex + 1} of ${queue.length}` : 'No threads' }}</span>
+                  <span class="text-muted-foreground tabular-nums">
+                    <template v-if="queue.length > 0">Thread {{ currentIndex + 1 }} of <CountUp :value="queue.length" /></template>
+                    <template v-else>No threads</template>
+                  </span>
                   <span class="flex-1" />
                   <span class="hidden lg:inline text-muted-foreground/70 mr-2"><kbd class="font-sans">{{ keyLabel(bindings.prevThread) }}</kbd> <kbd class="font-sans">{{ keyLabel(bindings.nextThread) }}</kbd> to move</span>
                   <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="!canGoBack" @click="goPrev()">
@@ -423,6 +454,7 @@ watch(
                   :thread="currentThread"
                   :index="currentIndex"
                   :is-at-end="isAtEnd && queue.length > 0"
+                  :all-resolved="threads.length > 0 && unresolvedCount === 0"
                   :commands="commands"
                   :default-command-name="defaultCommandName"
                   class="flex-1 overflow-hidden"
@@ -495,7 +527,7 @@ watch(
             </div>
           </Transition>
 
-          <Transition v-bind="tabIn">
+          <Transition :name="tabMotion">
             <PROverviewPanel
               v-show="reviewTab === 'overview'"
               v-model:show-resolved-reviews="showResolvedReviews"
@@ -504,7 +536,7 @@ watch(
             />
           </Transition>
 
-          <Transition v-bind="tabIn">
+          <Transition :name="tabMotion">
             <DiffReviewView
               v-show="reviewTab === 'files'"
               ref="diffReviewRef"
@@ -524,24 +556,89 @@ watch(
         </div>
 
         <div v-else-if="error" class="[grid-area:1/1] flex flex-col items-center justify-center gap-3 p-6 animate-in fade-in-0 animation-duration-base">
-          <p class="text-sm text-destructive text-center">{{ error }}</p>
+          <p class="text-sm text-destructive text-center wow-shake">{{ error }}</p>
           <Button variant="outline" size="sm" :disabled="loading" @click="loadPR()">
             <BusyLabel :busy="loading">Retry</BusyLabel>
           </Button>
         </div>
 
-        <div v-else class="[grid-area:1/1] grid place-items-center">
+        <div v-else class="relative overflow-hidden [grid-area:1/1] grid place-items-center">
           <!-- Delayed, so a fast load goes straight to the content. -->
-          <div class="flex flex-col items-center gap-3 text-muted-foreground animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards">
+          <div aria-hidden="true" class="absolute inset-0 animate-in fade-in-0 animation-duration-show delay-200 fill-mode-backwards"><div class="wow-aurora opacity-50" /></div>
+          <div class="relative flex flex-col items-center gap-3 text-muted-foreground animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards">
             <RefreshCw class="h-6 w-6 animate-spin" />
             <div class="text-sm">Loading review…</div>
             <div class="text-xs tabular-nums" :class="{ invisible: loadProgress.loaded === 0 }">
-              {{ loadProgress.loaded }} thread{{ loadProgress.loaded !== 1 ? 's' : '' }} loaded
+              <CountUp :value="loadProgress.loaded" /> thread{{ loadProgress.loaded !== 1 ? 's' : '' }} loaded
               <span v-if="loadProgress.total > 0"> of {{ loadProgress.total }}</span>
             </div>
           </div>
         </div>
       </Transition>
     </div>
+
+    <div v-if="mergedStamp" aria-hidden="true" class="pointer-events-none absolute inset-0 z-50 grid place-items-center wow-sheen">
+      <div class="merged-stamp relative flex items-center gap-4 rounded-2xl border-4 border-wow-1 bg-background/80 px-10 py-5 text-5xl font-black tracking-widest text-wow-1 uppercase wow-ring">
+        <GitMerge class="size-12" />
+        Merged
+      </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.tab-next-enter-active,
+.tab-prev-enter-active,
+.tab-lite-next-enter-active,
+.tab-lite-prev-enter-active {
+  transition: opacity var(--transition-duration-base) var(--ease-out), transform var(--transition-duration-slower) var(--ease-spring);
+}
+.tab-next-enter-from {
+  opacity: 0;
+  transform: perspective(75rem) translateX(5rem) rotateY(-14deg) scale(0.94);
+}
+.tab-prev-enter-from {
+  opacity: 0;
+  transform: perspective(75rem) translateX(-5rem) rotateY(14deg) scale(0.94);
+}
+.tab-lite-next-enter-from {
+  opacity: 0;
+  transform: translateX(3rem);
+}
+.tab-lite-prev-enter-from {
+  opacity: 0;
+  transform: translateX(-3rem);
+}
+.tab-next-leave-active,
+.tab-prev-leave-active {
+  pointer-events: none;
+  transition: opacity var(--transition-duration-fast) var(--ease-out), transform var(--transition-duration-fast) var(--ease-out);
+}
+.tab-next-leave-to {
+  opacity: 0;
+  transform: perspective(75rem) translateX(-3rem) translateZ(-10rem);
+}
+.tab-prev-leave-to {
+  opacity: 0;
+  transform: perspective(75rem) translateX(3rem) translateZ(-10rem);
+}
+.tab-lite-next-leave-active,
+.tab-lite-prev-leave-active {
+  display: none;
+}
+
+/* Slams down from in front of the screen, holds, and lifts off; its ring bursts on impact. */
+.merged-stamp {
+  animation: merged-stamp 1900ms var(--ease-out) both;
+}
+.merged-stamp::after {
+  animation-delay: 300ms;
+}
+@keyframes merged-stamp {
+  0% { opacity: 0; transform: scale(4) rotate(-20deg); }
+  16% { opacity: 1; transform: scale(0.9) rotate(-7deg); }
+  22% { transform: scale(1.05) rotate(-7deg); }
+  28%, 80% { opacity: 1; transform: scale(1) rotate(-7deg); }
+  100% { opacity: 0; transform: scale(1.1) rotate(-7deg); }
+}
+</style>

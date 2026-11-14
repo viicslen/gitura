@@ -79,7 +79,7 @@ function handleKeydown(event: KeyboardEvent): void {
 
       <span class="grid min-w-0 justify-items-end">
         <Transition v-bind="crossfade">
-          <p v-if="inlineError" :key="inlineError" class="[grid-area:1/1] max-w-full text-xs text-destructive truncate">
+          <p v-if="inlineError" :key="inlineError" class="[grid-area:1/1] max-w-full text-xs text-destructive truncate wow-shake">
             {{ inlineError }}
           </p>
           <span v-else class="[grid-area:1/1] text-xs text-muted-foreground">

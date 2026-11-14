@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import type * as model from '@/bindings/gitura/internal/model'
 import CommentDiffHunk from './CommentDiffHunk.vue'
 import MarkdownBody from '@/components/markdown/MarkdownBody.vue'
@@ -7,6 +7,7 @@ import CommentBody from './CommentBody.vue'
 import ReplyComposer from './ReplyComposer.vue'
 import EditableComment from './EditableComment.vue'
 import SuggestionBlock from './SuggestionBlock.vue'
+import DrawnCheck from './DrawnCheck.vue'
 import SplitRunButton from '@/components/run/SplitRunButton.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,13 +16,15 @@ import { CheckCircle, Circle } from '@lucide/vue'
 import { langFromPath } from '@/lib/highlight'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
 import { taskToggler } from '@/lib/taskList'
-import { collapse, collapsible, crossfade, scaleIn } from '@/components/motion/motion'
+import { collapse, collapsible, crossfade } from '@/components/motion/motion'
 
 const props = defineProps<{
   thread: model.CommentThreadDTO | null
   /** Position of the thread in its list; decides which way a new thread comes in. */
   index: number
   isAtEnd: boolean
+  /** No thread is open because every one is resolved. */
+  allResolved?: boolean
   commands: model.CommandDTO[]
   defaultCommandName: string
 }>()
@@ -61,7 +64,10 @@ const rootComment = computed(() => props.thread?.comments?.[0] ?? null)
 const replies = computed(() => props.thread?.comments?.slice(1) ?? [])
 const { avatarSrc, handleAvatarError, avatarInitial } = useAvatarFallback()
 
+const freshReplyId = ref(0)
 function handleReplySent(comment: model.ReviewCommentDTO): void {
+  freshReplyId.value = comment.id
+  setTimeout(() => { if (freshReplyId.value === comment.id) freshReplyId.value = 0 }, 2400)
   emit('reply-sent', comment)
 }
 
@@ -88,29 +94,37 @@ function replyAvatarKey(replyId: number): string {
 
 <template>
   <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-1 overflow-hidden">
-    <Transition
-      :css="!swap.cut"
-      enter-active-class="transition-[opacity,translate] duration-fast"
-      :enter-from-class="swap.back ? 'opacity-0 -translate-y-1.5' : 'opacity-0 translate-y-1.5'"
-      leave-active-class="hidden"
-    >
+    <!-- A deck of cards: the open thread drops back and the next one comes forward, from below or from above. -->
+    <Transition :css="!swap.cut" :name="swap.back ? 'deck-back' : 'deck'">
       <div
         v-if="!thread"
-        key="none"
-        class="[grid-area:1/1] flex items-center justify-center text-muted-foreground text-sm p-6"
+        :key="allResolved ? 'done' : 'none'"
+        class="relative overflow-hidden [grid-area:1/1] flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm p-6"
       >
-        Select a comment to begin.
+        <template v-if="allResolved">
+          <div aria-hidden="true" class="wow-aurora opacity-60" />
+          <span class="relative grid size-24 place-items-center rounded-full text-wow-2 wow-pop wow-ring"><DrawnCheck ring class="size-20" /></span>
+          <p class="relative text-xl font-semibold text-foreground wow-focus-in">All conversations resolved</p>
+          <p class="relative wow-rise [--i:6]">Nothing on this pull request is waiting for an answer.</p>
+        </template>
+        <template v-else>Select a comment to begin.</template>
       </div>
 
-      <!-- Keyed so each thread fades in and starts at the top. The old one hides at once: fading both dropped frames. -->
+      <!-- Keyed so each thread comes in on its own and starts at the top. -->
       <ScrollArea v-else :key="thread.root_id" class="[grid-area:1/1] min-h-0">
         <div class="p-4">
           <!-- Fixed height: the badge is taller than the path and must not push the thread down. -->
           <div class="flex h-6 items-center gap-2 text-xs text-muted-foreground">
             <span class="font-mono truncate">{{ thread.path }}<span v-if="thread.line">:{{ thread.line }}</span></span>
-            <Transition v-bind="scaleIn">
-              <span v-if="thread.resolved" class="inline-flex shrink-0">
-                <Badge variant="secondary" class="text-xs opacity-70">Resolved</Badge>
+            <!-- The explicit duration lets the ring finish: left to itself the enter ends with the shorter pop. -->
+            <Transition
+              enter-active-class="wow-pop wow-ring"
+              leave-active-class="transition-[opacity,scale] duration-faster"
+              leave-to-class="opacity-0 scale-90"
+              :duration="{ enter: 700, leave: 80 }"
+            >
+              <span v-if="thread.resolved" class="relative inline-flex shrink-0 rounded-full">
+                <Badge variant="secondary" class="text-xs opacity-70"><DrawnCheck /> Resolved</Badge>
               </span>
             </Transition>
           </div>
@@ -185,7 +199,7 @@ function replyAvatarKey(replyId: number): string {
           <!-- Block layout with margins on the replies, not space-y: a reply opening or closing takes its gap with it. -->
           <TransitionGroup tag="div" class="border-l-2 border-border pl-4" v-bind="collapse">
             <div v-for="reply in replies" :key="reply.id" class="mt-3 first:mt-4" :class="collapsible">
-              <div class="min-h-0 space-y-1">
+              <div class="min-h-0 space-y-1" :class="reply.id === freshReplyId && 'wow-rise'">
                 <div class="flex items-center gap-2">
                   <img
                     v-if="reply.author_avatar && avatarSrc(replyAvatarKey(reply.id), reply.author_avatar)"
@@ -205,7 +219,7 @@ function replyAvatarKey(replyId: number): string {
                   <span class="text-sm font-medium">{{ reply.author_login }}</span>
                   <span class="text-xs text-muted-foreground">{{ formatTimestamp(reply.created_at) }}</span>
                 </div>
-                <div class="rounded-md bg-muted/30 px-3 py-2">
+                <div class="relative rounded-md bg-muted/30 px-3 py-2" :class="reply.id === freshReplyId && 'fresh-reply wow-glow'">
                   <EditableComment kind="review_comment" :id="reply.id" :target="reply">
                     <MarkdownBody :content="reply.body" :toggle-task="taskToggler('review_comment', reply.id, reply)" />
                   </EditableComment>
@@ -264,3 +278,37 @@ function replyAvatarKey(replyId: number): string {
     </Transition>
   </div>
 </template>
+
+<style scoped>
+.deck-enter-active,
+.deck-back-enter-active {
+  z-index: 1;
+  transition: opacity var(--transition-duration-base) var(--ease-out), transform var(--transition-duration-slower) var(--ease-spring);
+}
+.deck-enter-from {
+  opacity: 0;
+  transform: perspective(60rem) translateY(3.5rem) rotateX(-10deg) scale(1.05);
+}
+.deck-back-enter-from {
+  opacity: 0;
+  transform: perspective(60rem) translateY(-3.5rem) rotateX(10deg) scale(1.05);
+}
+.deck-leave-active,
+.deck-back-leave-active {
+  pointer-events: none;
+  transition: opacity var(--transition-duration-base) var(--ease-out), transform var(--transition-duration-base) var(--ease-out);
+}
+.deck-leave-to,
+.deck-back-leave-to {
+  opacity: 0;
+  transform: perspective(60rem) translateZ(-14rem);
+}
+/* The glow of a reply just sent fades out by itself, so taking the class off later changes nothing on screen. */
+.fresh-reply::before {
+  animation: wow-spin 2.4s linear infinite, fresh-reply-glow 2.2s var(--ease-out) forwards;
+}
+@keyframes fresh-reply-glow {
+  0%, 60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+</style>
