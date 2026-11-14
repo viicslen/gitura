@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Pages teleport into #title-strip-pr-actions (next to the PR title, only there while a PR is shown) and
 // #title-strip-actions (right side). Both fade in their direct children, which overrides any animation class set on such a child.
-import { computed, useTemplateRef, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import { ArrowLeft, ExternalLink } from '@lucide/vue'
 import PRStateBadge from './PRStateBadge.vue'
 import WindowControls from './WindowControls.vue'
@@ -14,14 +14,18 @@ const content = useTemplateRef('content')
 const shown = computed(() => (props.meta ? `${props.meta.owner}/${props.meta.repo}#${props.meta.number}` : props.localLabel ?? props.fallback))
 // The badge PRStateBadge will pick, so it only crossfades when what it shows changes.
 const badge = computed(() => (props.meta?.state === 'merged' || props.meta?.state === 'closed' ? props.meta.state : props.meta?.is_draft ? 'draft' : 'open'))
+// The badge the open pull request last changed to: that one bursts, and shines if it is the merge.
+const burst = ref<string | null>(null)
 
 // Teleported actions are removed the instant their page unmounts, so what fades out is a copy of the strip taken before the
 // change, laid over the live strip while that restarts its own fade-in.
 watch(
   shown,
   () => {
+    burst.value = null
     const live = content.value
-    if (!live) return
+    // A view transition already crossfades the whole strip.
+    if (!live || document.documentElement.dataset.vt) return
     const ghost = live.cloneNode(true) as HTMLElement
     ghost.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'))
     ghost.inert = true
@@ -52,29 +56,37 @@ watch(
           <button
             v-if="(meta || localLabel) && !focused"
             key="back"
-            class="h-7 w-7 shrink-0 grid place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            class="group h-7 w-7 shrink-0 grid place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             style="--wails-draggable: no-drag"
             aria-label="Back to pull requests"
             title="Back to pull requests"
             @click="emit('back')"
-          ><ArrowLeft class="h-4 w-4" /></button>
+          ><ArrowLeft class="h-4 w-4 transition-transform duration-slow ease-spring group-hover:-translate-x-1 group-active:scale-75" /></button>
           <template v-if="meta">
             <span :key="shown" class="text-sm truncate min-w-[4rem]" :title="`${meta.owner}/${meta.repo}#${meta.number} ${meta.title}`">
               <span class="text-muted-foreground">{{ meta.repo }} #{{ meta.number }}</span>
-              <span class="font-medium ml-1.5">{{ meta.title }}</span>
+              <span class="font-medium ml-1.5" data-vt-title>{{ meta.title }}</span>
             </span>
             <span key="state" class="grid shrink-0">
               <Transition
-                enter-active-class="animate-in fade-in-0 zoom-in-90"
+                enter-active-class="wow-pop"
                 leave-active-class="animate-out fade-out-0 zoom-out-90 animation-duration-fast"
+                @enter="burst = badge"
               >
                 <PRStateBadge
                   :key="badge"
                   :state="meta.state"
                   :is-draft="meta.is_draft"
                   class="col-start-1 row-start-1 justify-self-start"
+                  :class="burst === 'merged' && badge === 'merged' && 'relative wow-sheen'"
                 />
               </Transition>
+              <span
+                v-if="burst === badge"
+                :key="badge"
+                class="pointer-events-none relative col-start-1 row-start-1 rounded-full wow-ring"
+                aria-hidden="true"
+              />
             </span>
             <div key="actions" class="flex shrink-0 items-center gap-2">
               <button

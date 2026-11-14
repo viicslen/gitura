@@ -3,6 +3,8 @@ import { Minus, Square, X } from '@lucide/vue'
 import { Application, Window } from '@wailsio/runtime'
 
 defineProps<{ vertical?: boolean }>()
+
+const icon = 'transition-transform duration-slow ease-spring group-active:scale-75'
 </script>
 
 <template>
@@ -12,28 +14,28 @@ defineProps<{ vertical?: boolean }>()
     style="--wails-draggable: no-drag"
   >
     <button
-      class="grid place-items-center text-muted-foreground hover:bg-accent hover:text-foreground"
+      class="group grid place-items-center text-muted-foreground hover:bg-accent hover:text-foreground"
       :class="vertical ? 'h-7 w-7 rounded-md' : 'w-11'"
       aria-label="Minimise window"
       @click="Window.Minimise()"
     >
-      <Minus class="h-3.5 w-3.5" />
+      <Minus :class="[icon, 'h-3.5 w-3.5 group-hover:translate-y-1']" />
     </button>
     <button
-      class="grid place-items-center text-muted-foreground hover:bg-accent hover:text-foreground"
+      class="group grid place-items-center text-muted-foreground hover:bg-accent hover:text-foreground"
       :class="vertical ? 'h-7 w-7 rounded-md' : 'w-11'"
       aria-label="Maximise or restore window"
       @click="Window.ToggleMaximise()"
     >
-      <Square class="h-3 w-3" />
+      <Square :class="[icon, 'h-3 w-3 group-hover:scale-125']" />
     </button>
     <button
-      class="grid place-items-center text-muted-foreground hover:bg-red-600 hover:text-white"
+      class="group grid place-items-center text-muted-foreground hover:bg-red-600 hover:text-white"
       :class="vertical ? 'h-7 w-7 rounded-md' : 'w-11'"
       aria-label="Close window"
       @click="Application.Quit()"
     >
-      <X class="h-3.5 w-3.5" />
+      <X :class="[icon, 'h-3.5 w-3.5 group-hover:rotate-90']" />
     </button>
   </div>
 </template>

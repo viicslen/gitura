@@ -4,9 +4,9 @@
        allow multiple root elements. -->
   <Toaster position="bottom-right" richColors />
   <div class="h-screen flex overflow-hidden bg-background text-foreground">
-    <!-- :css is off until the first auth check, so the rail is simply there at launch and only glides on sign-in and sign-out. -->
+    <!-- :css is off until the first auth check and while the app is revealed, so the rail is simply there then and only glides on sign-out. -->
     <Transition
-      :css="authChecked"
+      :css="authChecked && !morphing"
       enter-active-class="transition-[width] duration-slower"
       enter-from-class="w-0!"
       leave-active-class="transition-[width] duration-slow"
@@ -35,8 +35,10 @@
     />
 
     <!-- Page routing: every page sits in the one grid cell, so the leaving page keeps its box while it fades out over the entering one. -->
-    <main class="relative grid flex-1 grid-cols-1 grid-rows-1 overflow-hidden">
+    <main class="relative grid flex-1 grid-cols-1 grid-rows-1 overflow-hidden" data-vt-page>
+      <!-- :css is off while a view transition makes the change, or the page would animate twice. -->
       <Transition
+        :css="!morphing"
         :enter-active-class="PAGE_MOTION[pageMotion].enter"
         :leave-active-class="PAGE_MOTION[pageMotion].leave"
         @before-leave="(el) => pageScroll.set(el, el.scrollTop)"
@@ -87,12 +89,18 @@
       </DialogContent>
     </Dialog>
     </div>
+    <!-- The rim of the circle the app is revealed through: a quarter of its final size, scaled up with it. -->
+    <div
+      v-if="morphing === 'signin' && railLayout"
+      class="vt-rim pointer-events-none fixed top-[calc(var(--vt-y)-var(--vt-r)/4)] left-[calc(var(--vt-x)-var(--vt-r)/4)] size-[calc(var(--vt-r)/2)] rounded-full border border-wow-2 shadow-[0_0_1.5rem_0.25rem_var(--color-wow-1),inset_0_0_1.5rem_0.25rem_var(--color-wow-3)]"
+      aria-hidden="true"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { errorMessage } from '@/lib/utils'
-import { computed, ref, reactive, onMounted, watch } from 'vue'
+import { computed, nextTick, ref, reactive, onMounted, watch } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import AuthPage from '@/pages/AuthPage.vue'
 import PRListPage from '@/pages/PRListPage.vue'
@@ -110,6 +118,7 @@ import type { PRRef } from '@/types/pr'
 import { Application, Browser, Events } from '@wailsio/runtime'
 import SideRail from '@/components/shell/SideRail.vue'
 import TitleStrip from '@/components/shell/TitleStrip.vue'
+import { canMorph, morph, morphing } from '@/components/shell/morph'
 
 const { authState, refreshAuthState, logout } = useAuth()
 const currentPage = ref<'prList' | 'review' | 'local'>('prList')
@@ -151,10 +160,36 @@ watch(
   { flush: 'sync' },
 )
 
+// The PR list row title that is the other end of the title strip title's flight (see the `page` rules below).
+let flown: Element | null = null
+function fly(pr: PRRef | null) {
+  flown?.removeAttribute('data-vt-title')
+  flown = pr && document.querySelector(`[data-pr-key="${CSS.escape(`${pr.owner}/${pr.repo}#${pr.number}`)}"] [data-pr-title]`)
+  flown?.setAttribute('data-vt-title', '')
+}
+
+let turns = 0
+/** Changes the page as the view transition `page`; `pr` is the pull request whose title flies between its row and the title strip. */
+async function turnPage(back: boolean, pr: PRRef | null, change: () => void) {
+  if (!canMorph()) return change()
+  const turn = ++turns
+  document.documentElement.toggleAttribute('data-vt-back', back)
+  if (!back) fly(pr)
+  await morph('page', async () => {
+    change()
+    if (!back) return
+    await nextTick()
+    fly(pr)
+  })
+  if (turn !== turns) return
+  fly(null)
+  document.documentElement.removeAttribute('data-vt-back')
+}
+
 function goHome() {
   if (focused.value !== false) return
   if (currentPage.value === 'review') handleCloseReview()
-  else currentPage.value = 'prList'
+  else void turnPage(true, null, () => (currentPage.value = 'prList'))
 }
 
 onMounted(async () => {
@@ -183,20 +218,26 @@ async function handleLogout() {
 }
 
 function handleOpenReview(item: PRRef) {
-  selectedPRItem.value = item
-  reviewNavMeta.value = { ...item }
-  currentPage.value = 'review'
+  void turnPage(false, item, () => {
+    selectedPRItem.value = item
+    reviewNavMeta.value = { ...item }
+    currentPage.value = 'review'
+  })
 }
 
 function handleOpenLocal(path: string) {
-  localPath.value = path
-  currentPage.value = 'local'
+  void turnPage(false, null, () => {
+    localPath.value = path
+    currentPage.value = 'local'
+  })
 }
 
 function handleCloseReview() {
-  currentPage.value = 'prList'
-  selectedPRItem.value = null
-  reviewNavMeta.value = null
+  void turnPage(true, reviewNavMeta.value, () => {
+    currentPage.value = 'prList'
+    selectedPRItem.value = null
+    reviewNavMeta.value = null
+  })
 }
 
 function handleUpdatePRMeta(meta: PRRef) {
@@ -236,3 +277,119 @@ useEventListener(document, 'click', (event: MouseEvent) => {
   zoomOpen.value = true
 })
 </script>
+
+<!-- Unscoped: view-transition pseudo-elements hang off <html>. Every rule is scoped to the transition's name in html[data-vt]. -->
+<style>
+/* page: the old page scales through and the new one springs forward (the other way round going back),
+   while the pull request title flies between its list row and the title strip. Nothing can be clicked
+   until the last of these animations ends, so the way back to the list is the shorter one. */
+html[data-vt='page'] [data-vt-page] {
+  view-transition-name: vt-page;
+}
+html[data-vt='page'] [data-vt-title] {
+  view-transition-name: vt-title;
+}
+html[data-vt='page']::view-transition-group(vt-page) {
+  overflow: clip;
+}
+html[data-vt='page']::view-transition-old(vt-page) {
+  mix-blend-mode: normal;
+  animation: vt-through var(--transition-duration-base) var(--ease-out) both;
+}
+html[data-vt='page']::view-transition-new(vt-page) {
+  mix-blend-mode: normal;
+  animation: vt-forward var(--transition-duration-show) var(--ease-spring) both;
+}
+html[data-vt='page'][data-vt-back]::view-transition-old(vt-page) {
+  animation-name: vt-recede;
+}
+html[data-vt='page'][data-vt-back]::view-transition-new(vt-page) {
+  animation-name: vt-return;
+  animation-duration: var(--transition-duration-slower);
+}
+html[data-vt='page']::view-transition-group(vt-title) {
+  z-index: 1;
+  animation-duration: var(--transition-duration-slower);
+  animation-timing-function: var(--ease-out);
+}
+html[data-vt='page']::view-transition-image-pair(vt-title) {
+  animation: vt-lift var(--transition-duration-slower) var(--ease-out);
+}
+/* Each end keeps its own size instead of being stretched to the other's box. */
+html[data-vt='page']::view-transition-old(vt-title),
+html[data-vt='page']::view-transition-new(vt-title) {
+  height: 100%;
+  object-fit: none;
+  object-position: left center;
+  animation-duration: var(--transition-duration-slower);
+}
+@keyframes vt-through {
+  to {
+    opacity: 0;
+    scale: 1.12;
+  }
+}
+@keyframes vt-forward {
+  from {
+    opacity: 0;
+    scale: 0.86;
+    translate: 0 2rem;
+  }
+}
+@keyframes vt-recede {
+  to {
+    opacity: 0;
+    scale: 0.86;
+  }
+}
+@keyframes vt-return {
+  from {
+    opacity: 0;
+    scale: 1.12;
+  }
+}
+@keyframes vt-lift {
+  50% {
+    scale: 1.12;
+    filter: drop-shadow(0 0 0.5rem var(--color-wow-1));
+  }
+}
+
+/* signin: the app is revealed through a circle growing out of the sign-in card; AuthPage sets --vt-x, --vt-y and --vt-r. */
+html[data-vt='signin'] .vt-rim {
+  view-transition-name: vt-rim;
+}
+html[data-vt='signin']::view-transition-old(root) {
+  animation: vt-recede var(--transition-duration-show) var(--ease-out) both;
+}
+html[data-vt='signin']::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation: vt-reveal var(--transition-duration-show) var(--ease-out) both;
+}
+html[data-vt='signin']::view-transition-new(vt-rim) {
+  animation:
+    vt-rim-grow var(--transition-duration-show) var(--ease-out) both,
+    vt-rim-fade var(--transition-duration-show) ease-in both;
+}
+@keyframes vt-reveal {
+  from {
+    clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+  to {
+    clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+}
+@keyframes vt-rim-grow {
+  from {
+    scale: 0;
+  }
+  to {
+    scale: 4;
+  }
+}
+@keyframes vt-rim-fade {
+  to {
+    opacity: 0;
+  }
+}
+</style>
