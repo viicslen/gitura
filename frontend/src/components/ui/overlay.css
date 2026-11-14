@@ -1,0 +1,36 @@
+/* Opening motion shared by the dialog, menu and select primitives; each imports this file. */
+
+/* Tailwind's order, restated because this file can load before style.css; consumers' utilities must still win. */
+@layer theme, base, components, utilities;
+
+@layer components {
+  .ui-dialog-in[data-state="open"] {
+    animation: ui-dialog-in var(--transition-duration-show) var(--ease-spring);
+  }
+  /* Vertical only: the item-aligned select measures its content's horizontal box while this runs. */
+  .ui-unfold-in[data-state="open"] {
+    animation: ui-unfold-in var(--transition-duration-slower) var(--ease-spring) both;
+  }
+  .ui-cascade[data-state="open"] :is([role^="menuitem"], [role="option"]) {
+    animation: ui-cascade-in var(--transition-duration-slower) var(--ease-spring) both;
+  }
+  /* Reduced motion keeps delays, which would leave the later items hidden for theirs. */
+  @media (prefers-reduced-motion: no-preference) {
+    .ui-cascade :is([role^="menuitem"], [role="option"]):nth-child(2) { animation-delay: 25ms; }
+    .ui-cascade :is([role^="menuitem"], [role="option"]):nth-child(3) { animation-delay: 50ms; }
+    .ui-cascade :is([role^="menuitem"], [role="option"]):nth-child(4) { animation-delay: 75ms; }
+    .ui-cascade :is([role^="menuitem"], [role="option"]):nth-child(5) { animation-delay: 100ms; }
+    .ui-cascade :is([role^="menuitem"], [role="option"]):nth-child(6) { animation-delay: 125ms; }
+    .ui-cascade :is([role^="menuitem"], [role="option"]):nth-child(7) { animation-delay: 150ms; }
+    .ui-cascade :is([role^="menuitem"], [role="option"]):nth-child(n + 8) { animation-delay: 175ms; }
+  }
+}
+
+/* Both ends spell out the same functions so the tilt interpolates per function, not as a decomposed matrix. */
+@keyframes ui-dialog-in {
+  from { opacity: 0; transform: perspective(50rem) translate3d(0, 2.5rem, -12rem) rotateX(22deg); }
+  to { transform: perspective(50rem) translate3d(0, 0, 0) rotateX(0deg); }
+}
+@keyframes ui-unfold-in { from { opacity: 0; scale: 1 0.6; } }
+/* From above, so a scrolling menu gains no overflow at its end while the items settle. */
+@keyframes ui-cascade-in { from { opacity: 0; translate: 0 -0.5rem; } }

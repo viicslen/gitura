@@ -4,6 +4,7 @@ import { toast } from 'vue-sonner'
 import { GetAppearance, ListSystemFonts, SetAppearance } from '@/bindings/gitura/internal/app/app'
 import type * as model from '@/bindings/gitura/internal/model'
 import { errorMessage } from '@/lib/utils'
+import { reducedMotion, viewTransition } from '@/components/motion/wow'
 
 interface Option {
   value: string
@@ -117,11 +118,49 @@ export function systemFontOptions(key: AppearanceKey): Option[] {
   return [...families].sort((a, b) => a.localeCompare(b)).map((f) => fontOption(key, f))
 }
 
+// Where a theme reveal starts: the last press, or the focused control once the keyboard has been used since.
+let pressed: { x: number; y: number } | null = null
+addEventListener('pointerdown', (e) => { pressed = { x: e.clientX, y: e.clientY } }, { capture: true, passive: true })
+addEventListener('keydown', () => { pressed = null }, { capture: true, passive: true })
+
+let reveals = 0
+
+/**
+ * Makes a theme change as the `theme` view transition: the new theme grows as a circle out of the control
+ * that asked for it (the CSS is in ThemeToggle.vue). Resolves once the change is made, not when the circle is done.
+ */
+function revealTheme(change: () => void): Promise<void> | void {
+  if (reducedMotion() || !document.startViewTransition) return change()
+  const box = (document.activeElement ?? document.body).getBoundingClientRect()
+  const { x, y } = pressed ?? { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  const root = document.documentElement
+  root.style.setProperty('--theme-x', `${x}px`)
+  root.style.setProperty('--theme-y', `${y}px`)
+  root.style.setProperty('--theme-r', `${Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))}px`)
+  const run = ++reveals
+  root.dataset.vt = 'theme'
+  return new Promise((made) => {
+    const make = (): void => {
+      change()
+      made()
+    }
+    // If the transition cannot run the change is still made, or `saving` would stay locked.
+    viewTransition(make).catch(make).finally(() => {
+      if (run === reveals && root.dataset.vt === 'theme') delete root.dataset.vt
+    })
+  })
+}
+
 export async function setAppearance(key: AppearanceKey, value: string) {
   if (saving.value || !option(key, value)) return
   const previous = state[key]
-  state[key] = value
   saving.value = true
+  // System resolving to the theme already shown changes nothing on screen, so it is not worth a capture.
+  if (key === 'theme' && (value === 'auto' ? colorMode.system.value : value) !== colorMode.state.value) {
+    await revealTheme(() => { state.theme = value })
+  } else {
+    state[key] = value
+  }
   try {
     await SetAppearance({ ...state })
   } catch (e: unknown) {

@@ -29,3 +29,26 @@ const props = withDefaults(defineProps<Props>(), {
     <slot />
   </Primitive>
 </template>
+
+<!-- A layer below utilities, so a transition-* class on one button still replaces this. -->
+<style>
+@layer theme, base, components, utilities;
+
+@layer components {
+  /* The press squishes fast; letting go springs back on the slower scale transition. */
+  [data-slot="button"] {
+    transition:
+      color var(--transition-duration-fast) var(--ease-out),
+      background-color var(--transition-duration-fast) var(--ease-out),
+      border-color var(--transition-duration-fast) var(--ease-out),
+      box-shadow var(--transition-duration-fast) var(--ease-out),
+      opacity var(--transition-duration-fast) var(--ease-out),
+      scale var(--transition-duration-slower) var(--ease-spring);
+  }
+  [data-slot="button"]:active {
+    scale: 1.03 0.9;
+    transition-duration: var(--transition-duration-faster);
+    transition-timing-function: var(--ease-out);
+  }
+}
+</style>

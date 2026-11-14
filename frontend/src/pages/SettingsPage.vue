@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { errorMessage } from '@/lib/utils'
-import { ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted, watch } from 'vue'
 import {
   GetIgnoredCommenters,
   AddIgnoredCommenter,
@@ -18,7 +18,7 @@ import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List } from '@lucide/vue'
-import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles } from '@/composables/useToggles'
+import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles, type ToggleId } from '@/composables/useToggles'
 import {
   useAppearance,
   setAppearance,
@@ -29,6 +29,7 @@ import {
 } from '@/composables/useAppearance'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
+import { reducedMotion } from '@/components/motion/wow'
 
 const SECTIONS = [
   { value: 'appearance', label: 'Appearance', icon: Palette },
@@ -40,18 +41,31 @@ const SECTIONS = [
   { value: 'keybindings', label: 'Keybindings', icon: Keyboard },
 ] as const
 const section = ref<string>('appearance')
+const sectionIndex = (value: string): number => SECTIONS.findIndex((s) => s.value === value)
+// A section further down the nav comes up from below and one further up comes down from above.
+const down = ref(true)
+watch(section, (to, from) => {
+  down.value = sectionIndex(to) > sectionIndex(from)
+})
+const turn = computed(() => ({
+  enterActiveClass: `animate-in fade-in-0 zoom-in-90 ease-spring animation-duration-slower ${down.value ? 'slide-in-from-bottom-10' : 'slide-in-from-top-10'}`,
+  leaveActiveClass: `pointer-events-none animate-out fade-out-0 zoom-out-90 animation-duration-fast ${down.value ? 'slide-out-to-top-6' : 'slide-out-to-bottom-6'}`,
+}))
 
 const box = 'rounded-lg border border-border bg-card/40'
 const card = `${box} divide-y divide-border`
 const row = 'flex items-center gap-4 px-4 py-3'
 
 const fade = { enterActiveClass: 'animate-in fade-in-0', leaveActiveClass: 'animate-out fade-out-0 animation-duration-fast' }
+const alarm = { enterActiveClass: 'wow-shake', leaveActiveClass: fade.leaveActiveClass }
 const pop = {
-  enterActiveClass: 'animate-in fade-in-0 zoom-in-75 animation-duration-fast',
+  enterActiveClass: 'wow-pop',
   leaveActiveClass: 'animate-out fade-out-0 zoom-out-75 animation-duration-faster',
 }
 // List rows open and close their own height, so the card and the rows below glide with them.
 const collapse = 'transition-[grid-template-rows,opacity]'
+// Under the add row; capped so a row added to a long list springs in as its slot finishes opening, not later.
+const rowDelay = (index: number): number => Math.min(index + 1, 4)
 const rows = {
   enterActiveClass: `${collapse} duration-base`,
   enterFromClass: 'grid-rows-[0fr] opacity-0',
@@ -60,6 +74,13 @@ const rows = {
   leaveFromClass: 'grid-rows-[1fr]',
   leaveToClass: 'grid-rows-[0fr] opacity-0',
 }
+
+// Ring bursts for a setting that was just saved; each count is the key of the ring it mounts.
+const bursts = reactive<Record<string, number>>({})
+function burst(key: string): void {
+  if (!reducedMotion()) bursts[key] = (bursts[key] ?? 0) + 1
+}
+const ring = 'wow-ring pointer-events-none absolute inset-0 rounded-[inherit]'
 
 // ── Appearance ─────────────────────────────────────────────────────────────
 const { appearance } = useAppearance()
@@ -73,6 +94,12 @@ const appearanceRows: { key: AppearanceKey; label: string; hint: string }[] = [
 // ── Toggles ────────────────────────────────────────────────────────────────
 const { toggles } = useToggles()
 const toggleSections = Object.keys(TOGGLE_SECTIONS) as (keyof typeof TOGGLE_SECTIONS)[]
+
+async function saveToggle(id: ToggleId, value: boolean): Promise<void> {
+  await setToggle(id, value)
+  // A failed save has put the old value back.
+  if (toggles.value[id] === value) burst(id)
+}
 
 // ── Ignored Commenters ─────────────────────────────────────────────────────
 // null until loaded, so the empty state is never painted before the list arrives.
@@ -147,7 +174,9 @@ async function onRecordKeydown(event: KeyboardEvent, action: KeybindingAction): 
   event.preventDefault()
   event.stopPropagation()
   bindError.value = event.key === 'Escape' ? '' : (await bindKey(action, event)) ?? ''
-  if (!bindError.value) recording.value = null
+  if (bindError.value) return
+  recording.value = null
+  if (event.key !== 'Escape') burst(action)
 }
 
 async function handleResetBindings(): Promise<void> {
@@ -214,18 +243,14 @@ async function handleRemoveCommand(name: string) {
 
 <template>
   <Tabs v-model="section" orientation="vertical" class="h-full min-h-0 w-full flex-row gap-0">
-    <TabsList class="relative h-full w-48 shrink-0 flex-col items-stretch justify-start gap-0.5 rounded-none border-r border-border bg-muted/30 p-2">
-      <!-- The selection slides between sections: h-8 triggers, gap-0.5 apart. -->
-      <span
-        class="absolute inset-x-2 top-2 h-8 rounded-md bg-accent transition-transform duration-fast ease-in-out"
-        :style="{ transform: `translateY(calc(${SECTIONS.findIndex((s) => s.value === section)} * 2.125rem))` }"
-        aria-hidden="true"
-      />
+    <TabsList class="isolate h-full w-48 shrink-0 flex-col items-stretch justify-start gap-0.5 overflow-hidden rounded-none border-r border-border bg-muted/30 p-2 *:data-[slot=tabs-indicator]:bg-accent *:data-[slot=tabs-indicator]:shadow-none">
+      <div class="wow-aurora -z-10 opacity-40" aria-hidden="true" />
       <TabsTrigger
-        v-for="s in SECTIONS"
+        v-for="(s, i) in SECTIONS"
         :key="s.value"
         :value="s.value"
-        class="relative h-8 flex-none justify-start gap-2 px-2 font-normal text-muted-foreground transition-none hover:bg-accent/60 hover:text-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent dark:data-[state=active]:border-transparent"
+        class="wow-rise h-8 flex-none justify-start gap-2 px-2 font-normal text-muted-foreground transition-none hover:bg-accent/60 hover:text-foreground data-[state=active]:text-foreground"
+        :style="{ '--i': i }"
       >
         <component :is="s.icon" aria-hidden="true" />
         {{ s.label }}
@@ -253,12 +278,12 @@ async function handleRemoveCommand(name: string) {
         </Button>
       </header>
 
-      <div class="relative min-h-0 flex-1">
-      <Transition v-bind="fade">
+      <div class="relative min-h-0 flex-1 overflow-hidden">
+      <Transition v-bind="turn">
       <div :key="section" class="absolute inset-0 overflow-y-auto overflow-x-hidden px-6 py-5">
         <TabsContent value="appearance">
           <div :class="card">
-            <div v-for="r in appearanceRows" :key="r.key" :class="row">
+            <div v-for="(r, i) in appearanceRows" :key="r.key" :class="[row, 'wow-rise']" :style="{ '--i': i }">
               <div class="min-w-0 flex-1">
                 <p :id="`appearance-${r.key}-label`" class="text-sm font-medium">{{ r.label }}</p>
                 <p class="text-xs text-muted-foreground">{{ r.hint }}</p>
@@ -285,7 +310,7 @@ async function handleRemoveCommand(name: string) {
 
         <TabsContent v-for="key in toggleSections" :key="key" :value="key">
           <ul :class="card">
-            <li v-for="t in TOGGLES.filter((t) => t.section === key)" :key="t.id" :class="row">
+            <li v-for="(t, i) in TOGGLES.filter((t) => t.section === key)" :key="t.id" :class="[row, 'wow-rise']" :style="{ '--i': i }">
               <div class="min-w-0 flex-1">
                 <p :id="`toggle-${t.id}-label`" class="text-sm font-medium">{{ t.label }}</p>
                 <p class="grid text-xs text-muted-foreground">
@@ -294,12 +319,15 @@ async function handleRemoveCommand(name: string) {
                   </Transition>
                 </p>
               </div>
-              <Switch
-                :model-value="toggles[t.id]"
-                :disabled="!!toggleLock(t.id)"
-                :aria-labelledby="`toggle-${t.id}-label`"
-                @update:model-value="setToggle(t.id, $event)"
-              />
+              <span class="relative inline-flex shrink-0 rounded-full">
+                <Switch
+                  :model-value="toggles[t.id]"
+                  :disabled="!!toggleLock(t.id)"
+                  :aria-labelledby="`toggle-${t.id}-label`"
+                  @update:model-value="saveToggle(t.id, $event)"
+                />
+                <span v-if="bursts[t.id]" :key="bursts[t.id]" :class="ring" aria-hidden="true" />
+              </span>
             </li>
           </ul>
         </TabsContent>
@@ -309,7 +337,7 @@ async function handleRemoveCommand(name: string) {
             Comments from these GitHub usernames are hidden in the review view.
           </p>
           <div :class="box">
-            <div :class="row">
+            <div :class="[row, 'wow-rise']">
               <Input
                 v-model="newLogin"
                 placeholder="GitHub username"
@@ -341,9 +369,9 @@ async function handleRemoveCommand(name: string) {
                   </div>
                 </div>
               </li>
-              <li v-for="item in loadError ? [] : commenters ?? []" :key="`item:${item.login}`" class="grid">
+              <li v-for="(item, i) in loadError ? [] : commenters ?? []" :key="`item:${item.login}`" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div :class="[row, 'group border-t border-border py-2']">
+                  <div :class="[row, 'group wow-rise border-t border-border py-2']" :style="{ '--i': rowDelay(i) }">
                     <span class="flex-1 font-mono text-sm">{{ item.login }}</span>
                     <Button
                       variant="ghost"
@@ -359,7 +387,7 @@ async function handleRemoveCommand(name: string) {
               </li>
             </TransitionGroup>
           </div>
-          <Transition v-bind="fade">
+          <Transition v-bind="alarm">
             <p v-if="addError" class="text-xs text-destructive" role="alert">{{ addError }}</p>
           </Transition>
         </TabsContent>
@@ -371,7 +399,7 @@ async function handleRemoveCommand(name: string) {
             as a placeholder for the comment text, or omit it to receive the text via stdin.
           </p>
           <div :class="box">
-            <div :class="row">
+            <div :class="[row, 'wow-rise']">
               <Input
                 v-model="newCmdName"
                 placeholder="Name (e.g. opencode)"
@@ -410,9 +438,9 @@ async function handleRemoveCommand(name: string) {
                   </div>
                 </div>
               </li>
-              <li v-for="cmd in loadCmdError ? [] : commands ?? []" :key="`item:${cmd.name}`" class="grid">
+              <li v-for="(cmd, i) in loadCmdError ? [] : commands ?? []" :key="`item:${cmd.name}`" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div :class="[row, 'group border-t border-border py-2.5']">
+                  <div :class="[row, 'group wow-rise border-t border-border py-2.5']" :style="{ '--i': rowDelay(i) }">
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
                         <p class="text-sm font-medium">{{ cmd.name }}</p>
@@ -452,7 +480,7 @@ async function handleRemoveCommand(name: string) {
               </li>
             </TransitionGroup>
           </div>
-          <Transition v-bind="fade">
+          <Transition v-bind="alarm">
             <p v-if="addCmdError" class="text-xs text-destructive" role="alert">{{ addCmdError }}</p>
           </Transition>
         </TabsContent>
@@ -460,7 +488,7 @@ async function handleRemoveCommand(name: string) {
         <TabsContent value="keybindings" class="space-y-3">
           <p class="text-xs text-muted-foreground">Click a shortcut, then press the new key. Escape cancels.</p>
           <ul :class="card">
-            <li v-for="action in KEYBINDING_ACTIONS" :key="action.id" :class="[row, 'py-2.5']">
+            <li v-for="(action, i) in KEYBINDING_ACTIONS" :key="action.id" :class="[row, 'wow-rise py-2.5']" :style="{ '--i': i }">
               <div class="min-w-0 flex-1">
                 <p class="text-sm font-medium">{{ action.label }}</p>
                 <p class="text-xs text-muted-foreground">{{ action.view }}</p>
@@ -468,7 +496,8 @@ async function handleRemoveCommand(name: string) {
               <Button
                 variant="outline"
                 size="sm"
-                class="grid h-7 min-w-24 justify-items-center font-mono text-xs"
+                class="relative grid h-7 min-w-24 justify-items-center font-mono text-xs"
+                :class="recording === action.id && 'wow-glow'"
                 :aria-label="`Change shortcut for ${action.label}`"
                 @click="startRecording(action.id)"
                 @keydown="onRecordKeydown($event, action.id)"
@@ -486,10 +515,11 @@ async function handleRemoveCommand(name: string) {
                   class="col-start-1 row-start-1 transition-[opacity,visibility] duration-fast"
                   :class="recording !== action.id && 'invisible opacity-0'"
                 >Press a key…</span>
+                <span v-if="bursts[action.id]" :key="bursts[action.id]" :class="ring" aria-hidden="true" />
               </Button>
             </li>
           </ul>
-          <Transition v-bind="fade">
+          <Transition v-bind="alarm">
             <p v-if="bindError" class="text-xs text-destructive" role="alert">{{ bindError }}</p>
           </Transition>
         </TabsContent>
