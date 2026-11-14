@@ -16,7 +16,7 @@ const actions = inject<DraftActions | null>('draftActions', null)
 </script>
 
 <template>
-  <div class="mx-3 my-2 rounded-md border border-dashed border-amber-500/60 bg-amber-500/5 px-3 py-2 font-sans">
+  <div class="relative mx-3 my-2 rounded-md border border-dashed border-amber-500/60 bg-amber-500/5 px-3 py-2 font-sans">
     <div class="mb-1 flex items-center gap-2 text-xs">
       <Badge variant="outline" class="border-amber-500/60 text-[0.625rem] text-amber-700 dark:text-amber-300">Pending</Badge>
       <span class="text-muted-foreground">

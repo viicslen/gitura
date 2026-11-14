@@ -13,6 +13,7 @@ import type * as model from '@/bindings/gitura/internal/model'
 import { buildFileTree, flattenFileTree, treeKey } from '@/lib/fileTree'
 import DiffFileTree from './DiffFileTree.vue'
 import Reveal from '@/components/motion/Reveal.vue'
+import CountUp from '@/components/motion/CountUp.vue'
 import { loaderShown, SWAP, TEXT_SWAP } from '@/components/motion/motion'
 
 const props = defineProps<{
@@ -27,6 +28,8 @@ const props = defineProps<{
   commentCounts?: Record<string, number>
   /** The Files view is on screen; the open file is scrolled into view when it appears. */
   active?: boolean
+  /** Files the user marked viewed a moment ago. */
+  justViewed?: Set<string>
 }>()
 
 const hideViewed = defineModel<boolean>('hideViewed', { default: false })
@@ -59,10 +62,26 @@ const viewedCount = computed(() => props.files.filter((f) => f.viewed).length)
 const collapsed = ref(new Set<string>())
 const rows = computed(() => flattenFileTree(tree.value, collapsed.value))
 
+// Rows springing in, staggered: the tree's when it comes on screen, a folder's when it is expanded.
+// About a screenful: wow-rise stops adding delay after 15, so the rest of them land together.
+const CASCADE_ROWS = 40
+const cascade = ref(new Map<string, number>())
+let cascadeTimer: ReturnType<typeof setTimeout> | undefined
+function rise(keys: string[]): void {
+  cascade.value = new Map(keys.slice(0, CASCADE_ROWS).map((key, i) => [key, i]))
+  clearTimeout(cascadeTimer)
+  cascadeTimer = setTimeout(() => (cascade.value = new Map()), 1500)
+}
+watch(() => !!props.active && !props.loading && rows.value.length > 0, (shown) => {
+  if (shown) rise(rows.value.map(treeKey))
+}, { immediate: true })
+
 function toggle(path: string): void {
   const next = new Set(collapsed.value)
-  if (!next.delete(path)) next.add(path)
+  const opening = next.delete(path)
+  if (!opening) next.add(path)
   collapsed.value = next
+  if (opening) rise(rows.value.filter((r) => (r.type === 'dir' ? r.path : r.file.filename).startsWith(`${path}/`)).map(treeKey))
 }
 
 const listEl = ref<HTMLElement | null>(null)
@@ -126,12 +145,12 @@ function onTreeKeydown(event: KeyboardEvent): void {
                 <button type="button" class="shrink-0 text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground" @click="emit('retry-viewed')">Retry</button>
               </span>
               <span v-else class="truncate tabular-nums text-muted-foreground [grid-area:1/1]" :title="changeSummary">
-                {{ viewedCount }} of {{ files.length }} viewed
+                <CountUp :value="viewedCount" /> of {{ files.length }} viewed
               </span>
             </Transition>
           </div>
           <div
-            class="absolute inset-x-0 -bottom-px h-0.5 bg-primary/70 origin-left transition-[transform,opacity]"
+            class="absolute inset-x-0 -bottom-px h-0.5 bg-primary/70 origin-left transition-[transform,opacity] duration-show ease-spring"
             :class="{ 'opacity-0': viewedError }"
             :style="{ transform: `scaleX(${viewedCount / files.length})` }"
             role="progressbar"
@@ -140,7 +159,14 @@ function onTreeKeydown(event: KeyboardEvent): void {
             :aria-valuenow="viewedCount"
             aria-valuemin="0"
             :aria-valuemax="files.length"
-          />
+          >
+            <!-- Re-keyed so every change of the count lights the bar up once. -->
+            <span
+              :key="viewedCount"
+              aria-hidden="true"
+              class="absolute inset-x-0 -top-0.5 bottom-0 bg-linear-to-r from-wow-1 via-wow-2 to-wow-3 shadow-[0_0_12px_2px_var(--color-wow-2)] animate-out fade-out-0 fill-mode-forwards animation-duration-show"
+            />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button
@@ -211,6 +237,8 @@ function onTreeKeydown(event: KeyboardEvent): void {
               :selected-path="selectedPath"
               :tab-stop="tabStop"
               :comment-counts="commentCounts"
+              :cascade="cascade"
+              :just-viewed="justViewed"
               @select="emit('select', $event)"
               @toggle="toggle"
               @set-viewed="(paths, viewed) => emit('set-viewed', paths, viewed)"

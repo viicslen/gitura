@@ -43,6 +43,8 @@ const emit = defineEmits<{
 }>()
 
 const running = ref(false)
+/** Counts the runs started here; each one bursts a ring out of the button. */
+const burst = ref(0)
 
 /** The command that fires when clicking the primary button. */
 const primaryCommand = computed((): model.CommandDTO | null => {
@@ -54,6 +56,7 @@ const primaryCommand = computed((): model.CommandDTO | null => {
 async function runCommand(cmd: model.CommandDTO): Promise<void> {
   if (running.value) return
   running.value = true
+  burst.value++
   try {
     await RunCommands([cmd.name], props.input, {
       thread_root_id: props.threadRootId ?? 0,
@@ -73,13 +76,18 @@ const btnSize = computed(() => props.size ?? 'sm')
 </script>
 
 <template>
-  <div v-if="commands.length > 0" class="flex items-center">
+  <!-- The two halves squish as one piece, so their own press squish is switched off. -->
+  <div
+    v-if="commands.length > 0"
+    class="relative flex items-center transition-[scale] duration-slower ease-spring active:scale-x-110 active:scale-y-85 active:duration-faster"
+  >
+    <span v-if="burst" :key="burst" aria-hidden="true" class="absolute inset-0 rounded-md wow-ring" />
     <!-- Primary action button -->
     <Button
       :size="btnSize"
       :aria-busy="running"
       variant="ghost"
-      class="rounded-r-none border-r-0 gap-1.5 bg-muted/60 hover:bg-muted"
+      class="rounded-r-none border-r-0 gap-1.5 bg-muted/60 hover:bg-muted active:scale-100"
       @click="handlePrimary"
     >
       <!-- RunCommands answers as soon as the run starts: the spinner replaces the icon, and nothing is disabled, only when that wait is real -->
@@ -105,7 +113,7 @@ const btnSize = computed(() => props.size ?? 'sm')
         <Button
           :size="btnSize"
           variant="ghost"
-          class="rounded-l-none px-1 bg-muted/60 hover:bg-muted"
+          class="rounded-l-none px-1 bg-muted/60 hover:bg-muted active:scale-100"
           :aria-label="`Run with a different command`"
         >
           <ChevronDown class="h-3 w-3" />

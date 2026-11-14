@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { errorMessage } from '@/lib/utils'
 import { onMounted, computed, nextTick, provide, reactive, ref, watch, watchEffect } from 'vue'
-import { ChevronLeft, ChevronRight, Copy, Send, SlidersHorizontal, Trash2 } from '@lucide/vue'
+import { ChevronLeft, ChevronRight, Copy, FileCheck2, Send, SlidersHorizontal, Trash2 } from '@lucide/vue'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import Reveal from '@/components/motion/Reveal.vue'
-import { loaderShown, SETTLE, SWAP, TEXT_SWAP } from '@/components/motion/motion'
+import { loaderShown, SWAP, TEXT_SWAP } from '@/components/motion/motion'
+import { confetti, reducedMotion, vPointer } from '@/components/motion/wow'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -33,6 +34,7 @@ import { GetCommands, GetDefaultCommandName, RunCommands } from '@/bindings/gitu
 import { Clipboard } from '@wailsio/runtime'
 import { formatLocalReview } from '@/lib/localReview'
 import { isTestFile } from '@/lib/testFiles'
+import { buildFileTree, flattenFileTree } from '@/lib/fileTree'
 
 const { tabBadges } = useReviewTabs()
 
@@ -85,7 +87,6 @@ const {
   selectFile,
   nextFile,
   prevFile,
-  setViewed,
   setViewedMany,
   viewedSaving,
   autoViewTests,
@@ -99,10 +100,28 @@ const {
   deleteDraftComment,
 } = useDiffReview()
 
+const allViewed = () => files.value.length > 0 && files.value.every((f) => f.viewed)
+const justViewed = ref(new Set<string>())
+let justViewedTimer: ReturnType<typeof setTimeout> | undefined
+
+/** A save the user asked for: the files just marked show it off, and the one that completes the review fires confetti once saved. */
+async function saveViewed(paths: string[], viewed: boolean): Promise<void> {
+  const wasDone = allViewed()
+  const marked = viewed ? files.value.filter((f) => paths.includes(f.filename) && !f.viewed).map((f) => f.filename) : []
+  const saving = setViewedMany(paths, viewed)
+  if (marked.length && marked.length <= 15) {
+    justViewed.value = new Set(marked)
+    clearTimeout(justViewedTimer)
+    justViewedTimer = setTimeout(() => (justViewed.value = new Set()), 1500)
+  }
+  await saving
+  if (viewed && !wasDone && allViewed()) confetti(document.querySelector('#viewed-toggle:not([inert] *)'))
+}
+
 // Marking a file viewed moves on to the next shown file, while the save finishes in the background.
 async function toggleViewed(path: string, viewed: boolean): Promise<void> {
   const keepFocus = document.activeElement?.id === 'viewed-toggle'
-  const saving = setViewed(path, viewed)
+  const saving = saveViewed([path], viewed)
   if (viewed && canGoNext.value) {
     void nextFile().then(async () => {
       if (!keepFocus) return
@@ -123,9 +142,9 @@ async function toggleViewed(path: string, viewed: boolean): Promise<void> {
   }
 }
 
-async function markViewed(paths: string[], viewed: boolean): Promise<void> {
+async function markViewed(paths: string[], viewed: boolean, byUser = false): Promise<void> {
   try {
-    await setViewedMany(paths, viewed)
+    await (byUser ? saveViewed(paths, viewed) : setViewedMany(paths, viewed))
   } catch (err) {
     toast.error(`Could not update viewed state: ${errorMessage(err)}`)
   }
@@ -228,13 +247,45 @@ provide('draftsStale', draftsStale)
 provide('localReview', props.local)
 provide<DraftActions>('draftActions', { indexOf: draftIndex, update: updateDraftComment, remove: deleteDraftComment })
 
-// Holding two diffs at once for a cross-fade drops frames once either is large; those swap in one frame.
+// Holding two diffs at once drops frames once either is large: then the old one goes in one frame and only the new one moves.
 const HEAVY_DIFF_LINES = 200
 const diffLines = (diff: model.ParsedDiffDTO | null) => (diff?.hunks ?? []).reduce((n, h) => n + h.lines.length, 0)
-const fileSwap = ref(SWAP)
+const heavySwap = ref(false)
 watch(currentDiff, (next, previous) => {
-  fileSwap.value = Math.max(diffLines(next), diffLines(previous)) > HEAVY_DIFF_LINES ? SETTLE : SWAP
+  heavySwap.value = Math.max(diffLines(next), diffLines(previous)) > HEAVY_DIFF_LINES
 }, { flush: 'sync' })
+
+// A file further down the tree springs in from below, over the open one as it leaves upward; one further up, the other way.
+// Transform only: fading a pane-sized diff while it moves halves the frame rate.
+const treeOrder = computed(() => flattenFileTree(buildFileTree(files.value), new Set<string>()).flatMap((row) => (row.type === 'file' ? [row.file.filename] : [])))
+const swapDown = ref(true)
+watch(() => shownFile.value?.filename, (next, previous) => {
+  if (next && previous) swapDown.value = treeOrder.value.indexOf(next) > treeOrder.value.indexOf(previous)
+}, { flush: 'sync' })
+const fileSwap = computed(() => heavySwap.value
+  ? {
+      enterActiveClass: 'transition-[translate] duration-show ease-spring',
+      enterFromClass: swapDown.value ? 'translate-y-10' : '-translate-y-10',
+      leaveActiveClass: 'hidden',
+    }
+  : {
+      enterActiveClass: 'bg-background transition-[translate,scale] duration-show ease-spring',
+      enterFromClass: `${swapDown.value ? 'translate-y-24' : '-translate-y-24'} scale-95`,
+      leaveActiveClass: 'pointer-events-none absolute inset-0 transition-[translate] duration-base',
+      leaveToClass: swapDown.value ? '-translate-y-16' : 'translate-y-16',
+    })
+
+// Coming to the Files view wipes the diff in from behind a cover; re-keyed so every arrival replays it.
+const wipe = ref(0)
+watch(() => props.active && !!shownFile.value, (shown) => {
+  if (shown && !reducedMotion()) wipe.value++
+}, { immediate: true })
+
+/** Where the paper plane takes off from, in window coordinates. */
+const flight = ref<{ x: number; y: number } | null>(null)
+function sendOff(from: DOMRect): void {
+  if (!reducedMotion()) flight.value = { x: from.x + from.width / 2, y: from.y + from.height / 2 }
+}
 const changedPaths = computed(() => new Set(files.value.map((f) => f.filename)))
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -262,12 +313,15 @@ async function postComment(comment: model.DraftCommentDTO, mode: 'draft' | 'imme
 }
 
 // ── Submit review ─────────────────────────────────────────────────────────
-async function handleSubmitReview(): Promise<void> {
+async function handleSubmitReview(event: MouseEvent): Promise<void> {
+  const from = (event.currentTarget as HTMLElement).getBoundingClientRect()
   submitLoading.value = true
   try {
     await submitReview({ verdict: verdict.value, body: reviewBody.value })
     submitted = true
     submitPanelOpen.value = false
+    sendOff(from)
+    if (verdict.value === 'APPROVE') confetti()
     toast('Review submitted')
     emit('threads-changed')
   } catch (err) {
@@ -303,13 +357,15 @@ async function copyLocalReview(): Promise<void> {
   }
 }
 
-async function sendLocalReview(): Promise<void> {
+async function sendLocalReview(event: MouseEvent): Promise<void> {
+  const from = (event.currentTarget as HTMLElement).getBoundingClientRect()
   submitLoading.value = true
   try {
     await RunCommands([commandName.value], localMarkdown.value, {} as model.RunContext)
     await discardPendingReview()
     submitted = true
     submitPanelOpen.value = false
+    sendOff(from)
     emit('ran')
   } catch (err) {
     toast.error(errorMessage(err))
@@ -483,8 +539,9 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
               :selected-path="currentFilePath"
               :active="active"
               :loading="filesLoading && !files.length"
+              :just-viewed="justViewed"
               @select="selectFile"
-              @set-viewed="markViewed"
+              @set-viewed="(paths, viewed) => markViewed(paths, viewed, true)"
             />
           </div>
           <div
@@ -504,7 +561,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
             @keydown.right.prevent="sidebarWidth = clampWidth(sidebarWidth + 16)"
           />
 
-          <!-- Diff panel: what it shows stays until the next file's diff is here, then the two cross-fade. -->
+          <!-- Diff panel: what it shows stays until the next file's diff is here, then the two trade places. -->
           <div class="relative flex-1 flex flex-col min-h-0 overflow-hidden">
             <Transition v-bind="fileSwap" @before-leave="(el) => el.setAttribute('inert', '')">
               <!-- Diff error -->
@@ -530,9 +587,20 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
               <!-- No file selected; blank while the first load runs, so the hint is not painted before the data -->
               <div
                 v-else-if="!shownFile"
-                class="flex-1 flex items-center justify-center text-sm text-muted-foreground"
+                v-pointer
+                class="wow-spotlight relative flex flex-1 items-center justify-center overflow-hidden text-sm text-muted-foreground"
               >
-                {{ filesLoading || diffLoading ? '' : 'Select a file to view its diff' }}
+                <template v-if="!filesLoading && !diffLoading">
+                  <template v-if="files.length">Select a file to view its diff</template>
+                  <template v-else>
+                    <div aria-hidden="true" class="wow-aurora opacity-60" />
+                    <div class="wow-tilt wow-focus-in relative flex max-w-sm flex-col items-center gap-2 rounded-xl border border-border bg-card/80 px-10 py-8 text-center shadow-lg backdrop-blur-sm">
+                      <FileCheck2 class="mb-1 size-8 text-wow-2 wow-pop [--i:4]" aria-hidden="true" />
+                      <p class="text-base font-semibold text-foreground">{{ local ? 'Nothing to review' : 'No changed files' }}</p>
+                      <p>{{ local ? 'This scope has no changes. Edit a file or pick another scope.' : 'This pull request does not change any files.' }}</p>
+                    </div>
+                  </template>
+                </template>
               </div>
 
               <!-- Diff content -->
@@ -560,17 +628,20 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
                     class="flex shrink-0 cursor-pointer select-none items-center gap-1.5 border-l border-border pl-3 text-xs text-muted-foreground"
                     :title="shownFile.viewed ? 'Mark as not viewed' : 'Mark as viewed and go to the next file'"
                   >
-                    <Checkbox
-                      id="viewed-toggle"
-                      :model-value="shownFile.viewed"
-                      :disabled="viewedSaving.has(shownFile.filename)"
-                      @update:model-value="(v) => shownFile && toggleViewed(shownFile.filename, v === true)"
-                    />
+                    <span class="relative flex rounded-sm" :class="{ 'wow-ring': justViewed.has(shownFile.filename) }">
+                      <Checkbox
+                        id="viewed-toggle"
+                        :model-value="shownFile.viewed"
+                        :disabled="viewedSaving.has(shownFile.filename)"
+                        @update:model-value="(v) => shownFile && toggleViewed(shownFile.filename, v === true)"
+                      />
+                    </span>
                     Viewed
                   </label>
                 </template>
               </DiffFileView>
             </Transition>
+            <div v-if="wipe" :key="wipe" aria-hidden="true" class="diff-wipe pointer-events-none absolute inset-0 z-20 bg-background" @animationend="wipe = 0" />
             <div
               class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background text-sm text-muted-foreground transition-[opacity,visibility]"
               :class="loaderShown(diffLoading)"
@@ -581,6 +652,18 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
         </div>
       </Transition>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="flight"
+        aria-hidden="true"
+        class="send-off pointer-events-none fixed z-100 text-wow-2"
+        :style="{ left: `${flight.x}px`, top: `${flight.y}px` }"
+        @animationend="flight = null"
+      >
+        <Send class="size-8" />
+      </div>
+    </Teleport>
 
     <!-- ── Local review panel ─────────────────────────────────────────────── -->
     <Dialog v-if="local" :open="submitPanelOpen" @update:open="submitPanelOpen = $event">
@@ -726,3 +809,32 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
     </Dialog>
   </div>
 </template>
+
+<style scoped>
+/* The cover slides off to the right behind a bar of light, so the diff under it never moves or repaints. */
+.diff-wipe {
+  animation: diff-wipe var(--transition-duration-show) var(--ease-out) both;
+}
+.diff-wipe::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: -3px;
+  width: 3px;
+  background: linear-gradient(var(--color-wow-1), var(--color-wow-2), var(--color-wow-3));
+  box-shadow: 0 0 2rem 0.5rem color-mix(in oklab, var(--color-wow-2) 60%, transparent);
+}
+@keyframes diff-wipe {
+  to { translate: 100% 0; }
+}
+
+.send-off {
+  filter: drop-shadow(0 0 0.75rem var(--color-wow-2));
+  animation: send-off 900ms cubic-bezier(0.5, 0, 0.8, 0.5) both;
+}
+@keyframes send-off {
+  0% { opacity: 0; scale: 0.4; translate: -50% -50%; }
+  20% { opacity: 1; scale: 1.8; translate: calc(-50% - 1rem) calc(-50% + 1rem); }
+  100% { opacity: 0; scale: 0.6; translate: calc(-50% + 45vw) calc(-50% - 60vh); }
+}
+</style>
