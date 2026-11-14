@@ -95,6 +95,21 @@ describe('PRListPage org filter', () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(true)
   })
 
+  it('marks each row and its title for the shell, and rings only the rows a refresh added or changed', async () => {
+    const wrapper = mount(PRListPage)
+    await flushPromises()
+    const row = wrapper.get('[data-pr-key="FmTod/app#1"]')
+    expect(row.element.tagName).toBe('LI')
+    expect(row.get('[data-pr-title]').text()).toBe('FmTod/app change')
+    expect(wrapper.find('.wow-ring').exists()).toBe(false)
+
+    listOpenPRs.mockResolvedValueOnce({ items: [pr('FmTod', 'app', 1), { ...pr('FmTod2', 'config', 2), title: 'Renamed' }, pr('FmTod', 'app', 3)] })
+    await wrapper.get('button[aria-label="Refresh pull request list"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('.wow-ring').map((r) => r.attributes('data-pr-key'))).toEqual(['FmTod2/config#2', 'FmTod/app#3'])
+  })
+
   it('keeps the list when a refresh answers with an error', async () => {
     const wrapper = mount(PRListPage)
     await flushPromises()
