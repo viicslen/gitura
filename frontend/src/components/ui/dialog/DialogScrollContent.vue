@@ -11,6 +11,7 @@ import {
   useForwardPropsEmits,
 } from "reka-ui"
 import { cn } from "@/lib/utils"
+import "../overlay.css"
 
 defineOptions({
   inheritAttrs: false,
@@ -27,12 +28,12 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 <template>
   <DialogPortal>
     <DialogOverlay
-      class="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/80  ease-out data-[state=open]:animate-in data-[state=open]:animation-duration-slow data-[state=closed]:animate-out data-[state=closed]:animation-duration-base data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+      class="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/60 backdrop-blur-md ease-out data-[state=open]:animate-in data-[state=open]:animation-duration-slow data-[state=closed]:animate-out data-[state=closed]:animation-duration-base data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
     >
       <DialogContent
         :class="
           cn(
-            'relative z-50 grid w-full max-w-lg my-8 gap-4 border border-border bg-background p-6 shadow-lg sm:rounded-lg md:w-full',
+            'ui-dialog-in relative z-50 grid w-full max-w-lg my-8 gap-4 border border-border bg-background p-6 shadow-lg sm:rounded-lg md:w-full',
             props.class,
           )
         "

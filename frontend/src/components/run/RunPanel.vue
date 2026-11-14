@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { X, ChevronDown, Loader2, CheckCircle2, XCircle, Terminal, Trash2, Square } from '@lucide/vue'
+import { X, ChevronDown, Loader2, XCircle, Terminal, Trash2, Square } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
@@ -57,6 +57,20 @@ function formatDuration(run: Run): string {
 }
 
 const hasRuns = computed(() => runs.value.length > 0)
+const busy = computed(() => runs.value.some((r) => r.running))
+
+// Runs that finished a moment ago show it off: a ring and a sheen on success, a shake and a flash on failure.
+const justEnded = ref(new Set<string>())
+let justEndedTimer: ReturnType<typeof setTimeout> | undefined
+watch(() => runs.value.filter((r) => r.running).map((r) => r.run_id), (running, before) => {
+  const ended = before.filter((id) => !running.includes(id))
+  if (!ended.length) return
+  justEnded.value = new Set(ended)
+  clearTimeout(justEndedTimer)
+  justEndedTimer = setTimeout(() => (justEnded.value = new Set()), 1500)
+})
+const ended = (run: Run, as: 'success' | 'error') => justEnded.value.has(run.run_id) && statusIcon(run) === as
+const failed = computed(() => runs.value.some((r) => ended(r, 'error')))
 const hasDisplayedRuns = computed(() => displayedRuns.value.length > 0)
 
 // The panel's content stays mounted until the closing height transition has finished.
@@ -78,8 +92,8 @@ const rowMotionProps = computed(() => listMotion.value
   ? {
       // Spelled differently from the enter and leave classes: Vue strips the move classes when the move ends.
       moveClass: 'transition-[transform,opacity] ease-in-out',
-      enterActiveClass: 'transition-[opacity,transform]',
-      enterFromClass: 'opacity-0',
+      enterActiveClass: 'transition-[opacity,translate,scale] duration-slower ease-spring',
+      enterFromClass: 'opacity-0 -translate-y-4 scale-95',
       leaveActiveClass: 'absolute inset-x-0 transition-[opacity,transform] duration-fast',
       leaveToClass: 'opacity-0',
     }
@@ -92,13 +106,14 @@ const swapLeave = 'animate-out fade-out-0 animation-duration-fast'
 <template>
   <div
     class="shrink-0 overflow-hidden transition-[height]"
-    :class="open ? 'h-[260px] duration-slow' : 'h-0 duration-base'"
+    :class="[open ? 'h-[260px] duration-slow' : 'h-0 duration-base', { 'wow-shake': failed }]"
     :inert="!open"
     @transitionend.self="onHeightEnd"
   >
-    <div v-if="rendered" class="flex h-[260px] flex-col border-t border-border bg-background">
+    <div v-if="rendered" class="run-rise relative isolate flex h-[260px] flex-col overflow-hidden border-t border-border bg-background">
+      <div v-if="!hasRuns" aria-hidden="true" class="wow-aurora -z-10 opacity-30" />
       <!-- Panel header -->
-      <div class="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
+      <div class="run-header relative flex items-center gap-2 px-4 py-2 border-b border-border shrink-0" :class="{ 'wow-glow': busy }">
         <Terminal class="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <span class="text-sm font-medium">Run History</span>
         <Badge
@@ -188,7 +203,8 @@ const swapLeave = 'animate-out fade-out-0 animation-duration-fast'
               <div v-for="run in displayedRuns" :key="run.run_id">
                 <!-- Run summary row -->
                 <button
-                  class="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors duration-faster hover:duration-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  class="relative w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors duration-faster hover:duration-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  :class="{ 'wow-sheen': ended(run, 'success'), 'run-flash': ended(run, 'error') }"
                   :aria-expanded="expandedRunID === run.run_id"
                   @click="toggleExpand(run.run_id)"
                 >
@@ -198,11 +214,17 @@ const swapLeave = 'animate-out fade-out-0 animation-duration-fast'
                       <span v-if="statusIcon(run) === 'running'" key="running">
                         <Loader2 class="h-4 w-4 animate-spin text-muted-foreground" />
                       </span>
-                      <CheckCircle2
+                      <span
                         v-else-if="statusIcon(run) === 'success'"
                         key="success"
-                        class="h-4 w-4 text-green-600 dark:text-green-400"
-                      />
+                        class="relative flex rounded-full text-green-600 dark:text-green-400"
+                        :class="{ 'wow-ring': ended(run, 'success') }"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" pathLength="1" class="wow-draw" />
+                          <path d="m9 12 2 2 4-4" pathLength="1" class="wow-draw delay-200" />
+                        </svg>
+                      </span>
                       <Square
                         v-else-if="statusIcon(run) === 'cancelled'"
                         key="cancelled"
@@ -275,3 +297,31 @@ const swapLeave = 'animate-out fade-out-0 animation-duration-fast'
     </div>
   </div>
 </template>
+
+<style scoped>
+/* The spring is on a transform: springing the height itself resizes the run list on every frame of the overshoot. */
+.run-rise {
+  animation: run-rise var(--transition-duration-show) var(--ease-spring) both;
+}
+@keyframes run-rise {
+  from { translate: 0 40%; }
+}
+
+/* The header strip, not the whole panel: the glow repaints every frame for as long as a command runs. */
+.run-header::before {
+  inset: 0;
+}
+
+.run-flash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--color-destructive);
+  opacity: 0;
+  animation: run-flash var(--transition-duration-slower) var(--ease-out) 2;
+}
+@keyframes run-flash {
+  from { opacity: 0.5; }
+}
+</style>
