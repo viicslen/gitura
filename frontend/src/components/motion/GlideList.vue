@@ -23,8 +23,9 @@ const rows = shallowRef(fresh(props.items))
 // A removed row stays in place, marked gone, until its leave transition ends.
 watch(() => props.items, (items) => {
   const next = fresh(items)
+  const kept = new Set(next.map((r) => r.key))
   rows.value.forEach((row, i) => {
-    if (!next.some((r) => r.key === row.key)) next.splice(Math.min(i, next.length), 0, { ...row, gone: true })
+    if (!kept.has(row.key)) next.splice(Math.min(i, next.length), 0, { ...row, gone: true })
   })
   rows.value = next
 }, { flush: 'sync' })
