@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.5.0](https://github.com/viicslen/gitura/compare/v1.4.0...v1.5.0) (2026-11-16)
+
+
+### Features
+
+* **ui:** add an Effects switch, off by default, and drop the cursor glow and aurora ([32fed75](https://github.com/viicslen/gitura/commit/32fed75d26c0f1d3d50fd0648998934c2753c732))
+* **ui:** add spring, light and celebration effects in the logo's emerald ([4cf7699](https://github.com/viicslen/gitura/commit/4cf7699eff0854400822eaaf68161538baefcdba))
+* **ui:** cascade, light up and roll the counts of the PR list ([20265ae](https://github.com/viicslen/gitura/commit/20265aeee1d6de5cdbf6c8ecef3ff04f77ebfa62))
+* **ui:** celebrate resolved threads and merges, and deal threads like cards ([325f6b7](https://github.com/viicslen/gitura/commit/325f6b7a6d2c1b21a34e4247f410a7ba4fa2f3f9))
+* **ui:** fly the PR title into the title strip and reveal the app from the sign-in card ([3c71e05](https://github.com/viicslen/gitura/commit/3c71e05c2c3504159201dc08d99dda77f46f8d5c))
+* **ui:** make every screen land with spring, light and celebration in the logo's emerald ([#68](https://github.com/viicslen/gitura/issues/68)) ([0f9b6f1](https://github.com/viicslen/gitura/commit/0f9b6f126e7872d20da8726ed72396ff680d9e3f))
+* **ui:** slide files in tree order, light up viewed files and the run panel's result ([4662919](https://github.com/viicslen/gitura/commit/4662919d6c402175d5d5b58540fae8975a64b2df))
+* **ui:** spring every dialog, menu and toast open and reveal a new theme from where it was picked ([e0d8a82](https://github.com/viicslen/gitura/commit/e0d8a820b32f77db086aefd377d2d637ddabc7ee))
+
+
+### Bug Fixes
+
+* **ui:** keep wide tables inside their comment card instead of stretching it off-screen ([09b93cd](https://github.com/viicslen/gitura/commit/09b93cddb106243673fb9d82681f185da26044fd))
+* **ui:** keep wide tables inside their comment card instead of stretching it off-screen ([#65](https://github.com/viicslen/gitura/issues/65)) ([7c08d90](https://github.com/viicslen/gitura/commit/7c08d904bfea28e25a43ebf7df3075a19384fb0e))
+* **ui:** stop the app freezing on view transitions on NVIDIA under Linux ([1ab8ff0](https://github.com/viicslen/gitura/commit/1ab8ff013f16f38f6decae9381dec4a1dbf4f99f))
+* **ui:** stop the PR filter sidebar showing a scrollbar when nothing overflows ([c08b8e4](https://github.com/viicslen/gitura/commit/c08b8e4949a224dc508e989d6b19b2c40b7e7d1d))
+* **ui:** stop the PR filter sidebar showing a scrollbar when nothing overflows ([#67](https://github.com/viicslen/gitura/issues/67)) ([483c4e4](https://github.com/viicslen/gitura/commit/483c4e4e076505ca41dd03586dc217f984696fc1))
+
 ## [1.4.0](https://github.com/viicslen/gitura/compare/v1.3.0...v1.4.0) (2026-11-13)
 
 
