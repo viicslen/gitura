@@ -78,6 +78,13 @@ Motion: durations and easing come from the tokens in `frontend/src/style.css`
 transition. Shared transition presets and helpers (collapse, crossfade,
 `Reveal`, `GlideList`, `SwapBox`, `BusyLabel`) live in
 `frontend/src/components/motion/`; reuse them before writing a new one.
+Showpiece effects use the `wow-*` utilities in `style.css` (spring `ease-spring`,
+`duration-show`) and `motion/wow.ts` (`v-pointer`, `confetti`, `viewTransition`,
+`reducedMotion()`). Effect colours are only the `wow-1|2|3` tokens (emerald family
+from the logo). A view transition sets `html[data-vt="<name>"]` while it runs and
+scopes its `::view-transition-*` rules to it. Settings → Appearance → Effects is off by default; off sets
+`html[data-effects="off"]`: `reducedMotion()` then returns true, and `style.css` keeps
+only `animate-in` / `animate-out` and transitions, so gate script effects on `reducedMotion()`.
 
 <!-- MANUAL ADDITIONS START -->
 ## App State Storage

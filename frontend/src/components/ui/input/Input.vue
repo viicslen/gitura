@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
 import { cn } from '@/lib/utils'
+import { focusGlow } from '.'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
@@ -23,7 +24,8 @@ const emit = defineEmits<{
     :disabled="disabled"
     :value="modelValue"
     :class="cn(
-      'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow,opacity] focus-visible:duration-0 disabled:delay-200 outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+      'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,border-color,box-shadow,opacity] duration-slow disabled:delay-200 outline-none placeholder:text-muted-foreground aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+      focusGlow,
       props.class,
     )"
     @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"

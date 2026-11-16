@@ -19,6 +19,11 @@ export class AppearanceDTO {
      */
     "theme": string;
 
+    /**
+     * Effects is "on" or "off" (the default) for the showpiece motion (springs, light, confetti).
+     */
+    "effects": string;
+
     /** Creates a new AppearanceDTO instance. */
     constructor($$source: Partial<AppearanceDTO> = {}) {
         if (!("text_font" in $$source)) {
@@ -32,6 +37,9 @@ export class AppearanceDTO {
         }
         if (!("theme" in $$source)) {
             this["theme"] = "";
+        }
+        if (!("effects" in $$source)) {
+            this["effects"] = "";
         }
 
         Object.assign(this, $$source);

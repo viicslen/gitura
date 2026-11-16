@@ -35,3 +35,18 @@ describe('DiffFileSidebar folder menu', () => {
     wrapper.unmount()
   })
 })
+
+describe('DiffFileSidebar cascade', () => {
+  it('springs in the shown rows in order, then only the rows of a folder being opened', async () => {
+    const wrapper = mount(DiffFileSidebar, { props: { files, selectedPath: null, active: true }, attachTo: document.body })
+    const rising = () => wrapper.findAll('.wow-rise').map((row) => (row.element as HTMLElement).style.getPropertyValue('--i'))
+    expect(rising()).toEqual(['0', '1', '2', '3'])
+
+    const folder = wrapper.find('[role="treeitem"][aria-expanded]')
+    await folder.trigger('click')
+    expect(rising()).toEqual(['0', '1', '2', '3'])
+    await folder.trigger('click')
+    expect(rising()).toEqual(['0', '1'])
+    wrapper.unmount()
+  })
+})

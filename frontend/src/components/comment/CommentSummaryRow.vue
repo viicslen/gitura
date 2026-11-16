@@ -1,18 +1,21 @@
 <script setup lang="ts">
 // One row per component, so selecting a thread re-renders two rows and not the whole list.
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type * as model from '@/bindings/gitura/internal/model'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, CheckCircle2, XCircle, MinusCircle } from '@lucide/vue'
 import { useRuns } from '@/composables/useRuns'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
 import { collapseX, collapsibleX, scaleIn } from '@/components/motion/motion'
+import DrawnCheck from './DrawnCheck.vue'
 
 const props = defineProps<{
   thread: model.CommentThreadDTO
   index: number
   selected: boolean
   reviewLabel: string
+  /** Part of the list's opening cascade. */
+  cascade?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -47,6 +50,13 @@ const lastRun = computed(() => {
   return { status, ...runIcons[status] }
 })
 
+// Resolved in place (the list shows resolved threads too): the row celebrates, then settles.
+const resolvedNow = ref(false)
+watch(() => props.thread.resolved, (resolved) => {
+  resolvedNow.value = resolved
+  if (resolved) setTimeout(() => { resolvedNow.value = false }, 1100)
+})
+
 function handleKeydown(event: KeyboardEvent): void {
   if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
     event.preventDefault()
@@ -62,8 +72,10 @@ function handleKeydown(event: KeyboardEvent): void {
     :id="`thread-item-${index}`"
     role="option"
     :aria-selected="selected"
-    class="block w-full text-left px-3 py-2.5 border-b border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-    :class="selected ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/50'"
+    :data-root-id="thread.root_id"
+    class="relative block w-full text-left px-3 py-2.5 border-b border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+    :class="[selected ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/50', cascade && 'wow-rise', resolvedNow && 'resolved-in']"
+    :style="{ '--i': index }"
     @click="emit('select', index)"
     @keydown="handleKeydown"
   >
@@ -113,7 +125,7 @@ function handleKeydown(event: KeyboardEvent): void {
           <Transition v-bind="collapseX('-ml-2!')">
             <span v-if="thread.resolved" class="shrink-0" :class="collapsibleX">
               <span class="flex min-w-0">
-                <Badge variant="outline" class="text-xs text-muted-foreground border-muted-foreground/40">Resolved</Badge>
+                <Badge variant="outline" class="text-xs text-muted-foreground border-muted-foreground/40"><DrawnCheck /> Resolved</Badge>
               </span>
             </span>
           </Transition>
@@ -127,5 +139,38 @@ function handleKeydown(event: KeyboardEvent): void {
         </p>
       </div>
     </div>
+    <!-- Always in the row, shown by the classes below: a row that is leaving is no longer rendered, so nothing can be added to it then. -->
+    <span aria-hidden="true" class="resolve-fx pointer-events-none absolute inset-0 hidden items-center justify-end pr-4 wow-sheen">
+      <span class="relative grid size-9 place-items-center rounded-full bg-background/85 text-wow-2 wow-ring"><DrawnCheck class="size-6" /></span>
+    </span>
   </button>
 </template>
+
+<style scoped>
+.resolved-in .resolve-fx,
+.resolved-out .resolve-fx {
+  display: flex;
+}
+.resolve-fx::after {
+  animation-duration: 500ms;
+  animation-delay: 0ms;
+}
+.resolved-in .resolve-fx {
+  animation: resolve-fx-fade 1100ms var(--ease-out) both;
+}
+/* Overrides the list's fade: the row holds while the check draws, then is swept away. */
+.resolved-out {
+  z-index: 1;
+  transition: none;
+  animation: resolved-out 800ms var(--ease-out) both;
+}
+@keyframes resolve-fx-fade {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes resolved-out {
+  0% { opacity: 1; transform: none; }
+  12%, 55% { opacity: 1; transform: scale(1.03); }
+  100% { opacity: 0; transform: translateX(70%) scale(0.92); }
+}
+</style>

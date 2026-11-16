@@ -49,7 +49,7 @@ function toggleResolved(): void {
 
 <template>
   <!-- No shadow, and overflow-clip not overflow-hidden: both made scrolling repaint slowly under WebKitGTK's software rendering. -->
-  <div class="mx-3 my-2 overflow-clip rounded-md border border-border bg-card font-sans text-card-foreground">
+  <div class="relative mx-3 my-2 overflow-clip rounded-md border border-border bg-card font-sans text-card-foreground">
     <button
       type="button"
       class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors duration-faster hover:bg-accent/50 hover:duration-0"

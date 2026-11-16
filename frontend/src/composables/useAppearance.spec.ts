@@ -31,7 +31,7 @@ describe('useAppearance', () => {
     applyAppearance()
     await loadAppearance()
     await nextTick()
-    expect(useAppearance().appearance).toEqual({ text_font: 'inter', code_font: 'jetbrains', text_size: 'default', theme: 'auto' })
+    expect(useAppearance().appearance).toEqual({ text_font: 'inter', code_font: 'jetbrains', text_size: 'default', theme: 'auto', effects: 'off' })
     expect(root.style.getPropertyValue('--font-sans')).toBe('')
     expect(root.style.getPropertyValue('--font-mono')).toBe('')
     expect(root.style.fontSize).toBe('')
@@ -74,7 +74,7 @@ describe('useAppearance', () => {
     applyAppearance()
     await setAppearance('code_font', 'system')
     await nextTick()
-    expect(backend.SetAppearance).toHaveBeenLastCalledWith({ text_font: 'inter', code_font: 'system', text_size: 'default', theme: 'auto' })
+    expect(backend.SetAppearance).toHaveBeenLastCalledWith({ text_font: 'inter', code_font: 'system', text_size: 'default', theme: 'auto', effects: 'off' })
     expect(root.style.getPropertyValue('--font-mono')).toBe('ui-monospace, monospace')
 
     await setAppearance('code_font', 'jetbrains')
@@ -93,14 +93,14 @@ describe('useAppearance', () => {
     finish()
     await first
     expect(backend.SetAppearance).toHaveBeenCalledTimes(1)
-    expect(appearance).toEqual({ text_font: 'atkinson', code_font: 'jetbrains', text_size: 'default', theme: 'auto' })
+    expect(appearance).toEqual({ text_font: 'atkinson', code_font: 'jetbrains', text_size: 'default', theme: 'auto', effects: 'off' })
     await setAppearance('text_size', 'large')
     expect(backend.SetAppearance).toHaveBeenCalledTimes(2)
   })
 
   it('carries a theme kept only in browser storage over to settings once', async () => {
     localStorage.setItem('gitura-color-mode', 'dark')
-    backend.GetAppearance.mockResolvedValue({ text_font: '', code_font: '', text_size: '', theme: '' })
+    backend.GetAppearance.mockResolvedValue({ text_font: '', code_font: '', text_size: '', theme: '', effects: '' })
     const { applyAppearance, loadAppearance, useAppearance } = await load()
     applyAppearance()
     await loadAppearance()
@@ -112,7 +112,7 @@ describe('useAppearance', () => {
 
   it('applies the saved theme over the one in browser storage', async () => {
     localStorage.setItem('gitura-color-mode', 'dark')
-    backend.GetAppearance.mockResolvedValue({ text_font: '', code_font: '', text_size: '', theme: 'light' })
+    backend.GetAppearance.mockResolvedValue({ text_font: '', code_font: '', text_size: '', theme: 'light', effects: '' })
     const { applyAppearance, loadAppearance } = await load()
     applyAppearance()
     await loadAppearance()

@@ -2,7 +2,7 @@
 import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useElementSize, useEventListener, useResizeObserver } from '@vueuse/core'
 import { Badge } from '@/components/ui/badge'
-import { FileSymlink } from '@lucide/vue'
+import { FileSymlink, Plus } from '@lucide/vue'
 import { describePathChange } from '@/lib/pathChange'
 import DiffPane from './DiffPane.vue'
 import DiffInlineThread from './DiffInlineThread.vue'
@@ -108,6 +108,7 @@ watch(() => props.file.filename, (path, previous) => {
   stashForm(previous)
   restoreForm(path)
   drag.value = null
+  opened = rowKeys()
 })
 watch(form, (f) => {
   if (!f) formDraft.body = ''
@@ -233,6 +234,10 @@ const inlineKeys = computed(() => {
 // Rows the file opens with don't animate, later ones do. Not a ref: flipping it must not re-render the panes.
 let settled = false
 onMounted(() => { settled = true })
+// Threads and drafts that arrive after the file opened wear the glow border for one turn. Not reactive, like `settled`.
+const rowKeys = () => new Set([...props.threads.map((t) => `thread:${t.root_id}`), ...indexedDrafts.value.map((d) => d.key)])
+let opened = rowKeys()
+const freshGlow = (key: string) => ({ 'wow-glow fresh-glow': !opened.has(key) })
 const NO_ROWS: Inline[] = []
 const rewrapped = ref(0)
 watch(() => props.wrapLines, () => rewrapped.value++)
@@ -438,7 +443,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
 
 <template>
   <div class="flex min-h-0 flex-col overflow-hidden">
-    <div class="flex shrink-0 items-center gap-3 border-b border-border bg-muted/30 px-4 py-2">
+    <div class="relative flex shrink-0 items-center gap-3 border-b border-border bg-muted/30 px-4 py-2 wow-sheen">
       <Badge :variant="statusVariant(file.status)" class="text-[0.625rem]">
         {{ statusLabel(file.status) }}
       </Badge>
@@ -504,6 +509,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                     <DiffInlineThread
                       :thread="t"
                       :language="language"
+                      :class="freshGlow(`thread:${t.root_id}`)"
                       @resolve="emit('resolve', $event)"
                       @unresolve="emit('unresolve', $event)"
                       @reply-sent="emit('reply-sent', $event)"
@@ -517,7 +523,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                   : 'Pending comments outside the visible diff' }}
               </p>
               <GlideList v-slot="{ item: d }" :items="unplacedDrafts" :item-key="(d) => d.key" :appear="settled">
-                <div class="grid"><div class="min-h-0"><DiffDraftComment :draft="d.draft" /></div></div>
+                <div class="grid"><div class="min-h-0"><DiffDraftComment :draft="d.draft" :class="freshGlow(d.key)" /></div></div>
               </GlideList>
             </div>
           </div>
@@ -600,19 +606,30 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                         v-if="row.type === 'thread'"
                         :thread="row.thread"
                         :language="language"
+                        :class="freshGlow(row.key)"
                         @resolve="emit('resolve', $event)"
                         @unresolve="emit('unresolve', $event)"
                         @reply-sent="emit('reply-sent', $event)"
                       />
-                      <DiffDraftComment v-else-if="row.type === 'draft'" :draft="row.draft" />
-                      <div v-else-if="form" class="px-3 py-2">
-                        <InlineCommentForm
-                          :draft="formDraft"
-                          :target="{ path: file.filename, side: form.side, line: form.line, startLine: form.startLine }"
-                          :post="submitComment"
-                          :sending="sending"
-                          @cancel="form = null"
-                        />
+                      <DiffDraftComment v-else-if="row.type === 'draft'" :draft="row.draft" :class="freshGlow(row.key)" />
+                      <!-- The form springs out of the line number it was opened from; clipped, so its overshoot never widens the pane. -->
+                      <div v-else-if="form" class="relative overflow-clip px-3 py-2">
+                        <span
+                          aria-hidden="true"
+                          class="gutter-pop pointer-events-none absolute top-0 z-[2] flex size-5 items-center justify-center rounded-full bg-wow-1 text-background wow-ring"
+                          :class="mode === 'split' && side === 'LEFT' ? 'right-3.5' : 'left-3.5'"
+                        >
+                          <Plus class="size-3.5" />
+                        </span>
+                        <div class="wow-pop" :class="mode === 'split' && side === 'LEFT' ? 'origin-top-right' : 'origin-top-left'">
+                          <InlineCommentForm
+                            :draft="formDraft"
+                            :target="{ path: file.filename, side: form.side, line: form.line, startLine: form.startLine }"
+                            :post="submitComment"
+                            :sending="sending"
+                            @cancel="form = null"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -625,3 +642,25 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
     </template>
   </div>
 </template>
+
+<style scoped>
+.gutter-pop {
+  animation: gutter-pop var(--transition-duration-show) var(--ease-spring) both;
+}
+@keyframes gutter-pop {
+  from { scale: 0; }
+  60% { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* wow-glow spins for as long as it is worn; a fresh comment takes one turn and fades. Inset, because a thread clips at its border. */
+.fresh-glow::before {
+  inset: 0;
+  padding: 2px;
+  animation: wow-spin 1.6s linear, fresh-glow 1.6s var(--ease-out) forwards;
+}
+@keyframes fresh-glow {
+  60% { opacity: 1; }
+  to { opacity: 0; }
+}
+</style>

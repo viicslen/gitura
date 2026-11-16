@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type * as model from '@/bindings/gitura/internal/model'
 import { Button } from '@/components/ui/button'
 import CommentSummaryRow from './CommentSummaryRow.vue'
+import DrawnCheck from './DrawnCheck.vue'
 
 const props = defineProps<{
   threads: model.CommentThreadDTO[]
@@ -14,6 +15,8 @@ const props = defineProps<{
   defaultCommandName: string
   /** PR-wide review numbers, so labels match the Overview and don't shift with filters. */
   reviewNumbers?: model.PROverviewDTO['review_numbers']
+  /** The thread being resolved right now: its row leaves with a celebration instead of a fade. */
+  resolvingId?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -36,8 +39,7 @@ const GLIDE_MAX_THREADS = 30
 const rowMotion = computed(() =>
   props.total <= GLIDE_MAX_THREADS
     ? {
-        enterActiveClass: 'transition-opacity',
-        enterFromClass: 'opacity-0',
+        enterActiveClass: 'wow-rise',
         leaveActiveClass: 'absolute transition-opacity duration-fast pointer-events-none',
         leaveToClass: 'opacity-0',
         moveClass: 'transition-transform ease-in-out',
@@ -49,6 +51,18 @@ const rowMotion = computed(() =>
           : 'animate-out fade-out-0 direction-reverse animation-duration-base',
       },
 )
+
+// Left on, the opening cascade would replay on every return to this tab: it goes once it has started on screen.
+const cascade = ref(true)
+// About a screenful: rows further down are out of sight, and a long list must not animate every row at once.
+const CASCADE_ROWS = 16
+function cascadeStarted(): void {
+  setTimeout(() => { cascade.value = false }, 1400)
+}
+
+function beforeLeave(row: Element): void {
+  if (!props.showResolved && row instanceof HTMLElement && row.dataset.rootId === String(props.resolvingId)) row.classList.add('resolved-out', 'bg-accent')
+}
 
 function select(index: number): void {
   emit('select', index)
@@ -72,8 +86,10 @@ function reviewLabel(thread: model.CommentThreadDTO): string {
     role="listbox"
     :aria-activedescendant="visibleThreads.length > 0 ? `thread-item-${currentIndex}` : undefined"
     aria-label="Comment threads"
-    class="relative h-full overflow-y-auto"
+    class="relative h-full overflow-x-hidden overflow-y-auto"
     v-bind="rowMotion"
+    @animationstart.once="cascadeStarted"
+    @before-leave="beforeLeave"
   >
     <div
       v-if="visibleThreads.length === 0"
@@ -81,6 +97,7 @@ function reviewLabel(thread: model.CommentThreadDTO): string {
       class="h-full w-full flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground"
     >
       <template v-if="!showResolved && total > 0">
+        <span class="relative grid size-12 place-items-center rounded-full text-wow-2 wow-pop wow-ring"><DrawnCheck ring class="size-10" /></span>
         All {{ total }} threads are resolved.
         <Button variant="outline" size="sm" class="h-7 text-xs" @click="emit('show-all')">Show all threads</Button>
       </template>
@@ -94,6 +111,7 @@ function reviewLabel(thread: model.CommentThreadDTO): string {
       :thread="thread"
       :index="index"
       :selected="index === currentIndex"
+      :cascade="cascade && index < CASCADE_ROWS"
       :review-label="reviewLabel(thread)"
       @select="select"
       @move="move"

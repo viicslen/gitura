@@ -294,6 +294,8 @@ type AppearanceDTO struct {
 	TextSize string `json:"text_size" toml:"text_size"`
 	// Theme is "auto" (follow the system), "light" or "dark".
 	Theme string `json:"theme" toml:"theme"`
+	// Effects is "on" or "off" (the default) for the showpiece motion (springs, light, confetti).
+	Effects string `json:"effects" toml:"effects"`
 }
 
 // RunContext carries optional provenance metadata attached to a command run.

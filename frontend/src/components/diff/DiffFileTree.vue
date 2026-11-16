@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { Check, ChevronRight, MessageSquare } from '@lucide/vue'
+import { ChevronRight, MessageSquare } from '@lucide/vue'
 import { Badge } from '@/components/ui/badge'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import type * as model from '@/bindings/gitura/internal/model'
@@ -19,6 +19,10 @@ const props = defineProps<{
   /** `treeKey` of the row that holds the tree's single tab stop. */
   tabStop: string
   commentCounts?: Record<string, number>
+  /** Rows springing in now (`treeKey` to stagger index): the tree opening, or a folder being expanded. */
+  cascade?: Map<string, number>
+  /** Files the user marked viewed a moment ago. */
+  justViewed?: Set<string>
 }>()
 
 const emit = defineEmits<{
@@ -67,12 +71,12 @@ const ROW = 'flex items-center rounded-md pr-2 transition-colors duration-faster
               :tabindex="tabStop === treeKey(node) ? 0 : -1"
               :title="node.path"
               class="cursor-pointer select-none gap-1 py-1 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[state=open]:bg-accent"
-              :class="ROW"
-              :style="{ paddingLeft: `${depth * 12 + 4}px` }"
+              :class="[ROW, { 'wow-rise': cascade?.has(treeKey(node)) }]"
+              :style="{ paddingLeft: `${depth * 12 + 4}px`, '--i': cascade?.get(treeKey(node)) }"
               @click="emit('toggle', node.path)"
               @keydown="onKey($event, () => emit('toggle', node.path))"
             >
-              <ChevronRight class="h-3.5 w-3.5 shrink-0 transition-transform duration-fast" :class="{ 'rotate-90': !collapsed.has(node.path) }" />
+              <ChevronRight class="h-3.5 w-3.5 shrink-0 transition-transform duration-slower ease-spring" :class="{ 'rotate-90': !collapsed.has(node.path) }" />
               <span class="min-w-0 truncate">{{ node.name }}</span>
             </div>
           </ContextMenuTrigger>
@@ -95,6 +99,8 @@ const ROW = 'flex items-center rounded-md pr-2 transition-colors duration-faster
               :selected-path="selectedPath"
               :tab-stop="tabStop"
               :comment-counts="commentCounts"
+              :cascade="cascade"
+              :just-viewed="justViewed"
               @select="emit('select', $event)"
               @toggle="emit('toggle', $event)"
               @set-viewed="(paths, viewed) => emit('set-viewed', paths, viewed)"
@@ -117,9 +123,9 @@ const ROW = 'flex items-center rounded-md pr-2 transition-colors duration-faster
     >
       <!-- The look sits here so the row has no transition of its own; line height, not padding, so it can close to nothing. -->
       <div
-        class="min-h-0 gap-2 leading-7 hover:text-accent-foreground group-focus-visible/row:ring-2 group-focus-visible/row:ring-inset group-focus-visible/row:ring-ring group-data-[selected=true]/row:bg-accent group-data-[selected=true]/row:text-accent-foreground group-data-[selected=true]/row:duration-0"
-        :class="ROW"
-        :style="{ paddingLeft: `${depth * 12 + 8}px` }"
+        class="relative min-h-0 gap-2 leading-7 hover:text-accent-foreground group-focus-visible/row:ring-2 group-focus-visible/row:ring-inset group-focus-visible/row:ring-ring group-data-[selected=true]/row:bg-accent group-data-[selected=true]/row:text-accent-foreground group-data-[selected=true]/row:duration-0"
+        :class="[ROW, { 'wow-rise': cascade?.has(treeKey(node)), 'wow-sheen': justViewed?.has(node.file.filename) }]"
+        :style="{ paddingLeft: `${depth * 12 + 8}px`, '--i': cascade?.get(treeKey(node)) }"
       >
         <Badge
           :variant="statusOf(node.file.status).variant"
@@ -132,7 +138,9 @@ const ROW = 'flex items-center rounded-md pr-2 transition-colors duration-faster
         <span class="flex-1 min-w-0 truncate font-medium transition-colors" :class="{ 'text-muted-foreground': node.file.viewed }">{{ node.name }}</span>
 
         <Reveal axis="x" :open="node.file.viewed" class="shrink-0" :class="{ '-ml-2': !node.file.viewed }">
-          <Check class="h-3.5 w-3.5 text-muted-foreground" role="img" aria-label="Viewed" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5 text-muted-foreground" role="img" aria-label="Viewed">
+            <path d="M4 12l5 5L20 6" pathLength="1" :class="{ 'wow-draw': justViewed?.has(node.file.filename) }" />
+          </svg>
         </Reveal>
 
         <Reveal

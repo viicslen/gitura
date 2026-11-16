@@ -39,6 +39,12 @@ func main() {
 	}
 	app.Configure(&opts, a)
 
+	// WebKitGTK without its DMA-BUF renderer (Wails turns it off on NVIDIA) aborts the page on startViewTransition.
+	url := "/"
+	if v := os.Getenv("WEBKIT_DISABLE_DMABUF_RENDERER"); v != "" && v != "0" {
+		url = "/?no-view-transitions"
+	}
+
 	wailsApp := application.New(opts)
 	wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:      app.MainWindow,
@@ -53,7 +59,7 @@ func main() {
 		MaxHeight:        16384,
 		Frameless:        true, // the app draws its own title strip and window controls
 		BackgroundColour: application.NewRGB(9, 9, 11),
-		URL:              "/",
+		URL:              url,
 		Linux:            application.LinuxWindow{Icon: appIcon},
 	})
 
