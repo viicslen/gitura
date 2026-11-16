@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.5.1](https://github.com/viicslen/gitura/compare/v1.5.0...v1.5.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **ui:** stop glows staying lit when Effects is switched off ([#69](https://github.com/viicslen/gitura/issues/69)) ([f87cfd2](https://github.com/viicslen/gitura/commit/f87cfd2f99f3c3b3d3cde706b0477b2576331f33))
+* **ui:** stop the rail and viewed-bar glows staying lit with Effects off ([6c69d9e](https://github.com/viicslen/gitura/commit/6c69d9ea1c9b67c497b437521c535e90711a35fd))
+
+
+### Performance Improvements
+
+* **diff:** cut instead of glide when many files change viewed state at once ([ace9077](https://github.com/viicslen/gitura/commit/ace9077ff220c885e2703551eb9a80da06e19621))
+* **ui:** keep dialogs, the run panel and bulk file marking smooth by moving their motion off layout and full-window blur ([#71](https://github.com/viicslen/gitura/issues/71)) ([3ceb3c5](https://github.com/viicslen/gitura/commit/3ceb3c536eb7d296ccc06527d31a752e4438f785))
+* **ui:** open the run panel without re-laying out the diff every frame ([9a5142a](https://github.com/viicslen/gitura/commit/9a5142a01e6d809d1da557292517cbcccb4aa5b5))
+* **ui:** repaint the busy glow 20 times a second and cascade only 15 cards ([17ddc1a](https://github.com/viicslen/gitura/commit/17ddc1a23e7f7b9e209b45a0aee2dc39a961a33b))
+* **ui:** stop blurring the whole window behind every dialog ([dbdb7cf](https://github.com/viicslen/gitura/commit/dbdb7cfac93bdb4deef8ba53db6b7bdd0077ff83))
+* **ui:** stop the pointer tilt forcing a layout on every mouse move ([b6e91cc](https://github.com/viicslen/gitura/commit/b6e91cc1a070e2263c10babdc400f21b78778e93))
+
 ## [1.5.0](https://github.com/viicslen/gitura/compare/v1.4.0...v1.5.0) (2026-11-16)
 
 
