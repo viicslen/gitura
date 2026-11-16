@@ -8,12 +8,29 @@ export const reducedMotion = (): boolean =>
 /** Publishes the pointer's place over the element as `--px`/`--py`, -0.5 to 0.5, for `wow-tilt` (back to the centre when it leaves). */
 export const vPointer: Directive<HTMLElement> = {
   mounted(el) {
+    // Measured once a hover: measuring on every move forces a layout right after the previous move's write.
+    let box: DOMRect | undefined
+    let frame = 0
+    let x = 0
+    let y = 0
     el.addEventListener('pointermove', (e) => {
-      const box = el.getBoundingClientRect()
-      el.style.setProperty('--px', String((e.clientX - box.x) / box.width - 0.5))
-      el.style.setProperty('--py', String((e.clientY - box.y) / box.height - 0.5))
+      if (!box) {
+        if (reducedMotion()) return
+        box = el.getBoundingClientRect()
+      }
+      x = e.clientX
+      y = e.clientY
+      frame ||= requestAnimationFrame(() => {
+        frame = 0
+        if (!box) return
+        el.style.setProperty('--px', String((x - box.x) / box.width - 0.5))
+        el.style.setProperty('--py', String((y - box.y) / box.height - 0.5))
+      })
     }, { passive: true })
     el.addEventListener('pointerleave', () => {
+      cancelAnimationFrame(frame)
+      frame = 0
+      box = undefined
       el.style.setProperty('--px', '0')
       el.style.setProperty('--py', '0')
     })

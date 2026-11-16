@@ -292,7 +292,7 @@
         </div>
       </Transition>
 
-      <div class="group/list relative" @pointermove.passive="trackPointer">
+      <div class="group/list relative" @pointermove.passive="trackPointer" @pointerleave="forgetPointer">
         <!-- A refresh keeps the current content, dimmed once the wait is real -->
         <div class="transition-opacity" :class="loading && rawResult && 'opacity-60 delay-200'">
           <Transition
@@ -499,10 +499,24 @@ let attached = true
 
 // Not v-pointer on the list: a custom property set there is inherited, so every pointer move would restyle every row
 // (70ms a move at 160 rows). Only the hovered row learns where the pointer is.
+// The list is measured once a hover, and the row written once a frame: measuring each move forced a layout after the last write.
+let listBox: DOMRect | undefined
+let pointerFrame = 0
 function trackPointer(e: PointerEvent): void {
-  if (!(e.currentTarget instanceof HTMLElement) || reducedMotion()) return
-  const box = e.currentTarget.getBoundingClientRect()
-  if (e.target instanceof Element) e.target.closest<HTMLElement>('li')?.style.setProperty('--px', String((e.clientX - box.x) / box.width - 0.5))
+  if (!(e.currentTarget instanceof HTMLElement) || !(e.target instanceof Element)) return
+  if (!listBox) {
+    if (reducedMotion()) return
+    listBox = e.currentTarget.getBoundingClientRect()
+  }
+  const box = listBox
+  const row = e.target.closest<HTMLElement>('li')
+  const x = e.clientX
+  cancelAnimationFrame(pointerFrame)
+  pointerFrame = requestAnimationFrame(() => row?.style.setProperty('--px', String((x - box.x) / box.width - 0.5)))
+}
+function forgetPointer(): void {
+  cancelAnimationFrame(pointerFrame)
+  listBox = undefined
 }
 
 function refresh(): void {
