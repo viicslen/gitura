@@ -324,7 +324,6 @@
               :key="filters.hasActiveFilters.value ? 'no-match' : 'empty'"
               class="relative flex flex-col items-center justify-center gap-3 overflow-hidden rounded-lg py-20 text-center"
             >
-              <div aria-hidden="true" class="wow-aurora opacity-60" />
               <div class="relative" :class="arriving && 'wow-focus-in'">
                 <div class="pr-float grid size-20 place-items-center rounded-full border border-border bg-card/70 shadow-lg shadow-wow-1/20">
                   <component :is="filters.hasActiveFilters.value ? Filter : GitPullRequest" class="size-9 text-wow-1" />
@@ -408,7 +407,6 @@
             </TransitionGroup>
           </Transition>
         </div>
-        <div ref="spot" aria-hidden="true" class="pointer-events-none absolute inset-0 rounded-lg wow-spotlight group-hover/list:before:opacity-100" />
         <!-- One sweep per turn, again for as long as the reload is still running. -->
         <div
           v-if="sheen"
@@ -500,13 +498,10 @@ const shake = ref(false)
 let attached = true
 
 // Not v-pointer on the list: a custom property set there is inherited, so every pointer move would restyle every row
-// (70ms a move at 160 rows). The light is a leaf, and only the hovered row learns where the pointer is.
-const spot = ref<HTMLElement | null>(null)
+// (70ms a move at 160 rows). Only the hovered row learns where the pointer is.
 function trackPointer(e: PointerEvent): void {
-  if (!spot.value || reducedMotion()) return
-  const box = spot.value.getBoundingClientRect()
-  spot.value.style.setProperty('--mx', `${e.clientX - box.x}px`)
-  spot.value.style.setProperty('--my', `${e.clientY - box.y}px`)
+  if (!(e.currentTarget instanceof HTMLElement) || reducedMotion()) return
+  const box = e.currentTarget.getBoundingClientRect()
   if (e.target instanceof Element) e.target.closest<HTMLElement>('li')?.style.setProperty('--px', String((e.clientX - box.x) / box.width - 0.5))
 }
 

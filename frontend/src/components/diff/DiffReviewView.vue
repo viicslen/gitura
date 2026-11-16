@@ -588,12 +588,11 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
               <div
                 v-else-if="!shownFile"
                 v-pointer
-                class="wow-spotlight relative flex flex-1 items-center justify-center overflow-hidden text-sm text-muted-foreground"
+                class="relative flex flex-1 items-center justify-center overflow-hidden text-sm text-muted-foreground"
               >
                 <template v-if="!filesLoading && !diffLoading">
                   <template v-if="files.length">Select a file to view its diff</template>
                   <template v-else>
-                    <div aria-hidden="true" class="wow-aurora opacity-60" />
                     <div class="wow-tilt wow-focus-in relative flex max-w-sm flex-col items-center gap-2 rounded-xl border border-border bg-card/80 px-10 py-8 text-center shadow-lg backdrop-blur-sm">
                       <FileCheck2 class="mb-1 size-8 text-wow-2 wow-pop [--i:4]" aria-hidden="true" />
                       <p class="text-base font-semibold text-foreground">{{ local ? 'Nothing to review' : 'No changed files' }}</p>

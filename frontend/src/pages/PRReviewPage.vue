@@ -564,7 +564,6 @@ watch(
 
         <div v-else class="relative overflow-hidden [grid-area:1/1] grid place-items-center">
           <!-- Delayed, so a fast load goes straight to the content. -->
-          <div aria-hidden="true" class="absolute inset-0 animate-in fade-in-0 animation-duration-show delay-200 fill-mode-backwards"><div class="wow-aurora opacity-50" /></div>
           <div class="relative flex flex-col items-center gap-3 text-muted-foreground animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards">
             <RefreshCw class="h-6 w-6 animate-spin" />
             <div class="text-sm">Loading review…</div>

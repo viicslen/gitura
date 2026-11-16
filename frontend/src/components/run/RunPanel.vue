@@ -111,7 +111,6 @@ const swapLeave = 'animate-out fade-out-0 animation-duration-fast'
     @transitionend.self="onHeightEnd"
   >
     <div v-if="rendered" class="run-rise relative isolate flex h-[260px] flex-col overflow-hidden border-t border-border bg-background">
-      <div v-if="!hasRuns" aria-hidden="true" class="wow-aurora -z-10 opacity-30" />
       <!-- Panel header -->
       <div class="run-header relative flex items-center gap-2 px-4 py-2 border-b border-border shrink-0" :class="{ 'wow-glow': busy }">
         <Terminal class="h-4 w-4 text-muted-foreground" aria-hidden="true" />

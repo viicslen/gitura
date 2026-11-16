@@ -102,7 +102,6 @@ function replyAvatarKey(replyId: number): string {
         class="relative overflow-hidden [grid-area:1/1] flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm p-6"
       >
         <template v-if="allResolved">
-          <div aria-hidden="true" class="wow-aurora opacity-60" />
           <span class="relative grid size-24 place-items-center rounded-full text-wow-2 wow-pop wow-ring"><DrawnCheck ring class="size-20" /></span>
           <p class="relative text-xl font-semibold text-foreground wow-focus-in">All conversations resolved</p>
           <p class="relative wow-rise [--i:6]">Nothing on this pull request is waiting for an answer.</p>

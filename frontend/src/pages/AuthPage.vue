@@ -1,6 +1,5 @@
 <template>
   <div class="relative h-full overflow-hidden">
-    <div class="wow-aurora" aria-hidden="true" />
     <div class="absolute top-2 right-4">
       <ThemeToggle />
     </div>
@@ -11,7 +10,7 @@
           <Transition v-bind="crossfade">
             <div v-if="polling" class="pointer-events-none absolute inset-0 rounded-xl blur-md wow-glow before:-inset-1.5 before:p-2" aria-hidden="true" />
           </Transition>
-          <Card class="relative wow-spotlight" :class="shaking && 'wow-shake'" @animationend.self="shaking = false">
+          <Card class="relative" :class="shaking && 'wow-shake'" @animationend.self="shaking = false">
             <CardHeader class="wow-rise" :style="{ '--i': 2 }">
               <CardTitle>Sign in with GitHub</CardTitle>
               <CardDescription>

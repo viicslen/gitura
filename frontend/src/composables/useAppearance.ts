@@ -40,6 +40,10 @@ export const appearanceOptions: Record<AppearanceKey, Option[]> = {
     { value: 'light', label: 'Light', css: '' },
     { value: 'dark', label: 'Dark', css: '' },
   ],
+  effects: [
+    { value: 'on', label: 'On', css: '' },
+    { value: 'off', label: 'Off', css: '' },
+  ],
 }
 
 /** Installed fonts are saved as this prefix plus the family name. */
@@ -54,7 +58,7 @@ function fontOption(key: AppearanceKey, family: string): Option {
   return { value: FONT_PREFIX + family, label: family, css: `${JSON.stringify(family)}, ${fontFallbacks[key]}` }
 }
 
-const defaults: model.AppearanceDTO = { text_font: 'inter', code_font: 'jetbrains', text_size: 'default', theme: 'auto' }
+const defaults: model.AppearanceDTO = { text_font: 'inter', code_font: 'jetbrains', text_size: 'default', theme: 'auto', effects: 'off' }
 
 // Browser storage keeps the last theme so the first paint uses it before settings.toml is read.
 const colorMode = useColorMode({
@@ -82,6 +86,7 @@ export function applyAppearance(root: HTMLElement = document.documentElement) {
     // Tailwind sizes are rem-based, so this scales text and spacing together.
     root.style.fontSize = option('text_size', state.text_size)?.css ?? ''
     colorMode.value = state.theme === 'light' || state.theme === 'dark' ? state.theme : 'auto'
+    root.dataset.effects = state.effects
   })
 }
 

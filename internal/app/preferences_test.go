@@ -20,7 +20,7 @@ func TestSetAppearance_OtherSettingsAndRestart_BothPersist(t *testing.T) {
 		t.Fatalf("seed settings: %v", err)
 	}
 
-	want := model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large", Theme: "dark"}
+	want := model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large", Theme: "dark", Effects: "off"}
 	a := New("")
 	if err := a.SetToggles(map[string]bool{"wrap_lines": false}); err != nil {
 		t.Fatalf("set toggles: %v", err)
@@ -55,7 +55,7 @@ func TestSetAppearance_OtherSettingsAndRestart_BothPersist(t *testing.T) {
 
 func TestSetAppearance_AfterSetKeybindings_KeepsBoth(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	appearance := model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large", Theme: "dark"}
+	appearance := model.AppearanceDTO{TextFont: "atkinson", CodeFont: "system", TextSize: "large", Theme: "dark", Effects: "off"}
 	keys := map[string]string{"nextFile": "j"}
 
 	a := New("")

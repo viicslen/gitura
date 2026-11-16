@@ -20,3 +20,14 @@ describe('showpiece motion without a motion-capable window', () => {
     expect(document.querySelector('canvas')).toBeNull()
   })
 })
+
+describe('effects setting', () => {
+  it('turns the effects off even where the window allows motion', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    expect(reducedMotion()).toBe(false)
+    document.documentElement.dataset.effects = 'off'
+    expect(reducedMotion()).toBe(true)
+    delete document.documentElement.dataset.effects
+    vi.unstubAllGlobals()
+  })
+})

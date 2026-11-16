@@ -127,8 +127,7 @@ onUnmounted(() => {
 
     <div class="relative flex min-h-0 flex-1 flex-col">
       <Transition enter-active-class="animate-in fade-in-0" leave-active-class="absolute inset-0 animate-out fade-out-0 animation-duration-fast">
-        <div v-if="error" v-pointer class="wow-spotlight relative flex flex-1 flex-col items-center justify-center overflow-hidden p-6">
-          <div aria-hidden="true" class="wow-aurora opacity-60" />
+        <div v-if="error" v-pointer class="relative flex flex-1 flex-col items-center justify-center overflow-hidden p-6">
           <div class="wow-tilt wow-focus-in relative flex max-w-md flex-col items-center gap-3 rounded-xl border border-border bg-card/80 px-10 py-8 shadow-lg backdrop-blur-sm">
             <FolderX class="size-8 text-wow-3 wow-pop [--i:4]" aria-hidden="true" />
             <p class="text-sm text-destructive text-center">{{ error }}</p>

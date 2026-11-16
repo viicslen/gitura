@@ -11,7 +11,6 @@ import { taskToggler } from '@/lib/taskList'
 import { collapse, collapsible, crossfade } from '@/components/motion/motion'
 import CountUp from '@/components/motion/CountUp.vue'
 import DrawnCheck from '@/components/comment/DrawnCheck.vue'
-import { vPointer } from '@/components/motion/wow'
 
 const props = defineProps<{
   overview: model.PROverviewDTO | null
@@ -52,7 +51,7 @@ function celebrateNew(wrapper: Element): void {
 }
 
 // Off-screen cards skip rendering and stand in at their last rendered height, or 320px before they were ever rendered.
-const cardClass = 'relative wow-spotlight gap-4 py-4 shadow-none [content-visibility:auto] [contain-intrinsic-size:auto_320px]'
+const cardClass = 'relative gap-4 py-4 shadow-none [content-visibility:auto] [contain-intrinsic-size:auto_320px]'
 // A card that is opening is clipped, which counts as off-screen: it would open to 320px and then snap to its real height.
 const cardCollapse = { ...collapse, enterActiveClass: `${collapse.enterActiveClass} **:[content-visibility:visible]!` }
 
@@ -119,7 +118,7 @@ function avatarKey(prefix: string, id: number): string {
       <div v-else class="[grid-area:1/1] min-h-0 overflow-y-auto" @animationstart.once="cascadeStarted">
         <!-- The two sections trade places when the last open conversation is resolved; they glide instead of jumping. -->
         <TransitionGroup tag="div" class="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4" move-class="transition-transform duration-slow ease-in-out">
-          <Card key="description" v-pointer class="relative wow-spotlight shadow-none" :class="cascade && 'card-in'">
+          <Card key="description" class="relative shadow-none" :class="cascade && 'card-in'">
             <CardContent>
               <ul v-if="overview.summary.labels?.length" class="labels mb-3 flex flex-wrap gap-1.5" aria-label="Labels">
                 <li
@@ -164,7 +163,7 @@ function avatarKey(prefix: string, id: number): string {
 
                 <div v-for="(comment, index) in visibleGeneralComments" :key="comment.id" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
-                    <Card v-pointer :class="[cardClass, cascade && 'card-in']" :style="{ '--i': cardIndex('general', index) }">
+                    <Card :class="[cardClass, cascade && 'card-in']" :style="{ '--i': cardIndex('general', index) }">
                       <CardHeader class="px-4 pb-0">
                         <div class="flex items-center gap-3 min-w-0">
                           <img
@@ -233,7 +232,7 @@ function avatarKey(prefix: string, id: number): string {
 
                 <div v-for="(review, index) in visibleReviews" :key="review.review_id" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
-                    <Card v-pointer :class="[cardClass, cascade && 'card-in']" :style="{ '--i': cardIndex('reviews', index) }">
+                    <Card :class="[cardClass, cascade && 'card-in']" :style="{ '--i': cardIndex('reviews', index) }">
                       <CardHeader class="px-4 pb-0">
                         <div class="flex items-start gap-3 justify-between">
                           <div class="flex items-center gap-3 min-w-0">

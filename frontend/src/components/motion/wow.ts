@@ -1,19 +1,15 @@
 /** Script half of the showpiece motion; the CSS half is the `wow-*` utilities in style.css. */
 import { nextTick, type Directive } from 'vue'
 
-/** True too where the question cannot be asked (tests), so effects stay off there. */
-export const reducedMotion = (): boolean => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true
+/** True when effects are off in settings, and where the question cannot be asked (tests), so effects stay off there. */
+export const reducedMotion = (): boolean =>
+  globalThis.document?.documentElement.dataset.effects === 'off' || (globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true)
 
-/**
- * Publishes the pointer's place over the element: `--mx`/`--my` in px for `wow-spotlight`, `--px`/`--py`
- * from -0.5 to 0.5 for `wow-tilt` (back to the centre when the pointer leaves).
- */
+/** Publishes the pointer's place over the element as `--px`/`--py`, -0.5 to 0.5, for `wow-tilt` (back to the centre when it leaves). */
 export const vPointer: Directive<HTMLElement> = {
   mounted(el) {
     el.addEventListener('pointermove', (e) => {
       const box = el.getBoundingClientRect()
-      el.style.setProperty('--mx', `${e.clientX - box.x}px`)
-      el.style.setProperty('--my', `${e.clientY - box.y}px`)
       el.style.setProperty('--px', String((e.clientX - box.x) / box.width - 0.5))
       el.style.setProperty('--py', String((e.clientY - box.y) / box.height - 0.5))
     }, { passive: true })

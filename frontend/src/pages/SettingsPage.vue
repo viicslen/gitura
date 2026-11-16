@@ -244,7 +244,6 @@ async function handleRemoveCommand(name: string) {
 <template>
   <Tabs v-model="section" orientation="vertical" class="h-full min-h-0 w-full flex-row gap-0">
     <TabsList class="isolate h-full w-48 shrink-0 flex-col items-stretch justify-start gap-0.5 overflow-hidden rounded-none border-r border-border bg-muted/30 p-2 *:data-[slot=tabs-indicator]:bg-accent *:data-[slot=tabs-indicator]:shadow-none">
-      <div class="wow-aurora -z-10 opacity-40" aria-hidden="true" />
       <TabsTrigger
         v-for="(s, i) in SECTIONS"
         :key="s.value"
@@ -304,6 +303,17 @@ async function handleRemoveCommand(name: string) {
                   </SelectGroup>
                 </SelectContent>
               </Select>
+            </div>
+            <div :class="[row, 'wow-rise']" :style="{ '--i': appearanceRows.length }">
+              <div class="min-w-0 flex-1">
+                <p id="appearance-effects-label" class="text-sm font-medium">Effects</p>
+                <p class="text-xs text-muted-foreground">Springs, glows and confetti. Off keeps only quiet fades.</p>
+              </div>
+              <Switch
+                :model-value="appearance.effects !== 'off'"
+                aria-labelledby="appearance-effects-label"
+                @update:model-value="setAppearance('effects', $event ? 'on' : 'off')"
+              />
             </div>
           </div>
         </TabsContent>
