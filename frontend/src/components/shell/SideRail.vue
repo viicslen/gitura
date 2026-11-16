@@ -56,7 +56,7 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
         <!-- Rebuilt on every move, so the glow flares while the highlight travels and dies away once it has landed. -->
         <span
           :key="selectionY"
-          class="absolute inset-0 rounded-md bg-wow-1/30 shadow-[0_0_0.75rem_0.125rem_var(--color-wow-1)] ring-1 ring-wow-2 animate-out fade-out-0 fill-mode-forwards animation-duration-show ease-in"
+          class="absolute inset-0 rounded-md [[data-effects=off]_&]:hidden bg-wow-1/30 shadow-[0_0_0.75rem_0.125rem_var(--color-wow-1)] ring-1 ring-wow-2 animate-out fade-out-0 fill-mode-forwards animation-duration-show ease-in"
         />
       </div>
       <button
