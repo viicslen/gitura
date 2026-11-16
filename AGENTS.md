@@ -85,6 +85,7 @@ from the logo). A view transition sets `html[data-vt="<name>"]` while it runs an
 scopes its `::view-transition-*` rules to it. Settings → Appearance → Effects is off by default; off sets
 `html[data-effects="off"]`: `reducedMotion()` then returns true, and `style.css` keeps
 only `animate-in` / `animate-out` and transitions, so gate script effects on `reducedMotion()`.
+Backdrop blur only goes behind the `glass:` variant (Effects on, and not on WebKitGTK without DMA-BUF).
 
 <!-- MANUAL ADDITIONS START -->
 ## App State Storage

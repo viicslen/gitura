@@ -59,6 +59,16 @@ const changeSummary = computed(() => {
   return [changed && `${changed} modified`, added && `${added} added`, removed && `${removed} deleted`].filter(Boolean).join(' · ')
 })
 const viewedCount = computed(() => props.files.filter((f) => f.viewed).length)
+
+// Many rows changing at once (a folder, a load) cut instead of glide: a transition per row re-lays out the tree every frame.
+const bulkViewed = ref(false)
+let bulkViewedTimer: ReturnType<typeof setTimeout> | undefined
+watch(viewedCount, (count, before) => {
+  if (Math.abs(count - before) <= 15) return
+  bulkViewed.value = true
+  clearTimeout(bulkViewedTimer)
+  bulkViewedTimer = setTimeout(() => (bulkViewed.value = false), 500)
+})
 const collapsed = ref(new Set<string>())
 const rows = computed(() => flattenFileTree(tree.value, collapsed.value))
 
@@ -228,7 +238,7 @@ function onTreeKeydown(event: KeyboardEvent): void {
         </div>
 
         <div v-else ref="listEl" class="flex-1 overflow-y-auto min-h-0">
-          <ul role="tree" aria-label="Changed files list" class="p-1" @keydown="onTreeKeydown">
+          <ul role="tree" aria-label="Changed files list" class="p-1" :class="bulkViewed && '**:transition-none'" @keydown="onTreeKeydown">
             <DiffFileTree
               :nodes="tree"
               :depth="0"

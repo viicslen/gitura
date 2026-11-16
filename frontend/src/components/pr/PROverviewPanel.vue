@@ -163,7 +163,7 @@ function avatarKey(prefix: string, id: number): string {
 
                 <div v-for="(comment, index) in visibleGeneralComments" :key="comment.id" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
-                    <Card :class="[cardClass, cascade && 'card-in']" :style="{ '--i': cardIndex('general', index) }">
+                    <Card :class="[cardClass, cascade && cardIndex('general', index) < 15 && 'card-in']" :style="{ '--i': cardIndex('general', index) }">
                       <CardHeader class="px-4 pb-0">
                         <div class="flex items-center gap-3 min-w-0">
                           <img
@@ -232,7 +232,7 @@ function avatarKey(prefix: string, id: number): string {
 
                 <div v-for="(review, index) in visibleReviews" :key="review.review_id" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
-                    <Card :class="[cardClass, cascade && 'card-in']" :style="{ '--i': cardIndex('reviews', index) }">
+                    <Card :class="[cardClass, cascade && cardIndex('reviews', index) < 15 && 'card-in']" :style="{ '--i': cardIndex('reviews', index) }">
                       <CardHeader class="px-4 pb-0">
                         <div class="flex items-start gap-3 justify-between">
                           <div class="flex items-center gap-3 min-w-0">
