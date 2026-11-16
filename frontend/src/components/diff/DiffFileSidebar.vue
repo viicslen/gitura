@@ -164,7 +164,7 @@ function onTreeKeydown(event: KeyboardEvent): void {
             <span
               :key="viewedCount"
               aria-hidden="true"
-              class="absolute inset-x-0 -top-0.5 bottom-0 bg-linear-to-r from-wow-1 via-wow-2 to-wow-3 shadow-[0_0_12px_2px_var(--color-wow-2)] animate-out fade-out-0 fill-mode-forwards animation-duration-show"
+              class="absolute inset-x-0 -top-0.5 bottom-0 [[data-effects=off]_&]:hidden bg-linear-to-r from-wow-1 via-wow-2 to-wow-3 shadow-[0_0_12px_2px_var(--color-wow-2)] animate-out fade-out-0 fill-mode-forwards animation-duration-show"
             />
           </div>
           <DropdownMenu>

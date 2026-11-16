@@ -252,7 +252,7 @@
     scroll-behavior: auto !important;
   }
   /* The 1ms above would still leave staggered enters hidden for their delay, and the tilt following the pointer. */
-  [class*="wow-"] {
+  :is([class^="wow-"], [class*=" wow-"], [class*=":wow-"]) {
     animation: none !important;
     transform: none !important;
   }
@@ -271,7 +271,7 @@ html[data-effects="off"] ::after {
   animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
 }
-html[data-effects="off"] [class*="wow-"] {
+html[data-effects="off"] :is([class^="wow-"], [class*=" wow-"], [class*=":wow-"]) {
   animation: none !important;
   transform: none !important;
 }
