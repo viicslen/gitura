@@ -7,9 +7,6 @@
       <!-- The pointer is read on a box that stays put; the one inside it tilts. -->
       <div ref="stage" v-pointer class="w-full max-w-md wow-focus-in">
         <div class="relative rounded-xl wow-tilt" :class="polling && 'wow-glow'">
-          <Transition v-bind="crossfade">
-            <div v-if="polling" class="pointer-events-none absolute inset-0 rounded-xl blur-md wow-glow before:-inset-1.5 before:p-2" aria-hidden="true" />
-          </Transition>
           <Card class="relative" :class="shaking && 'wow-shake'" @animationend.self="shaking = false">
             <CardHeader class="wow-rise" :style="{ '--i': 2 }">
               <CardTitle>Sign in with GitHub</CardTitle>
@@ -123,7 +120,6 @@ import { Button } from '@/components/ui/button'
 import ThemeToggle from '@/components/shell/ThemeToggle.vue'
 import { Browser } from '@wailsio/runtime'
 import { useAuth } from '@/composables/useAuth'
-import { crossfade } from '@/components/motion/motion'
 import { confetti, vPointer } from '@/components/motion/wow'
 
 const { authState, deviceFlowInfo, polling, error, startDeviceFlow, cancelDeviceFlow } = useAuth()

@@ -156,7 +156,8 @@
     background: conic-gradient(from var(--wow-angle), var(--color-wow-1), var(--color-wow-2), var(--color-wow-3), var(--color-wow-1));
     mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     mask-composite: exclude;
-    animation: wow-spin 2.4s linear infinite;
+    /* The conic gradient repaints on the main thread whenever the angle moves: 20 moves a second, not one per display frame. */
+    animation: wow-spin 2.4s steps(48) infinite;
   }
 }
 @keyframes wow-rise { from { opacity: 0; translate: 0 1.25rem; scale: 0.94; } }
