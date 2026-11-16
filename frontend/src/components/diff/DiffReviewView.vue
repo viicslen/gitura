@@ -593,7 +593,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
                 <template v-if="!filesLoading && !diffLoading">
                   <template v-if="files.length">Select a file to view its diff</template>
                   <template v-else>
-                    <div class="wow-tilt wow-focus-in relative flex max-w-sm flex-col items-center gap-2 rounded-xl border border-border bg-card/80 px-10 py-8 text-center shadow-lg backdrop-blur-sm">
+                    <div class="wow-tilt wow-focus-in relative flex max-w-sm flex-col items-center gap-2 rounded-xl border border-border bg-card/80 px-10 py-8 text-center shadow-lg">
                       <FileCheck2 class="mb-1 size-8 text-wow-2 wow-pop [--i:4]" aria-hidden="true" />
                       <p class="text-base font-semibold text-foreground">{{ local ? 'Nothing to review' : 'No changed files' }}</p>
                       <p>{{ local ? 'This scope has no changes. Edit a file or pick another scope.' : 'This pull request does not change any files.' }}</p>

@@ -9,6 +9,8 @@
 
 /* Make dark: variant respond to .dark class, not OS media query */
 @custom-variant dark (&:where(.dark, .dark *));
+/* Backdrop blur re-blurs everything behind it each frame: only with Effects on and WebKitGTK's DMA-BUF renderer (main.ts). */
+@custom-variant glass (&:where(html:not([data-effects="off"], [data-dmabuf="off"]) *));
 
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
