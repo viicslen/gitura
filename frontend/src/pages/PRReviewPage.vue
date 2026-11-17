@@ -17,7 +17,6 @@ import CommentDetailPanel from '@/components/comment/CommentDetailPanel.vue'
 import RunPanel from '@/components/run/RunPanel.vue'
 import DiffReviewView from '@/components/diff/DiffReviewView.vue'
 import PROverviewPanel from '@/components/pr/PROverviewPanel.vue'
-import PRTimelinePanel from '@/components/pr/PRTimelinePanel.vue'
 import BusyLabel from '@/components/motion/BusyLabel.vue'
 import CountUp from '@/components/motion/CountUp.vue'
 import { confetti } from '@/components/motion/wow'
@@ -35,10 +34,10 @@ import { useViewShortcuts } from '@/composables/useViewShortcuts'
 import { useKeybindings, keyLabel } from '@/composables/useKeybindings'
 import type { UnsentComments } from '@/lib/diffLayout'
 
-const { reviewTab, tabBadges } = useReviewTabs()
+const { reviewTab, tabBadges, overviewMode } = useReviewTabs()
 // A tab slides in from the side its button sits on, and the one it replaces drops back. The Files tab can hold a diff
 // of thousands of lines, so going to or from it only the arriving panel moves and the other is gone at once.
-const TAB_ORDER: ReviewTab[] = ['overview', 'conversation', 'files', 'timeline']
+const TAB_ORDER: ReviewTab[] = ['overview', 'conversation', 'files']
 const tabMotion = ref('tab-next')
 watch(reviewTab, (to, from) => {
   const side = TAB_ORDER.indexOf(to) > TAB_ORDER.indexOf(from) ? 'next' : 'prev'
@@ -292,9 +291,9 @@ watch(prSummary, async (summary) => {
   }
 })
 
-// Fetched once the tab is first opened, then kept in step with the overview, which every review activity refreshes.
+// Fetched once the timeline is first shown, then kept in step with the overview, which every review activity refreshes.
 const timeline = ref<model.PRTimelineDTO | null>(null)
-watch([() => reviewTab.value === 'timeline', overview], async ([open], [, before]) => {
+watch([() => reviewTab.value === 'overview' && overviewMode.value === 'timeline', overview], async ([open], [, before]) => {
   if (!open || !overview.value || (timeline.value && overview.value === before)) return
   try {
     timeline.value = await GetPRTimeline()
@@ -486,7 +485,10 @@ watch(
             <PROverviewPanel
               v-show="reviewTab === 'overview'"
               v-model:show-resolved-reviews="showResolvedReviews"
+              v-model:mode="overviewMode"
               :overview="overview"
+              :timeline="timeline"
+              :threads="threads"
               class="min-h-0 min-w-0 [grid-area:1/1]"
             />
           </Transition>
@@ -506,15 +508,6 @@ watch(
               @unresolve="handleUnresolve"
               @reply-sent="handleReplySent"
               @threads-changed="handleReviewActivity"
-            />
-          </Transition>
-
-          <Transition :name="tabMotion">
-            <PRTimelinePanel
-              v-show="reviewTab === 'timeline'"
-              :timeline="timeline"
-              :threads="threads"
-              class="min-h-0 min-w-0 [grid-area:1/1]"
             />
           </Transition>
         </div>

@@ -47,11 +47,11 @@ function formatTimestamp(iso: string): string {
 </script>
 
 <template>
-  <div class="min-h-0 overflow-y-auto">
-    <p v-if="!timeline" class="p-6 text-center text-sm text-muted-foreground animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards">
+  <div>
+    <p v-if="!timeline" class="py-6 text-center text-sm text-muted-foreground animate-in fade-in-0 animation-duration-base delay-200 fill-mode-backwards">
       Loading timeline…
     </p>
-    <ol v-else class="mx-auto w-full max-w-4xl p-4" aria-label="Pull request timeline">
+    <ol v-else aria-label="Pull request timeline">
       <li
         v-for="e in entries"
         :key="key(e)"
