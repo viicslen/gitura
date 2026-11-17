@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.0](https://github.com/viicslen/gitura/compare/v1.5.1...v1.6.0) (2026-11-17)
+
+
+### Features
+
+* **search:** search any pull request on GitHub, with its open, closed or merged state ([ee6ae96](https://github.com/viicslen/gitura/commit/ee6ae96faf3e50d8fe9f452101d0b05dc0fa2093))
+* **ui:** open any pull request from Ctrl+K by searching or typing its number ([1bea8a6](https://github.com/viicslen/gitura/commit/1bea8a6d95710d5be3c6e041a92552a35bfba418))
+* **ui:** open any pull request from Ctrl+K by searching or typing its number ([#72](https://github.com/viicslen/gitura/issues/72)) ([918a0ab](https://github.com/viicslen/gitura/commit/918a0ab6747676b4dfc729d45df4fd457129362d))
+
 ## [1.5.1](https://github.com/viicslen/gitura/compare/v1.5.0...v1.5.1) (2026-11-16)
 
 
