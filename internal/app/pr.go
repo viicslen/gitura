@@ -84,6 +84,7 @@ func (a *App) LoadPR(owner, repo string, number int) (model.PullRequestSummary, 
 	a.issueComments = filteredComments
 	a.reviews = decoratedReviews
 	a.prFilesCache = nil
+	a.commits = nil
 	a.viewedFiles = nil
 	a.StopLocalReview()
 	// Draft comments live only in memory; a refresh of the same PR must not drop them.
@@ -171,6 +172,34 @@ func (a *App) GetPROverview(includeResolvedReviews bool) (model.PROverviewDTO, e
 		GeneralComments: comments,
 		Reviews:         reviews,
 		ReviewNumbers:   numbers,
+	}, nil
+}
+
+// GetPRTimeline returns the loaded PR's commits, reviews and general comments for the timeline tab.
+// Commits are fetched on first call and cached until the next LoadPR.
+// Error prefixes: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+func (a *App) GetPRTimeline() (model.PRTimelineDTO, error) {
+	if a.ghClient == nil {
+		return model.PRTimelineDTO{}, fmt.Errorf("auth: not authenticated")
+	}
+	overview, err := a.GetPROverview(true)
+	if err != nil {
+		return model.PRTimelineDTO{}, err
+	}
+	if a.commits == nil {
+		commits, err := ghapi.FetchCommits(a.ctx, a.ghClient, a.prOwner, a.prRepo, a.prNumber)
+		if err != nil {
+			return model.PRTimelineDTO{}, err
+		}
+		a.commits = commits
+	}
+	reviews := make([]model.ReviewDTO, len(a.reviews))
+	copy(reviews, a.reviews)
+	return model.PRTimelineDTO{
+		Commits:         a.commits,
+		Reviews:         reviews,
+		GeneralComments: overview.GeneralComments,
+		ReviewNumbers:   overview.ReviewNumbers,
 	}, nil
 }
 

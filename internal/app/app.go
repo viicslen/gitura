@@ -50,6 +50,8 @@ type App struct {
 	threads       []model.CommentThreadDTO
 	issueComments []model.IssueCommentDTO
 	reviews       []model.ReviewDTO
+	// commits is filled lazily by GetPRTimeline; cleared on LoadPR.
+	commits []model.CommitDTO
 
 	// prFilesCache holds the raw CommitFile list from the GitHub ListFiles API.
 	// Populated lazily by GetPRFiles; cleared on LoadPR.

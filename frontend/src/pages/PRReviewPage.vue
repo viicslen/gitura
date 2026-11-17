@@ -17,6 +17,7 @@ import CommentDetailPanel from '@/components/comment/CommentDetailPanel.vue'
 import RunPanel from '@/components/run/RunPanel.vue'
 import DiffReviewView from '@/components/diff/DiffReviewView.vue'
 import PROverviewPanel from '@/components/pr/PROverviewPanel.vue'
+import PRTimelinePanel from '@/components/pr/PRTimelinePanel.vue'
 import BusyLabel from '@/components/motion/BusyLabel.vue'
 import CountUp from '@/components/motion/CountUp.vue'
 import { confetti } from '@/components/motion/wow'
@@ -27,7 +28,7 @@ import { useAuth } from '@/composables/useAuth'
 import type { PRRef } from '@/types/pr'
 import type * as model from '@/bindings/gitura/internal/model'
 import { useToggles } from '@/composables/useToggles'
-import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
+import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, GetPRTimeline, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
 import { toast } from 'vue-sonner'
 import { useReviewTabs, type ReviewTab } from '@/composables/useReviewTabs'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
@@ -37,7 +38,7 @@ import type { UnsentComments } from '@/lib/diffLayout'
 const { reviewTab, tabBadges } = useReviewTabs()
 // A tab slides in from the side its button sits on, and the one it replaces drops back. The Files tab can hold a diff
 // of thousands of lines, so going to or from it only the arriving panel moves and the other is gone at once.
-const TAB_ORDER: ReviewTab[] = ['overview', 'conversation', 'files']
+const TAB_ORDER: ReviewTab[] = ['overview', 'conversation', 'files', 'timeline']
 const tabMotion = ref('tab-next')
 watch(reviewTab, (to, from) => {
   const side = TAB_ORDER.indexOf(to) > TAB_ORDER.indexOf(from) ? 'next' : 'prev'
@@ -291,6 +292,19 @@ watch(prSummary, async (summary) => {
   }
 })
 
+// Fetched once the tab is first opened, then kept in step with the overview, which every review activity refreshes.
+const timeline = ref<model.PRTimelineDTO | null>(null)
+watch([() => reviewTab.value === 'timeline', overview], async ([open], [, before]) => {
+  if (!open || !overview.value || (timeline.value && overview.value === before)) return
+  try {
+    timeline.value = await GetPRTimeline()
+  } catch (err) {
+    toast.error('Could not load timeline: ' + errorMessage(err))
+  }
+})
+// A refresh reloads the PR, which refetches its commits.
+watch(prSummary, () => { timeline.value = null })
+
 watch(
   prSummary,
   (summary) => {
@@ -492,6 +506,15 @@ watch(
               @unresolve="handleUnresolve"
               @reply-sent="handleReplySent"
               @threads-changed="handleReviewActivity"
+            />
+          </Transition>
+
+          <Transition :name="tabMotion">
+            <PRTimelinePanel
+              v-show="reviewTab === 'timeline'"
+              :timeline="timeline"
+              :threads="threads"
+              class="min-h-0 min-w-0 [grid-area:1/1]"
             />
           </Transition>
         </div>

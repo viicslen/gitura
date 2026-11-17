@@ -101,6 +101,26 @@ type PROverviewDTO struct {
 	ReviewNumbers map[int64]int `json:"review_numbers"`
 }
 
+// CommitDTO is a commit on a pull request's branch.
+type CommitDTO struct {
+	SHA          string `json:"sha"`
+	Headline     string `json:"headline"`
+	AuthorLogin  string `json:"author_login"`
+	AuthorAvatar string `json:"author_avatar"`
+	CommittedAt  string `json:"committed_at"` // RFC3339
+	HTMLURL      string `json:"html_url"`
+}
+
+// PRTimelineDTO holds what the timeline tab interleaves with the review threads.
+// Reviews holds every submitted review, reply-only ones included, so thread comments can be
+// placed at the time their review was published rather than when they were drafted.
+type PRTimelineDTO struct {
+	Commits         []CommitDTO       `json:"commits"`
+	Reviews         []ReviewDTO       `json:"reviews"`
+	GeneralComments []IssueCommentDTO `json:"general_comments"`
+	ReviewNumbers   map[int64]int     `json:"review_numbers"`
+}
+
 // AuthState represents the current authentication status of the app.
 // Login and AvatarURL are flat string fields; the frontend never receives a
 // nested User struct. Token is intentionally omitted from JSON serialization

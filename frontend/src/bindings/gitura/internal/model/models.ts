@@ -201,6 +201,54 @@ export class CommentThreadDTO {
 }
 
 /**
+ * CommitDTO is a commit on a pull request's branch.
+ */
+export class CommitDTO {
+    "sha": string;
+    "headline": string;
+    "author_login": string;
+    "author_avatar": string;
+
+    /**
+     * RFC3339
+     */
+    "committed_at": string;
+    "html_url": string;
+
+    /** Creates a new CommitDTO instance. */
+    constructor($$source: Partial<CommitDTO> = {}) {
+        if (!("sha" in $$source)) {
+            this["sha"] = "";
+        }
+        if (!("headline" in $$source)) {
+            this["headline"] = "";
+        }
+        if (!("author_login" in $$source)) {
+            this["author_login"] = "";
+        }
+        if (!("author_avatar" in $$source)) {
+            this["author_avatar"] = "";
+        }
+        if (!("committed_at" in $$source)) {
+            this["committed_at"] = "";
+        }
+        if (!("html_url" in $$source)) {
+            this["html_url"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CommitDTO instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CommitDTO {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CommitDTO($$parsedSource as Partial<CommitDTO>);
+    }
+}
+
+/**
  * DeviceFlowInfo holds the data returned when starting a GitHub OAuth Device Flow.
  */
 export class DeviceFlowInfo {
@@ -910,6 +958,60 @@ export class PROverviewDTO {
 }
 
 /**
+ * PRTimelineDTO holds what the timeline tab interleaves with the review threads.
+ * Reviews holds every submitted review, reply-only ones included, so thread comments can be
+ * placed at the time their review was published rather than when they were drafted.
+ */
+export class PRTimelineDTO {
+    "commits": CommitDTO[];
+    "reviews": ReviewDTO[];
+    "general_comments": IssueCommentDTO[];
+    "review_numbers": { [_ in `${number}`]?: number };
+
+    /** Creates a new PRTimelineDTO instance. */
+    constructor($$source: Partial<PRTimelineDTO> = {}) {
+        if (!("commits" in $$source)) {
+            this["commits"] = [];
+        }
+        if (!("reviews" in $$source)) {
+            this["reviews"] = [];
+        }
+        if (!("general_comments" in $$source)) {
+            this["general_comments"] = [];
+        }
+        if (!("review_numbers" in $$source)) {
+            this["review_numbers"] = {};
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PRTimelineDTO instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PRTimelineDTO {
+        const $$createField0_0 = $$createType13;
+        const $$createField1_0 = $$createType10;
+        const $$createField2_0 = $$createType8;
+        const $$createField3_0 = $$createType11;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("commits" in $$parsedSource) {
+            $$parsedSource["commits"] = $$createField0_0($$parsedSource["commits"]);
+        }
+        if ("reviews" in $$parsedSource) {
+            $$parsedSource["reviews"] = $$createField1_0($$parsedSource["reviews"]);
+        }
+        if ("general_comments" in $$parsedSource) {
+            $$parsedSource["general_comments"] = $$createField2_0($$parsedSource["general_comments"]);
+        }
+        if ("review_numbers" in $$parsedSource) {
+            $$parsedSource["review_numbers"] = $$createField3_0($$parsedSource["review_numbers"]);
+        }
+        return new PRTimelineDTO($$parsedSource as Partial<PRTimelineDTO>);
+    }
+}
+
+/**
  * ParsedDiffDTO is the structured representation of a single file's diff.
  * Returned by GetFileDiff. The frontend renders this directly without further parsing.
  */
@@ -950,7 +1052,7 @@ export class ParsedDiffDTO {
      * Creates a new ParsedDiffDTO instance from a string or object.
      */
     static createFrom($$source: any = {}): ParsedDiffDTO {
-        const $$createField6_0 = $$createType13;
+        const $$createField6_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("hunks" in $$parsedSource) {
             $$parsedSource["hunks"] = $$createField6_0($$parsedSource["hunks"]);
@@ -998,7 +1100,7 @@ export class PendingReviewDTO {
      * Creates a new PendingReviewDTO instance from a string or object.
      */
     static createFrom($$source: any = {}): PendingReviewDTO {
-        const $$createField1_0 = $$createType15;
+        const $$createField1_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("comments" in $$parsedSource) {
             $$parsedSource["comments"] = $$createField1_0($$parsedSource["comments"]);
@@ -1131,7 +1233,7 @@ export class PullRequestSummary {
      * Creates a new PullRequestSummary instance from a string or object.
      */
     static createFrom($$source: any = {}): PullRequestSummary {
-        const $$createField18_0 = $$createType17;
+        const $$createField18_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("labels" in $$parsedSource) {
             $$parsedSource["labels"] = $$createField18_0($$parsedSource["labels"]);
@@ -1499,9 +1601,11 @@ const $$createType8 = $Create.Array($$createType7);
 const $$createType9 = ReviewDTO.createFrom;
 const $$createType10 = $Create.Array($$createType9);
 const $$createType11 = $Create.Map($Create.Any, $Create.Any);
-const $$createType12 = DiffHunkDTO.createFrom;
+const $$createType12 = CommitDTO.createFrom;
 const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = DraftCommentDTO.createFrom;
+const $$createType14 = DiffHunkDTO.createFrom;
 const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = LabelDTO.createFrom;
+const $$createType16 = DraftCommentDTO.createFrom;
 const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = LabelDTO.createFrom;
+const $$createType19 = $Create.Array($$createType18);

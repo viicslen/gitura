@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // While reviewing, the rail also switches the review view.
 import { computed } from 'vue'
-import { FileDiff, GitPullRequest, LayoutList, MessagesSquare, Search } from '@lucide/vue'
+import { FileDiff, GitPullRequest, History, LayoutList, MessagesSquare, Search } from '@lucide/vue'
 import logoUrl from '@/assets/images/logo.svg'
 import UserMenu from './UserMenu.vue'
 import { useReviewTabs } from '@/composables/useReviewTabs'
@@ -16,6 +16,7 @@ const VIEWS = [
   { value: 'overview', label: 'Overview', icon: LayoutList, counted: 'unresolved reviews' },
   { value: 'conversation', label: 'Conversation', icon: MessagesSquare, counted: 'unresolved threads' },
   { value: 'files', label: 'Files changed', icon: FileDiff, counted: 'files not viewed' },
+  { value: 'timeline', label: 'Timeline', icon: History, counted: '' },
 ] as const
 
 function viewLabel(v: (typeof VIEWS)[number]): string {
