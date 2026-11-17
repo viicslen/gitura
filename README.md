@@ -34,6 +34,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 ## Features
 
 - **Pull request list** — everything you author, are assigned, or are asked to review, filtered by repository, organisation, author, or last-updated date
+- **Quick open** — Ctrl+K (rebind it in Settings → Keybindings) or the search button on the rail opens any PR: filter your open PRs, search all of GitHub (qualifiers like `repo:` and `is:merged` work), or type a number, `owner/repo#123` or a PR URL
 - **Side rail and title strip** — a frameless window with a slim rail for the PR list, Overview, Conversation and Files views (badged with open reviews, unresolved threads and unviewed files), and a title strip with the PR's state, Refresh and Open on GitHub
 - **Overview** — description, labels, general comments and reviews; reviews with open conversations come first
 - **Conversation view** — step through review comments one at a time with diff hunk context and thread replies
@@ -47,7 +48,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Commit suggestions** — accept a GitHub suggestion block and commit it to the PR branch
 - **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch its output stream live in the run panel
 - **Ignored commenters** — filter out CI bot noise by username
-- **Configurable shortcuts** — rebind the keys that move between files and threads in Settings → Keyboard
+- **Configurable shortcuts** — rebind the keys that move between files and threads, and the quick open chord, in Settings → Keybindings
 - **Preferences in one place** — theme, line wrapping, hiding viewed or test files, and the PR list's default filters live in Settings and `settings.toml`; the quick toggles in the app use the same values. Settings → Review → Leave the review after merging goes back to the PR list once you merge from the review (a `--focus` window closes instead)
 - **Open a PR from the command line** — `gitura 123` or `gitura my-branch` opens that PR straight away; the repository comes from the current directory's `origin` remote, or pass `--repo owner/repo`. A running window is reused unless you pass `--new-window`. `--focus` opens it in its own window with only that review: no PR list, nothing to navigate away to, and the main window is left alone. `gitura --local [path]` reviews the local changes of a checkout instead (default: the current directory)
 - **Dark, light, and system themes**

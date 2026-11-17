@@ -440,6 +440,7 @@ import { usePRFilters } from '@/composables/usePRFilters'
 import * as App from '@/bindings/gitura/internal/app/app'
 import type * as model from '@/bindings/gitura/internal/model'
 import type { PRRef } from '@/types/pr'
+import { myOpenPRs } from '@/lib/prQuery'
 
 const props = defineProps<{
   /** Latest PR data seen in the review view, keyed `owner/repo#number`; overrides search results until search catches up. */
@@ -756,6 +757,7 @@ async function fetchPRs(background = false, entrance = false): Promise<void> {
         endArrival()
       }
       rawResult.value = res
+      myOpenPRs.value = res.items ?? []
       // GitHub's search index lags edits and merges; drop an update once search reflects it.
       const returned = new Map(res.items?.map((pr) => [prKey(pr), pr]))
       props.prUpdates?.forEach((update, key) => {

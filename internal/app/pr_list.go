@@ -41,3 +41,16 @@ func (a *App) ListOpenPRs(filters model.PRListFilters) (model.PRListResult, erro
 	)
 	return result, nil
 }
+
+// SearchPRs runs text as a GitHub pull request search across everything the user can see
+// and returns the 20 most recently updated matches. Errors are reported in PRListResult.Error.
+func (a *App) SearchPRs(text string) model.PRListResult {
+	if a.ghClient == nil {
+		return model.PRListResult{Error: "not authenticated"}
+	}
+	authState, err := a.GetAuthState()
+	if err != nil || !authState.IsAuthenticated {
+		return model.PRListResult{Error: "not authenticated"}
+	}
+	return ghapi.SearchPRs(a.ctx, a.ghClient, authState.Login, text)
+}
