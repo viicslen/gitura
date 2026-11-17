@@ -419,6 +419,16 @@ export function RunCommands(commandNames: string[], input: string, runCtx: model
 }
 
 /**
+ * SearchPRs runs text as a GitHub pull request search across everything the user can see
+ * and returns the 20 most recently updated matches. Errors are reported in PRListResult.Error.
+ */
+export function SearchPRs(text: string): $CancellablePromise<model$0.PRListResult> {
+    return $Call.ByID(3656722189, text).then(($result: any) => {
+        return $$createType17($result);
+    });
+}
+
+/**
  * SetAppearance persists the font and text-size choices.
  * 
  * Error prefix: "settings:" — load or save failure.

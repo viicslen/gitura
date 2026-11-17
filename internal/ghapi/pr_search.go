@@ -92,6 +92,11 @@ func issueToItem(issue *github.Issue, login string) (model.PRListItem, bool) {
 
 	isReviewer := !isAuthor && !isAssignee
 
+	state := issue.GetState()
+	if !issue.GetPullRequestLinks().GetMergedAt().IsZero() {
+		state = "merged"
+	}
+
 	return model.PRListItem{
 		Number:      issue.GetNumber(),
 		Title:       issue.GetTitle(),
@@ -102,6 +107,7 @@ func issueToItem(issue *github.Issue, login string) (model.PRListItem, bool) {
 		UpdatedAt:   issue.GetUpdatedAt().Time.UTC().Format(time.RFC3339),
 		HTMLURL:     issue.GetHTMLURL(),
 		IsDraft:     issue.GetDraft(),
+		State:       state,
 		IsAuthor:    isAuthor,
 		IsAssignee:  isAssignee,
 		IsReviewer:  isReviewer,
@@ -199,4 +205,23 @@ func SearchOpenPRs(
 		Items:             items,
 		IncompleteResults: incomplete,
 	}, nil
+}
+
+// SearchPRs returns the 20 most recently updated pull requests matching text, a GitHub search
+// query that may carry its own qualifiers (repo:, author:, is:closed, ...). Errors are reported
+// in Result.Error, as for SearchOpenPRs.
+func SearchPRs(ctx context.Context, client *github.Client, login, text string) model.PRListResult {
+	opts := &github.SearchOptions{Sort: "updated", Order: "desc", ListOptions: github.ListOptions{PerPage: 20}}
+	result, _, err := client.Search.Issues(ctx, "is:pr archived:false "+text, opts)
+	if err != nil {
+		mapped, _ := mapSearchError(err)
+		return mapped
+	}
+	items := make([]model.PRListItem, 0, len(result.Issues))
+	for _, issue := range result.Issues {
+		if item, ok := issueToItem(issue, login); ok {
+			items = append(items, item)
+		}
+	}
+	return model.PRListResult{Items: items, IncompleteResults: result.GetIncompleteResults()}
 }

@@ -739,6 +739,11 @@ export class PRListItem {
     "is_draft": boolean;
 
     /**
+     * "open", "closed" or "merged"
+     */
+    "state": string;
+
+    /**
      * true when login == PR author
      */
     "is_author": boolean;
@@ -781,6 +786,9 @@ export class PRListItem {
         }
         if (!("is_draft" in $$source)) {
             this["is_draft"] = false;
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
         }
         if (!("is_author" in $$source)) {
             this["is_author"] = false;

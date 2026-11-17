@@ -506,3 +506,27 @@ func TestRepoFromURL_NonAPIURL_DoesNotPanic(t *testing.T) { //nolint:revive
 	_ = owner
 	_ = repo
 }
+
+// TestSearchPRs_Query_PrefixesPRQualifiersAndMapsState verifies the user's text is searched
+// as pull requests and that merged and closed PRs carry their state.
+func TestSearchPRs_Query_PrefixesPRQualifiersAndMapsState(t *testing.T) {
+	var capturedQuery string
+	now := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedQuery = r.URL.Query().Get("q")
+		merged := makeIssueJSON(1, "Merged", "https://github.com/o/r/pull/1", "https://api.github.com/repos/o/r", "bob", false, now, nil, nil)
+		merged["state"] = "closed"
+		merged["pull_request"] = map[string]any{"merged_at": now.Format(time.RFC3339)}
+		closed := makeIssueJSON(2, "Closed", "https://github.com/o/r/pull/2", "https://api.github.com/repos/o/r", "bob", false, now, nil, nil)
+		closed["state"] = "closed"
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, searchResponse([]map[string]any{merged, closed}, 2, false))
+	}))
+	defer srv.Close()
+
+	result := SearchPRs(context.Background(), newTestClient(t, srv), "alice", "repo:o/r fix")
+	assert.Equal(t, "is:pr archived:false repo:o/r fix", capturedQuery)
+	require.Len(t, result.Items, 2)
+	assert.Equal(t, "merged", result.Items[0].State)
+	assert.Equal(t, "closed", result.Items[1].State)
+}
