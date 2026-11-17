@@ -14,6 +14,7 @@ vi.mock('@/bindings/gitura/internal/app/app', () => ({
   ListOpenPRs: (...args: unknown[]) => listOpenPRs(...args),
   IsFocused: () => isFocused(),
   TakeLaunch: () => takeLaunch(),
+  GetKeybindings: () => Promise.resolve({}),
 }))
 
 vi.mock('@wailsio/runtime', () => ({

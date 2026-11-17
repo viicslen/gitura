@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // While reviewing, the rail also switches the review view.
 import { computed } from 'vue'
-import { FileDiff, GitPullRequest, LayoutList, MessagesSquare } from '@lucide/vue'
+import { FileDiff, GitPullRequest, LayoutList, MessagesSquare, Search } from '@lucide/vue'
 import logoUrl from '@/assets/images/logo.svg'
 import UserMenu from './UserMenu.vue'
 import { useReviewTabs } from '@/composables/useReviewTabs'
@@ -9,8 +9,8 @@ import type { PRRef } from '@/types/pr'
 
 const { reviewTab, tabBadges } = useReviewTabs()
 
-const props = defineProps<{ meta: PRRef | null; login: string; avatarSrc?: string; focused?: boolean }>()
-const emit = defineEmits<{ (e: 'home'): void; (e: 'settings'): void; (e: 'logout'): void }>()
+const props = defineProps<{ meta: PRRef | null; login: string; avatarSrc?: string; focused?: boolean; searchShortcut?: string }>()
+const emit = defineEmits<{ (e: 'home'): void; (e: 'settings'): void; (e: 'logout'): void; (e: 'search'): void }>()
 
 const VIEWS = [
   { value: 'overview', label: 'Overview', icon: LayoutList, counted: 'unresolved reviews' },
@@ -46,6 +46,16 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
         draggable="false"
       />
     </div>
+    <button
+      v-if="!focused"
+      :class="[item, idle, 'mt-1']"
+      :style="{ '--i': 5 }"
+      aria-label="Open a pull request"
+      aria-haspopup="dialog"
+      :title="`Open a pull request (${searchShortcut})`"
+      :aria-keyshortcuts="searchShortcut?.replace('Ctrl', 'Control')"
+      @click="emit('search')"
+    ><Search :class="icon" /></button>
     <div class="relative flex flex-col items-center gap-1 mt-1">
       <div
         v-if="meta || !focused"

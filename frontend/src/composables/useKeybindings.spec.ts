@@ -16,7 +16,7 @@ describe('useKeybindings', () => {
     const { bindings } = useKeybindings()
     await flushPromises()
     expect(GetKeybindings).toHaveBeenCalledOnce()
-    expect(bindings.value).toEqual({ prevFile: '[', nextFile: 'n', prevThread: 'ArrowLeft', nextThread: 'ArrowRight' })
+    expect(bindings.value).toEqual({ prevFile: '[', nextFile: 'n', prevThread: 'ArrowLeft', nextThread: 'ArrowRight', quickOpen: 'Ctrl+K' })
   })
 
   describe('bindKey', () => {
@@ -35,6 +35,12 @@ describe('useKeybindings', () => {
       expect(await bindKey('prevFile', key('j'))).toMatch(/Next file/)
       expect(bindings.value.prevFile).toBe('[')
       expect(await bindKey('nextThread', key('j'))).toBeNull()
+    })
+
+    it('saves a chord action with its modifiers and rejects a bare key', async () => {
+      expect(await bindKey('quickOpen', key('j'))).toMatch(/Ctrl, Alt or Meta/)
+      expect(await bindKey('quickOpen', key('k', { ctrlKey: true, shiftKey: true }))).toBeNull()
+      expect(bindings.value.quickOpen).toBe('Ctrl+Shift+K')
     })
 
     it('keeps the old binding when saving fails', async () => {

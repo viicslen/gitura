@@ -20,6 +20,8 @@
           :focused="focused !== false"
           @home="goHome"
           @settings="settingsDialogOpen = true"
+          :search-shortcut="keyLabel(keybindings.quickOpen)"
+          @search="searchOpen = true"
           @logout="handleLogout"
         />
       </div>
@@ -61,6 +63,7 @@
           />
           <PRReviewPage
             v-else-if="page === 'review' && selectedPRItem"
+            :key="prKey(selectedPRItem)"
             :class="cell"
             :pr-item="selectedPRItem"
             @update-pr-meta="handleUpdatePRMeta"
@@ -76,6 +79,8 @@
         <SettingsPage />
       </DialogContent>
     </Dialog>
+
+    <PRSearchDialog v-if="railLayout && focused === false" v-model:open="searchOpen" :current="reviewNavMeta" @open-review="openFromSearch" />
 
     <Dialog v-model:open="zoomOpen">
       <DialogContent
@@ -119,6 +124,9 @@ import { Application, Browser, Events } from '@wailsio/runtime'
 import SideRail from '@/components/shell/SideRail.vue'
 import TitleStrip from '@/components/shell/TitleStrip.vue'
 import { canMorph, morph, morphing } from '@/components/shell/morph'
+import PRSearchDialog from '@/components/shell/PRSearchDialog.vue'
+import { myOpenPRs } from '@/lib/prQuery'
+import { chordOf, keyLabel, useKeybindings } from '@/composables/useKeybindings'
 
 const { authState, refreshAuthState, logout } = useAuth()
 const currentPage = ref<'prList' | 'review' | 'local'>('prList')
@@ -127,6 +135,8 @@ const localLabel = computed(() => localPath.value.split(/[\\/]/).filter(Boolean)
 const selectedPRItem = ref<PRRef | null>(null)
 const reviewNavMeta = ref<PRRef | null>(null)
 const settingsDialogOpen = ref(false)
+const searchOpen = ref(false)
+const { bindings: keybindings } = useKeybindings()
 const prUpdates = reactive(new Map<string, PRRef>())
 const authAvatarSrc = computed(() => buildAvatarProxyURL(authState.value.avatar_url))
 const railLayout = computed(() => authState.value.is_authenticated)
@@ -215,7 +225,21 @@ Events.On('launch', openLaunch)
 
 async function handleLogout() {
   await logout()
+  myOpenPRs.value = []
 }
+
+const prKey = (pr: PRRef) => `${pr.owner}/${pr.repo}#${pr.number}`
+
+function openFromSearch(item: PRRef) {
+  if (currentPage.value === 'review' && reviewNavMeta.value && prKey(reviewNavMeta.value) === prKey(item)) return
+  handleOpenReview(item)
+}
+
+useEventListener(window, 'keydown', (event: KeyboardEvent) => {
+  if (event.defaultPrevented || !railLayout.value || focused.value !== false || chordOf(event) !== keybindings.value.quickOpen) return
+  event.preventDefault()
+  searchOpen.value = true
+})
 
 function handleOpenReview(item: PRRef) {
   void turnPage(false, item, () => {
@@ -242,7 +266,7 @@ function handleCloseReview() {
 
 function handleUpdatePRMeta(meta: PRRef) {
   reviewNavMeta.value = meta
-  prUpdates.set(`${meta.owner}/${meta.repo}#${meta.number}`, meta)
+  prUpdates.set(prKey(meta), meta)
 }
 
 function openPRInBrowser() {

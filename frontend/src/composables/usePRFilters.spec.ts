@@ -13,6 +13,7 @@ function pr(owner: string, repo: string, number = 1): model.PRListItem {
     updated_at: '2026-01-01T00:00:00Z',
     html_url: `https://github.com/${owner}/${repo}/pull/${number}`,
     is_draft: false,
+    state: 'open',
     is_author: true,
     is_assignee: false,
     is_reviewer: false,
