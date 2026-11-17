@@ -433,7 +433,7 @@ watch(
                 </div>
               </div>
 
-              <!-- Right: thread pager, detail, run tools -->
+              <!-- Right: thread pager and detail -->
               <div ref="conversationPane" class="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
                 <!-- Stays when no thread is listed, so the detail below never jumps. -->
                 <div class="h-10 shrink-0 border-b border-border px-4 flex items-center gap-1 text-xs">
@@ -464,65 +464,6 @@ watch(
                   @suggestion-committed="handleSuggestionCommitted"
                   @ran="handleRan"
                 />
-                <!-- Run history panel (pinned to bottom of right panel) -->
-                <RunPanel
-                  :open="runPanelOpen"
-                  :current-thread-root-id="currentThread?.root_id"
-                  @close="runPanelOpen = false"
-                />
-                <!-- Command tools: where commands run and what they produced -->
-                <div v-if="commands.length > 0" class="h-9 shrink-0 border-t border-border px-2 flex items-center gap-1 text-xs">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger as-child>
-                      <Button variant="ghost" size="sm" class="h-7 gap-1.5 text-xs min-w-0 max-w-[60%]" aria-label="Local checkout for commands">
-                        <FolderOpen class="h-3.5 w-3.5 shrink-0" />
-                        <span class="text-muted-foreground shrink-0">Run in</span>
-                        <span class="font-mono truncate" :class="!localPath && 'text-muted-foreground italic font-sans'">{{ localPath || 'not set' }}</span>
-                        <ChevronDown class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" side="top" class="w-80 p-2">
-                      <div class="flex items-center gap-2">
-                        <Input
-                          :value="localPath"
-                          placeholder="Local repo path..."
-                          class="h-8 text-xs font-mono"
-                          aria-label="Local repository path"
-                          @change="(e: Event) => saveLocalPath((e.target as HTMLInputElement).value)"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          class="h-8 shrink-0"
-                          aria-label="Browse for local repository folder"
-                          @click="browseForPath()"
-                        >
-                          Browse
-                        </Button>
-                      </div>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="ml-auto h-7 gap-1.5 text-xs"
-                    :class="runPanelOpen ? 'text-foreground' : 'text-muted-foreground'"
-                    :aria-expanded="runPanelOpen"
-                    @click="runPanelOpen = !runPanelOpen"
-                  >
-                    <Terminal class="h-3.5 w-3.5" />
-                    Run history
-                    <!-- Opens sideways so the label glides aside instead of jumping when a run starts or ends. -->
-                    <Transition v-bind="collapseX('-ml-1.5!')">
-                      <span v-if="pendingRunCount > 0" :class="collapsibleX">
-                        <span class="min-w-0">
-                          <span class="rounded-full bg-primary px-1.5 text-[0.625rem] text-primary-foreground tabular-nums">{{ pendingRunCount }}</span>
-                        </span>
-                      </span>
-                    </Transition>
-                    <ChevronUp class="h-3.5 w-3.5 transition-transform" :class="runPanelOpen && 'rotate-180'" />
-                  </Button>
-                </div>
               </div>
             </div>
           </Transition>
@@ -575,6 +516,67 @@ watch(
         </div>
       </Transition>
     </div>
+
+    <template v-if="prSummary">
+      <RunPanel
+        :open="runPanelOpen"
+        :current-thread-root-id="reviewTab === 'conversation' ? currentThread?.root_id : undefined"
+        @close="runPanelOpen = false"
+      />
+      <!-- Below every tab: runs started on one tab are watched from the others. -->
+      <div v-if="commands.length > 0" class="h-9 shrink-0 border-t border-border px-2 flex items-center gap-1 text-xs">
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="ghost" size="sm" class="h-7 gap-1.5 text-xs min-w-0 max-w-[60%]" aria-label="Local checkout for commands">
+              <FolderOpen class="h-3.5 w-3.5 shrink-0" />
+              <span class="text-muted-foreground shrink-0">Run in</span>
+              <span class="font-mono truncate" :class="!localPath && 'text-muted-foreground italic font-sans'">{{ localPath || 'not set' }}</span>
+              <ChevronDown class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" side="top" class="w-80 p-2">
+            <div class="flex items-center gap-2">
+              <Input
+                :value="localPath"
+                placeholder="Local repo path..."
+                class="h-8 text-xs font-mono"
+                aria-label="Local repository path"
+                @change="(e: Event) => saveLocalPath((e.target as HTMLInputElement).value)"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                class="h-8 shrink-0"
+                aria-label="Browse for local repository folder"
+                @click="browseForPath()"
+              >
+                Browse
+              </Button>
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button
+          variant="ghost"
+          size="sm"
+          class="ml-auto h-7 gap-1.5 text-xs"
+          :class="runPanelOpen ? 'text-foreground' : 'text-muted-foreground'"
+          :aria-expanded="runPanelOpen"
+          @click="runPanelOpen = !runPanelOpen"
+        >
+          <Terminal class="h-3.5 w-3.5" />
+          Run history
+          <!-- Opens sideways so the label glides aside instead of jumping when a run starts or ends. -->
+          <Transition v-bind="collapseX('-ml-1.5!')">
+            <span v-if="pendingRunCount > 0" :class="collapsibleX">
+              <span class="min-w-0">
+                <span class="rounded-full bg-primary px-1.5 text-[0.625rem] text-primary-foreground tabular-nums">{{ pendingRunCount }}</span>
+              </span>
+            </span>
+          </Transition>
+          <ChevronUp class="h-3.5 w-3.5 transition-transform" :class="runPanelOpen && 'rotate-180'" />
+        </Button>
+      </div>
+    </template>
 
     <div v-if="mergedStamp" aria-hidden="true" class="pointer-events-none absolute inset-0 z-50 grid place-items-center wow-sheen">
       <div class="merged-stamp relative flex items-center gap-4 rounded-2xl border-4 border-wow-1 bg-background/80 px-10 py-5 text-5xl font-black tracking-widest text-wow-1 uppercase wow-ring">
