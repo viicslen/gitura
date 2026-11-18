@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0](https://github.com/viicslen/gitura/compare/v1.6.0...v1.7.0) (2026-11-18)
+
+
+### Features
+
+* **ui:** add a Timeline view that interleaves commits, reviews and comments ([933dae0](https://github.com/viicslen/gitura/commit/933dae0c7d0afc89361d9e5bec4573140036a836))
+* **ui:** call the Overview's sectioned layout Details ([8a8a20b](https://github.com/viicslen/gitura/commit/8a8a20b9f9f9fece89cc57ce1c97c56f59b0dc5e))
+* **ui:** run commands and watch run history from every PR view ([a64964a](https://github.com/viicslen/gitura/commit/a64964a4b7ddade86d02e3abed771ea24a79503e))
+* **ui:** see what was reviewed, replied or resolved after each commit in an Overview timeline ([#75](https://github.com/viicslen/gitura/issues/75)) ([7d6698a](https://github.com/viicslen/gitura/commit/7d6698ada0287aaf3bccbf470788b47642eb04fb))
+* **ui:** set the run checkout and watch run history from Overview and Files too ([#74](https://github.com/viicslen/gitura/issues/74)) ([4f3783f](https://github.com/viicslen/gitura/commit/4f3783fbdce5de2e2fab690392904572b62ae8ff))
+* **ui:** show the timeline as an Overview layout instead of its own view ([1ea0354](https://github.com/viicslen/gitura/commit/1ea035426e40f0ffc6e5af1d9f72b1825e68b80e))
+
 ## [1.6.0](https://github.com/viicslen/gitura/compare/v1.5.1...v1.6.0) (2026-11-17)
 
 
