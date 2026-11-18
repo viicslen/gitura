@@ -119,13 +119,15 @@ function onKeydown(event: KeyboardEvent): void {
     </div>
     <div v-else class="group/edit relative">
       <slot />
-      <div v-if="canEdit" class="absolute right-1 bottom-1 flex gap-0.5 opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0">
-        <Button variant="ghost" size="icon" class="h-6 w-6" aria-label="Edit comment" title="Edit comment" @click="start">
+      <!-- Stays visible while a menu of its own is open, when the pointer has left the comment. -->
+      <div v-if="canEdit || $slots.actions" class="absolute right-1 bottom-1 flex items-center gap-0.5 opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0 has-[[data-state=open]]:opacity-100">
+        <slot name="actions" />
+        <Button v-if="canEdit" variant="ghost" size="icon" class="h-6 w-6" aria-label="Edit comment" title="Edit comment" @click="start">
           <Pencil class="h-3.5 w-3.5" />
         </Button>
         <!-- GitHub can't delete a submitted review, only its comments. -->
         <Button
-          v-if="kind !== 'review'"
+          v-if="canEdit && kind !== 'review'"
           variant="ghost"
           size="icon"
           class="h-6 w-6 hover:text-destructive"

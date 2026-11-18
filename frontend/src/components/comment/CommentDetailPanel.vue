@@ -153,7 +153,7 @@ function replyAvatarKey(replyId: number): string {
             </div>
 
             <EditableComment kind="review_comment" :id="rootComment.id" :target="rootComment">
-              <div class="relative rounded-md bg-muted/40 px-3 py-2 group/body">
+              <div class="rounded-md bg-muted/40 px-3 py-2">
                 <CommentBody
                   :content="rootComment.body"
                   :commands="commands"
@@ -163,22 +163,18 @@ function replyAvatarKey(replyId: number): string {
                   :toggle-task="taskToggler('review_comment', rootComment.id, rootComment)"
                   @ran="emit('ran')"
                 />
-                <!-- Stays visible while its own menu is open, when the pointer has left the comment. -->
-                <div
-                  v-if="commands.length > 0"
-                  class="absolute top-2 right-2 opacity-0 transition-opacity duration-faster group-hover/body:opacity-100 group-hover/body:duration-0 focus-within:opacity-100 focus-within:duration-0 has-[[data-state=open]]:opacity-100"
-                >
-                  <SplitRunButton
-                    :commands="commands"
-                    :default-command-name="defaultCommandName"
-                    :input="rootComment.body"
-                    :thread-root-id="thread.root_id"
-                    :comment-id="rootComment.id"
-                    size="sm"
-                    @ran="emit('ran')"
-                  />
-                </div>
               </div>
+              <template v-if="commands.length > 0" #actions>
+                <SplitRunButton
+                  :commands="commands"
+                  :default-command-name="defaultCommandName"
+                  :input="rootComment.body"
+                  :thread-root-id="thread.root_id"
+                  :comment-id="rootComment.id"
+                  size="sm"
+                  @ran="emit('ran')"
+                />
+              </template>
             </EditableComment>
 
             <CommentDiffHunk
