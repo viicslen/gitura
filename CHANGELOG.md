@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.8.0](https://github.com/viicslen/gitura/compare/v1.7.0...v1.8.0) (2026-11-18)
+
+
+### Features
+
+* **api:** look up the base and head branch of each open PR ([27defb3](https://github.com/viicslen/gitura/commit/27defb364e4437df2a982053cba9cb16ba438d91))
+* **ui:** copy a PR's base and head branch from the Overview ([492b7f7](https://github.com/viicslen/gitura/commit/492b7f7a3fd70754f4161e0fc718e232bef88964))
+* **ui:** copy a PR's base and head branch straight from the Overview ([#77](https://github.com/viicslen/gitura/issues/77)) ([1aff414](https://github.com/viicslen/gitura/commit/1aff414f16f6b909efeb09b40ec1d7bb8a290855))
+* **ui:** match the List / Tree switch to the toolbar button height ([9625e17](https://github.com/viicslen/gitura/commit/9625e17892bff23fc75a5ec95292b60578006330))
+* **ui:** put a PR's labels beside its branches in the Overview ([3e3acba](https://github.com/viicslen/gitura/commit/3e3acbaf912b643654334b05ad65c47dfd5b4599))
+* **ui:** put the List / Tree switch at the end of the PR list toolbar ([073e840](https://github.com/viicslen/gitura/commit/073e840a30322106fc822bd154080e3f1df99c77))
+* **ui:** see stacked PRs nested under their base PR in the PR list ([#79](https://github.com/viicslen/gitura/issues/79)) ([6df1d4a](https://github.com/viicslen/gitura/commit/6df1d4aa500642ae1fc40832d172c2b2a83a2dd9))
+* **ui:** show stacked PRs as a tree in the PR list ([d06e10a](https://github.com/viicslen/gitura/commit/d06e10a286490f55a3d9973402d3cfe8f53bb8e3))
+
+
+### Bug Fixes
+
+* **ui:** save toggle changes in order ([7afef98](https://github.com/viicslen/gitura/commit/7afef9809162fb7b5b9cb99d8008019b20344bf5))
+
 ## [1.7.0](https://github.com/viicslen/gitura/compare/v1.6.0...v1.7.0) (2026-11-18)
 
 
