@@ -8,7 +8,10 @@ const reviewTab = ref<ReviewTab>('overview')
 /** Counts the rail shows on each tab button; 0 hides the badge. */
 const tabBadges = reactive<Record<ReviewTab, number>>({ overview: 0, conversation: 0, files: 0 })
 
-/** Shared review-tab state: the active tab and the per-tab badge counts. */
+/** How Overview lists activity; kept for the session, across PRs. */
+const overviewMode = ref<'details' | 'timeline'>('details')
+
+/** Shared review-tab state: the active tab, the per-tab badge counts and the Overview mode. */
 export function useReviewTabs() {
-  return { reviewTab, tabBadges }
+  return { reviewTab, tabBadges, overviewMode }
 }

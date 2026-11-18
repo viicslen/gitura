@@ -11,11 +11,15 @@ import { taskToggler } from '@/lib/taskList'
 import { collapse, collapsible, crossfade } from '@/components/motion/motion'
 import CountUp from '@/components/motion/CountUp.vue'
 import DrawnCheck from '@/components/comment/DrawnCheck.vue'
+import PRTimelinePanel from '@/components/pr/PRTimelinePanel.vue'
 
 const props = defineProps<{
   overview: model.PROverviewDTO | null
+  timeline: model.PRTimelineDTO | null
+  threads: model.CommentThreadDTO[]
 }>()
 const showResolvedReviews = defineModel<boolean>('showResolvedReviews', { default: false })
+const mode = defineModel<'details' | 'timeline'>('mode', { default: 'details' })
 
 const { avatarSrc, handleAvatarError, avatarInitial } = useAvatarFallback()
 
@@ -38,7 +42,7 @@ function cascadeStarted(): void {
 function cardIndex(section: string, index: number): number {
   const [first] = sectionOrder.value
   const before = section === first ? 0 : first === 'general' ? visibleGeneralComments.value.length : visibleReviews.value.length
-  return 1 + before + index
+  return 2 + before + index
 }
 
 /** A card that arrives later (a submitted review, a new comment) is swept by light, and its state badge bursts a ring. */
@@ -144,7 +148,29 @@ function avatarKey(prefix: string, id: number): string {
             </CardContent>
           </Card>
 
-          <template v-for="section in sectionOrder" :key="section">
+          <div key="mode" class="flex items-center gap-2" :class="cascade && 'wow-rise'" :style="{ '--i': 1 }">
+            <h2 class="text-sm font-semibold">Activity</h2>
+            <!-- Equal columns, so the thumb can slide between them with a transform alone. -->
+            <div class="relative ml-auto grid shrink-0 grid-cols-2 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="Activity layout">
+              <span
+                aria-hidden="true"
+                class="absolute inset-y-0.5 left-0.5 w-[calc(50%-0.125rem)] rounded bg-background shadow-sm transition-[translate] duration-fast ease-in-out"
+                :class="mode === 'timeline' && 'translate-x-full'"
+              />
+              <button
+                v-for="m in (['details', 'timeline'] as const)"
+                :key="m"
+                class="relative rounded px-2 py-0.5 capitalize transition-colors duration-fast"
+                :class="mode === m ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                :aria-pressed="mode === m"
+                @click="mode = m"
+              >{{ m }}</button>
+            </div>
+          </div>
+
+          <PRTimelinePanel v-if="mode === 'timeline'" key="timeline" :timeline="timeline" :threads="threads" class="animate-in fade-in-0 animation-duration-base" />
+
+          <template v-for="section in (mode === 'details' ? sectionOrder : [])" :key="section">
             <section v-if="section === 'general'">
               <div class="flex items-center justify-between" :class="cascade && 'wow-rise'" :style="{ '--i': cardIndex('general', 0) }">
                 <h2 class="text-sm font-semibold">General comments</h2>

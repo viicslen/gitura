@@ -27,14 +27,14 @@ import { useAuth } from '@/composables/useAuth'
 import type { PRRef } from '@/types/pr'
 import type * as model from '@/bindings/gitura/internal/model'
 import { useToggles } from '@/composables/useToggles'
-import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
+import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, GetPRTimeline, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
 import { toast } from 'vue-sonner'
 import { useReviewTabs, type ReviewTab } from '@/composables/useReviewTabs'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
 import { useKeybindings, keyLabel } from '@/composables/useKeybindings'
 import type { UnsentComments } from '@/lib/diffLayout'
 
-const { reviewTab, tabBadges } = useReviewTabs()
+const { reviewTab, tabBadges, overviewMode } = useReviewTabs()
 // A tab slides in from the side its button sits on, and the one it replaces drops back. The Files tab can hold a diff
 // of thousands of lines, so going to or from it only the arriving panel moves and the other is gone at once.
 const TAB_ORDER: ReviewTab[] = ['overview', 'conversation', 'files']
@@ -291,6 +291,19 @@ watch(prSummary, async (summary) => {
   }
 })
 
+// Fetched once the timeline is first shown, then kept in step with the overview, which every review activity refreshes.
+const timeline = ref<model.PRTimelineDTO | null>(null)
+watch([() => reviewTab.value === 'overview' && overviewMode.value === 'timeline', overview], async ([open], [, before]) => {
+  if (!open || !overview.value || (timeline.value && overview.value === before)) return
+  try {
+    timeline.value = await GetPRTimeline()
+  } catch (err) {
+    toast.error('Could not load timeline: ' + errorMessage(err))
+  }
+})
+// A refresh reloads the PR, which refetches its commits.
+watch(prSummary, () => { timeline.value = null })
+
 watch(
   prSummary,
   (summary) => {
@@ -472,7 +485,10 @@ watch(
             <PROverviewPanel
               v-show="reviewTab === 'overview'"
               v-model:show-resolved-reviews="showResolvedReviews"
+              v-model:mode="overviewMode"
               :overview="overview"
+              :timeline="timeline"
+              :threads="threads"
               class="min-h-0 min-w-0 [grid-area:1/1]"
             />
           </Transition>

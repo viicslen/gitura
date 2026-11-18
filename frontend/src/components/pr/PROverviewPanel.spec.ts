@@ -12,7 +12,7 @@ function overview(review: Partial<model.ReviewDTO>): model.PROverviewDTO {
 }
 
 function sectionHeadings(o: model.PROverviewDTO): string[] {
-  return mount(PROverviewPanel, { props: { overview: o } }).findAll('section h2').map((h) => h.text().split('·')[0].trim())
+  return mount(PROverviewPanel, { props: { overview: o, timeline: null, threads: [] } }).findAll('section h2').map((h) => h.text().split('·')[0].trim())
 }
 
 describe('PROverviewPanel labels', () => {
@@ -23,7 +23,7 @@ describe('PROverviewPanel labels', () => {
       { name: 'docs', color: 'fef2c0', description: '' },
       { name: 'green', color: '00ff00', description: '' },
     ]
-    const chips = mount(PROverviewPanel, { props: { overview: o } }).findAll('[aria-label="Labels"] li')
+    const chips = mount(PROverviewPanel, { props: { overview: o, timeline: null, threads: [] } }).findAll('[aria-label="Labels"] li')
     expect(chips.map((c) => [c.text(), c.attributes('style')])).toEqual([
       ['bug', 'background-color: rgb(215, 58, 74); color: rgb(255, 255, 255);'],
       ['docs', 'background-color: rgb(254, 242, 192); color: rgb(31, 35, 40);'],
@@ -44,10 +44,22 @@ describe('PROverviewPanel review placement', () => {
   })
 })
 
+describe('PROverviewPanel activity layout', () => {
+  it('swaps the detail sections for the timeline and reports the choice', async () => {
+    const wrapper = mount(PROverviewPanel, { props: { overview: overview({}), timeline: null, threads: [] } })
+    await wrapper.get('button[aria-pressed="false"]').trigger('click')
+    expect(wrapper.emitted('update:mode')).toEqual([['timeline']])
+
+    await wrapper.setProps({ mode: 'timeline' })
+    expect(wrapper.findAll('section')).toHaveLength(0)
+    expect(wrapper.text()).toContain('Loading timeline')
+  })
+})
+
 describe('PROverviewPanel review numbers', () => {
   it('labels reviews with the PR-wide number, not their position in the filtered list', () => {
     const o = overview({ review_id: 22 })
     o.review_numbers = { 11: 1, 22: 2 }
-    expect(mount(PROverviewPanel, { props: { overview: o } }).text()).toContain('Review 2')
+    expect(mount(PROverviewPanel, { props: { overview: o, timeline: null, threads: [] } }).text()).toContain('Review 2')
   })
 })
