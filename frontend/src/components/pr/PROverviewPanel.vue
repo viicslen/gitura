@@ -3,7 +3,11 @@ import { computed, ref } from 'vue'
 import type * as model from '@/bindings/gitura/internal/model'
 import PlainMarkdownBody from '@/components/markdown/PlainMarkdownBody.vue'
 import EditableComment from '@/components/comment/EditableComment.vue'
+import { Clipboard } from '@wailsio/runtime'
+import { toast } from 'vue-sonner'
+import { ArrowLeft, Copy } from '@lucide/vue'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
@@ -102,6 +106,27 @@ function avatarKey(prefix: string, id: number): string {
   return `${prefix}:${id}`
 }
 
+const hasBranches = computed(() => !!(props.overview?.summary.base_branch && props.overview.summary.head_branch))
+
+// A fork's head is labelled owner:branch like on GitHub, but only the branch name is copied.
+function branches(summary: model.PullRequestSummary): { role: 'base' | 'head'; name: string; label: string }[] {
+  // owner keeps the casing the user typed to open the PR; logins are case-insensitive.
+  const fork = summary.head_owner && summary.head_owner.toLowerCase() !== summary.owner.toLowerCase()
+  return [
+    { role: 'base', name: summary.base_branch, label: summary.base_branch },
+    { role: 'head', name: summary.head_branch, label: fork ? `${summary.head_owner}:${summary.head_branch}` : summary.head_branch },
+  ]
+}
+
+async function copyBranch(name: string): Promise<void> {
+  try {
+    await Clipboard.SetText(name)
+    toast(`Copied ${name}`)
+  } catch {
+    toast.error('Could not copy to the clipboard')
+  }
+}
+
 </script>
 
 <template>
@@ -124,16 +149,40 @@ function avatarKey(prefix: string, id: number): string {
         <TransitionGroup tag="div" class="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4" move-class="transition-transform duration-slow ease-in-out">
           <Card key="description" class="relative shadow-none" :class="cascade && 'card-in'">
             <CardContent>
-              <ul v-if="overview.summary.labels?.length" class="labels mb-3 flex flex-wrap gap-1.5" aria-label="Labels">
-                <li
-                  v-for="label in overview.summary.labels"
-                  :key="label.name"
-                  :title="label.description || undefined"
-                  class="rounded-full px-2 py-0.5 text-xs font-medium"
-                  :class="cascade && 'pop-late'"
-                  :style="labelStyle(label.color)"
-                >{{ label.name }}</li>
-              </ul>
+              <div v-if="hasBranches || overview.summary.labels?.length" class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <div
+                  v-if="hasBranches"
+                  class="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+                  role="group"
+                  aria-label="Branches"
+                >
+                  <!-- Keeps the arrow with the head branch when the row wraps. -->
+                  <span v-for="(branch, i) in branches(overview.summary)" :key="branch.role" class="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                    <ArrowLeft v-if="i" class="size-3.5 shrink-0" aria-hidden="true" />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      class="h-6 min-w-0 max-w-full shrink gap-1 px-2 font-mono text-xs font-normal"
+                      :aria-label="`Copy ${branch.role} branch ${branch.label}`"
+                      :title="`Copy ${branch.name}`"
+                      @click="copyBranch(branch.name)"
+                    >
+                      <span class="truncate">{{ branch.label }}</span>
+                      <Copy class="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    </Button>
+                  </span>
+                </div>
+                <ul v-if="overview.summary.labels?.length" class="labels flex flex-wrap gap-1.5" aria-label="Labels">
+                  <li
+                    v-for="label in overview.summary.labels"
+                    :key="label.name"
+                    :title="label.description || undefined"
+                    class="rounded-full px-2 py-0.5 text-xs font-medium"
+                    :class="cascade && 'pop-late'"
+                    :style="labelStyle(label.color)"
+                  >{{ label.name }}</li>
+                </ul>
+              </div>
               <div v-if="overview.summary.body">
                 <PlainMarkdownBody
                   :content="overview.summary.body"
