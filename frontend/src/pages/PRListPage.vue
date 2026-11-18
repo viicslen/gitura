@@ -247,7 +247,7 @@
             Review local changes
           </Button>
           <!-- Equal columns, so the thumb can slide between them with a transform alone. -->
-          <div class="relative ml-2 grid shrink-0 grid-cols-2 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="PR list layout">
+          <div class="relative ml-2 grid h-8 shrink-0 grid-cols-2 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="PR list layout">
             <span
               aria-hidden="true"
               class="absolute inset-y-0.5 left-0.5 w-[calc(50%-0.125rem)] rounded bg-background shadow-sm transition-[translate] duration-fast ease-in-out"
