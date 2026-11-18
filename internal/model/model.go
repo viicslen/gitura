@@ -175,10 +175,14 @@ type PRListItem struct {
 	UpdatedAt   string `json:"updated_at"` // RFC3339 — used for default sort
 	HTMLURL     string `json:"html_url"`   // canonical GitHub PR URL
 	IsDraft     bool   `json:"is_draft"`
-	State       string `json:"state"`       // "open", "closed" or "merged"
-	IsAuthor    bool   `json:"is_author"`   // true when login == PR author
-	IsAssignee  bool   `json:"is_assignee"` // true when login is in assignees
-	IsReviewer  bool   `json:"is_reviewer"` // true when login is in requested_reviewers
+	State       string `json:"state"`               // "open", "closed" or "merged"
+	IsAuthor    bool   `json:"is_author"`           // true when login == PR author
+	IsAssignee  bool   `json:"is_assignee"`         // true when login is in assignees
+	IsReviewer  bool   `json:"is_reviewer"`         // true when login is in requested_reviewers
+	NodeID      string `json:"-"`                   // GraphQL ID, used to look up the branch fields below
+	BaseRef     string `json:"base_ref,omitempty"`  // branch the PR merges into; empty when not looked up
+	HeadRef     string `json:"head_ref,omitempty"`  // branch the PR merges from
+	HeadRepo    string `json:"head_repo,omitempty"` // "owner/repo" holding HeadRef; empty when that repository is gone
 }
 
 // PRListFilters carries the active filter state from the frontend to the

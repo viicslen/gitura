@@ -111,6 +111,7 @@ func issueToItem(issue *github.Issue, login string) (model.PRListItem, bool) {
 		IsAuthor:    isAuthor,
 		IsAssignee:  isAssignee,
 		IsReviewer:  isReviewer,
+		NodeID:      issue.GetNodeID(),
 	}, true
 }
 
