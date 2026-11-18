@@ -79,7 +79,7 @@ function toggleResolved(): void {
 
       <GlideList v-slot="{ item: comment }" :items="thread.comments" :item-key="(c) => c.id" :appear="settled">
         <div class="grid">
-          <div class="min-h-0">
+          <div class="min-h-0 min-w-0">
             <div class="border-t border-border px-3 py-2">
               <div class="mb-1 flex items-center gap-2 text-xs">
                 <img

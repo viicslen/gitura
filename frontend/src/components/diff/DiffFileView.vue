@@ -505,7 +505,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
               </p>
               <GlideList v-slot="{ item: t }" :items="unplacedThreads" :item-key="(t) => t.root_id" :appear="settled">
                 <div class="grid">
-                  <div class="min-h-0">
+                  <div class="min-h-0 min-w-0">
                     <DiffInlineThread
                       :thread="t"
                       :language="language"
@@ -523,7 +523,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                   : 'Pending comments outside the visible diff' }}
               </p>
               <GlideList v-slot="{ item: d }" :items="unplacedDrafts" :item-key="(d) => d.key" :appear="settled">
-                <div class="grid"><div class="min-h-0"><DiffDraftComment :draft="d.draft" :class="freshGlow(d.key)" /></div></div>
+                <div class="grid"><div class="min-h-0 min-w-0"><DiffDraftComment :draft="d.draft" :class="freshGlow(d.key)" /></div></div>
               </GlideList>
             </div>
           </div>
@@ -601,7 +601,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                   :appear="settled"
                 >
                   <div class="grid">
-                    <div class="min-h-0">
+                    <div class="min-h-0 min-w-0">
                       <DiffInlineThread
                         v-if="row.type === 'thread'"
                         :thread="row.thread"
