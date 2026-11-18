@@ -33,6 +33,7 @@ export const TOGGLES = [
   { id: 'pr_list_assignee', section: 'prList', label: 'Assigned to me', hint: 'Shown by default.', default: true },
   { id: 'pr_list_reviewer', section: 'prList', label: 'Review requested', hint: 'Shown by default.', default: true },
   { id: 'pr_list_drafts', section: 'prList', label: 'Include drafts', hint: 'Shown by default.', default: false },
+  { id: 'pr_list_tree', section: 'prList', label: 'Tree layout', hint: 'Nest each pull request under the one whose branch it is based on. Same as the List / Tree switch above the list.', default: false },
 ] as const satisfies readonly ToggleDef[]
 
 export type ToggleId = (typeof TOGGLES)[number]['id']

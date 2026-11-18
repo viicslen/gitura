@@ -33,7 +33,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 
 ## Features
 
-- **Pull request list** — everything you author, are assigned, or are asked to review, filtered by repository, organisation, author, or last-updated date
+- **Pull request list** — everything you author, are assigned, or are asked to review, filtered by repository, organisation, author, or last-updated date, as a flat list or as a tree that nests each stacked PR under the PR whose branch it is based on
 - **Quick open** — Ctrl+K (rebind it in Settings → Keybindings) or the search button on the rail opens any PR: filter your open PRs, search all of GitHub (qualifiers like `repo:` and `is:merged` work), or type a number, `owner/repo#123` or a PR URL
 - **Side rail and title strip** — a frameless window with a slim rail for the PR list, Overview, Conversation and Files views (badged with open reviews, unresolved threads and unviewed files), and a title strip with the PR's state, Refresh and Open on GitHub
 - **Overview** — base ← head branches (click either to copy it), description, labels, general comments and reviews; reviews with open conversations come first. Switch to Timeline to see commits, reviews, comments and thread replies in the order they happened, with resolved and outdated threads marked

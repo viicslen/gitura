@@ -232,6 +232,22 @@
           </Transition>
         </p>
         <div class="flex items-center gap-1">
+          <!-- Equal columns, so the thumb can slide between them with a transform alone. -->
+          <div class="relative mr-2 grid shrink-0 grid-cols-2 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="PR list layout">
+            <span
+              aria-hidden="true"
+              class="absolute inset-y-0.5 left-0.5 w-[calc(50%-0.125rem)] rounded bg-background shadow-sm transition-[translate] duration-fast ease-in-out"
+              :class="tree && 'translate-x-full'"
+            />
+            <button
+              v-for="on in [false, true]"
+              :key="String(on)"
+              class="relative rounded px-2 py-0.5 transition-colors duration-fast"
+              :class="tree === on ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'"
+              :aria-pressed="tree === on"
+              @click="tree !== on && (tree = on)"
+            >{{ on ? 'Tree' : 'List' }}</button>
+          </div>
           <Button variant="outline" size="sm" class="gap-1.5" @click="openLocalReview()">
             <FolderGit2 class="h-4 w-4" />
             Review local changes
@@ -363,7 +379,7 @@
               @animationend.self="rowsFadeDone"
             >
               <li
-                v-for="(pr, i) in visibleItems"
+                v-for="({ pr, depth, parent }, i) in rows"
                 :key="pr.html_url"
                 :data-pr-key="prKey(pr)"
                 class="group/row relative hover:z-10"
@@ -376,9 +392,11 @@
                   class="pointer-events-none absolute inset-x-1 inset-y-0.5 rounded-md bg-wow-1/5 opacity-0 shadow-lg shadow-wow-1/25 ring-1 ring-wow-1/40 scale-[0.97] transition-[opacity,scale] duration-fast group-hover/row:scale-100 group-hover/row:opacity-100 group-hover/row:duration-slower group-hover/row:ease-spring group-active/row:scale-[0.98]"
                 />
                 <button
-                  class="relative w-full text-left flex items-start gap-3 px-4 py-3 transition-[scale,translate] duration-fast hover:translate-x-[calc(var(--px,0)*1rem)] hover:scale-[1.012] hover:duration-slower hover:ease-spring active:scale-[0.985] active:duration-faster focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring cursor-pointer"
+                  class="relative w-full text-left flex items-start gap-3 py-3 pr-4 pl-[calc(1rem+var(--indent)*1.75rem)] transition-[scale,translate,padding] duration-fast hover:translate-x-[calc(var(--px,0)*1rem)] hover:scale-[1.012] hover:duration-slower hover:ease-spring active:scale-[0.985] active:duration-faster focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring cursor-pointer"
+                  :style="{ '--indent': Math.min(Math.max(depth - 1, 0), 5) }"
                   @click="openPR(pr)"
                 >
+                  <CornerDownRight v-if="depth" class="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <component
                     :is="pr.is_draft ? GitPullRequestDraft : GitPullRequest"
                     class="h-4 w-4 mt-0.5 shrink-0 transition-[scale,rotate] duration-fast group-hover/row:scale-125 group-hover/row:-rotate-12 group-hover/row:duration-slower group-hover/row:ease-spring"
@@ -388,6 +406,7 @@
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 min-w-0">
                       <span data-pr-title class="text-sm font-medium truncate" :title="pr.title">{{ pr.title }}</span>
+                      <span v-if="parent" class="sr-only">, stacked on #{{ parent.number }}</span>
                       <Badge v-if="pr.is_draft" variant="secondary" class="shrink-0 text-xs">
                         Draft
                       </Badge>
@@ -426,7 +445,7 @@ import { ref, computed, nextTick, onMounted, onActivated, onDeactivated, watch }
 import type { ComponentPublicInstance } from 'vue'
 import { useLocalStorage, useTimeoutFn } from '@vueuse/core'
 import { toast } from 'vue-sonner'
-import { RefreshCw, GitPullRequest, GitPullRequestDraft, Filter, FolderGit2 } from '@lucide/vue'
+import { RefreshCw, GitPullRequest, GitPullRequestDraft, Filter, FolderGit2, CornerDownRight } from '@lucide/vue'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -437,10 +456,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import CountUp from '@/components/motion/CountUp.vue'
 import { reducedMotion } from '@/components/motion/wow'
 import { usePRFilters } from '@/composables/usePRFilters'
+import { toggleRef } from '@/composables/useToggles'
 import * as App from '@/bindings/gitura/internal/app/app'
 import type * as model from '@/bindings/gitura/internal/model'
 import type { PRRef } from '@/types/pr'
 import { myOpenPRs } from '@/lib/prQuery'
+import { prTree, type PRTreeRow } from '@/lib/prTree'
 
 const props = defineProps<{
   /** Latest PR data seen in the review view, keyed `owner/repo#number`; overrides search results until search catches up. */
@@ -453,6 +474,7 @@ const emit = defineEmits<{
 }>()
 
 const lastLocalDir = useLocalStorage('gitura.lastLocalDir', '')
+const tree = toggleRef('pr_list_tree')
 
 async function openLocalReview(): Promise<void> {
   try {
@@ -587,21 +609,24 @@ const filters = usePRFilters(fetchPRs)
 
 // ── Derived: client-side filtered items ──────────────────────────────────────
 
-/**
- * Applies all active client-side filters (involvement toggles, repo, org,
- * author, date) to the raw result. Recomputes instantly on any filter change.
- */
-const visibleItems = computed<model.PRListItem[]>(() => {
+/** The loaded PRs with review-view updates applied, before the filters. */
+const loadedItems = computed<model.PRListItem[]>(() => {
   if (!rawResult.value?.items) return []
   const updates = props.prUpdates
-  const items = !updates?.size ? rawResult.value.items : rawResult.value.items.flatMap((pr) => {
+  return !updates?.size ? rawResult.value.items : rawResult.value.items.flatMap((pr) => {
     const update = updates.get(prKey(pr))
     if (!update) return [pr]
     if (isClosed(update)) return []
     return [{ ...pr, title: update.title, is_draft: update.is_draft ?? pr.is_draft }]
   })
-  return filters.applyFilters(items)
 })
+/**
+ * Applies all active client-side filters (involvement toggles, repo, org,
+ * author, date) to the loaded PRs. Recomputes instantly on any filter change.
+ */
+const visibleItems = computed<model.PRListItem[]>(() => filters.applyFilters(loadedItems.value))
+
+const rows = computed<PRTreeRow[]>(() => (tree.value ? prTree(visibleItems.value, loadedItems.value) : visibleItems.value.map((pr) => ({ pr, depth: 0 }))))
 
 const countNoun = computed(() => (visibleItems.value.length === 1 ? 'pull request' : 'pull requests'))
 
