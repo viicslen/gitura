@@ -70,20 +70,29 @@ export async function loadToggles(): Promise<void> {
         migrated = true
       }
     }
-    state.value = next
+    state.value = stored = next
     if (migrated) await SetToggles(next)
   } catch {
     // Keep defaults rather than block startup on a settings read failure.
   }
 }
 
+// Saves run one at a time: each writes the whole set, so overlapping writes could land out of order.
+let saving: Promise<unknown> = Promise.resolve()
+/** The set last known to be in settings.toml; a failed save falls back to it. */
+let stored = state.value
+
 export async function setToggle(id: ToggleId, value: boolean): Promise<void> {
-  const previous = state.value
-  state.value = { ...previous, [id]: value }
+  state.value = { ...state.value, [id]: value }
+  const next = state.value
+  const save = saving.then(() => SetToggles(next))
+  saving = save.catch(() => {})
   try {
-    await SetToggles(state.value)
+    await save
+    stored = next
   } catch (e: unknown) {
-    state.value = previous
+    // A later change still queued decides the state once its own save answers.
+    if (state.value === next) state.value = stored
     toast.error('Could not save setting: ' + errorMessage(e))
   }
 }
