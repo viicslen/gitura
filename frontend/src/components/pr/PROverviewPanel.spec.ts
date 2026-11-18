@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PROverviewPanel from './PROverviewPanel.vue'
 import * as model from '@/bindings/gitura/internal/model'
+
+const setText = vi.hoisted(() => vi.fn(() => Promise.resolve()))
+vi.mock('@wailsio/runtime', async (importOriginal) => ({ ...(await importOriginal<object>()), Clipboard: { SetText: setText } }))
 
 function overview(review: Partial<model.ReviewDTO>): model.PROverviewDTO {
   return model.PROverviewDTO.createFrom({
@@ -30,6 +33,26 @@ describe('PROverviewPanel labels', () => {
       ['green', 'background-color: rgb(0, 255, 0); color: rgb(31, 35, 40);'],
     ])
     expect(chips[0].attributes('title')).toBe('Broken')
+  })
+})
+
+describe('PROverviewPanel branches', () => {
+  it('shows base and head, marks a fork head with its owner, and copies the bare branch name', async () => {
+    const o = overview({})
+    Object.assign(o.summary, { owner: 'acme', base_branch: 'main', head_branch: 'fix/x', head_owner: 'someone' })
+    const buttons = mount(PROverviewPanel, { props: { overview: o, timeline: null, threads: [] } }).findAll('[aria-label="Branches"] button')
+    expect(buttons.map((b) => b.text())).toEqual(['main', 'someone:fix/x'])
+    expect(buttons[1].attributes('aria-label')).toBe('Copy head branch someone:fix/x')
+
+    await buttons[0].trigger('click')
+    await buttons[1].trigger('click')
+    expect(setText.mock.calls).toEqual([['main'], ['fix/x']])
+  })
+
+  it('omits the owner when the head is in the same repository, whatever casing the PR was opened with', () => {
+    const o = overview({})
+    Object.assign(o.summary, { owner: 'ACME', base_branch: 'main', head_branch: 'fix/x', head_owner: 'acme' })
+    expect(mount(PROverviewPanel, { props: { overview: o, timeline: null, threads: [] } }).findAll('[aria-label="Branches"] button')[1].text()).toBe('fix/x')
   })
 })
 
