@@ -129,7 +129,8 @@ function replyAvatarKey(replyId: number): string {
           </div>
 
           <div v-if="rootComment" class="mt-4 space-y-2">
-            <div class="flex items-center gap-2">
+            <EditableComment kind="review_comment" :id="rootComment.id" :target="rootComment" class="space-y-2">
+              <template #header>
               <img
                 v-if="rootComment.author_avatar && avatarSrc(rootAvatarKey(), rootComment.author_avatar)"
                 :src="avatarSrc(rootAvatarKey(), rootComment.author_avatar)"
@@ -150,9 +151,7 @@ function replyAvatarKey(replyId: number): string {
               <Badge v-if="rootComment.is_suggestion" variant="outline" class="text-xs">
                 Suggestion
               </Badge>
-            </div>
-
-            <EditableComment kind="review_comment" :id="rootComment.id" :target="rootComment">
+              </template>
               <div class="relative rounded-md bg-muted/40 px-3 py-2 group/body">
                 <CommentBody
                   :content="rootComment.body"
@@ -198,8 +197,8 @@ function replyAvatarKey(replyId: number): string {
           <!-- Block layout with margins on the replies, not space-y: a reply opening or closing takes its gap with it. -->
           <TransitionGroup tag="div" class="border-l-2 border-border pl-4" v-bind="collapse">
             <div v-for="reply in replies" :key="reply.id" class="mt-3 first:mt-4" :class="collapsible">
-              <div class="min-h-0 space-y-1" :class="reply.id === freshReplyId && 'wow-rise'">
-                <div class="flex items-center gap-2">
+              <EditableComment kind="review_comment" :id="reply.id" :target="reply" class="min-h-0 space-y-1" :class="reply.id === freshReplyId && 'wow-rise'">
+                <template #header>
                   <img
                     v-if="reply.author_avatar && avatarSrc(replyAvatarKey(reply.id), reply.author_avatar)"
                     :src="avatarSrc(replyAvatarKey(reply.id), reply.author_avatar)"
@@ -217,13 +216,11 @@ function replyAvatarKey(replyId: number): string {
                   </span>
                   <span class="text-sm font-medium">{{ reply.author_login }}</span>
                   <span class="text-xs text-muted-foreground">{{ formatTimestamp(reply.created_at) }}</span>
-                </div>
+                </template>
                 <div class="relative rounded-md bg-muted/30 px-3 py-2" :class="reply.id === freshReplyId && 'fresh-reply wow-glow'">
-                  <EditableComment kind="review_comment" :id="reply.id" :target="reply">
-                    <MarkdownBody :content="reply.body" :toggle-task="taskToggler('review_comment', reply.id, reply)" />
-                  </EditableComment>
+                  <MarkdownBody :content="reply.body" :toggle-task="taskToggler('review_comment', reply.id, reply)" />
                 </div>
-              </div>
+              </EditableComment>
             </div>
           </TransitionGroup>
 

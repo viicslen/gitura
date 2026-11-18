@@ -9,6 +9,7 @@ const edits = reactive<Record<string, { base: string; text: string; saving?: boo
 
 <script setup lang="ts">
 import { computed, inject, ref, type Ref } from 'vue'
+import { createReusableTemplate } from '@vueuse/core'
 import { Pencil, Trash2 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,6 +19,8 @@ import type { TaskSource } from '@/lib/taskList'
 import BusyLabel from '@/components/motion/BusyLabel.vue'
 import SwapBox from '@/components/motion/SwapBox.vue'
 import { collapse, collapsible, crossfade } from '@/components/motion/motion'
+
+const [DefineActions, ReuseActions] = createReusableTemplate()
 
 const props = defineProps<{
   kind: Exclude<TaskSource, 'pr_body'> | 'draft'
@@ -92,34 +95,9 @@ function onKeydown(event: KeyboardEvent): void {
 </script>
 
 <template>
-  <SwapBox>
-    <div v-if="edit" class="space-y-2">
-      <Textarea
-        v-model="edit.text"
-        rows="5"
-        aria-label="Edit comment"
-       
-        :disabled="edit.saving"
-        @keydown="onKeydown"
-      />
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="grid min-w-0">
-          <Transition v-bind="crossfade">
-            <p v-if="error" :key="error" class="[grid-area:1/1] truncate text-xs text-destructive wow-shake" :title="error">{{ error }}</p>
-            <span v-else class="[grid-area:1/1] text-xs text-muted-foreground">Ctrl+Enter to save · Esc to cancel</span>
-          </Transition>
-        </span>
-        <div class="ml-auto flex gap-2">
-          <Button variant="outline" size="sm" :disabled="edit.saving" @click="cancel">Cancel</Button>
-          <Button size="sm" :disabled="edit.saving || !edit.text.trim() || edit.text === edit.base" @click="save">
-            <BusyLabel :busy="!!edit.saving">Save</BusyLabel>
-          </Button>
-        </div>
-      </div>
-    </div>
-    <div v-else class="group/edit relative">
-      <slot />
-      <div v-if="canEdit" class="absolute right-1 bottom-1 flex gap-0.5 opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0">
+  <div class="group/edit">
+    <DefineActions>
+      <div class="flex gap-0.5 opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0">
         <Button variant="ghost" size="icon" class="h-6 w-6" aria-label="Edit comment" title="Edit comment" @click="start">
           <Pencil class="h-3.5 w-3.5" />
         </Button>
@@ -136,30 +114,63 @@ function onKeydown(event: KeyboardEvent): void {
           <Trash2 class="h-3.5 w-3.5" />
         </Button>
       </div>
+    </DefineActions>
+    <div v-if="$slots.header" class="flex items-center gap-2">
+      <slot name="header" />
+      <div v-if="canEdit && !edit" class="ml-auto"><ReuseActions /></div>
     </div>
-  </SwapBox>
-
-  <Dialog :open="confirmingDelete" @update:open="confirmingDelete = deleting || $event">
-    <DialogContent class="max-w-sm">
-      <DialogHeader>
-        <DialogTitle>Delete comment?</DialogTitle>
-      </DialogHeader>
-      <div>
-        <p class="text-sm text-muted-foreground">
-          {{ kind === 'draft' ? 'This removes the comment from your pending review.' : 'This deletes the comment on GitHub and cannot be undone.' }}
-        </p>
-        <Transition v-bind="collapse">
-          <div v-if="deleteError" :class="collapsible">
-            <div class="min-h-0"><p class="pt-2 text-sm text-destructive wow-shake">{{ deleteError }}</p></div>
+    <SwapBox>
+      <div v-if="edit" class="space-y-2">
+        <Textarea
+          v-model="edit.text"
+          rows="5"
+          aria-label="Edit comment"
+          :disabled="edit.saving"
+          @keydown="onKeydown"
+        />
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="grid min-w-0">
+            <Transition v-bind="crossfade">
+              <p v-if="error" :key="error" class="[grid-area:1/1] truncate text-xs text-destructive wow-shake" :title="error">{{ error }}</p>
+              <span v-else class="[grid-area:1/1] text-xs text-muted-foreground">Ctrl+Enter to save · Esc to cancel</span>
+            </Transition>
+          </span>
+          <div class="ml-auto flex gap-2">
+            <Button variant="outline" size="sm" :disabled="edit.saving" @click="cancel">Cancel</Button>
+            <Button size="sm" :disabled="edit.saving || !edit.text.trim() || edit.text === edit.base" @click="save">
+              <BusyLabel :busy="!!edit.saving">Save</BusyLabel>
+            </Button>
           </div>
-        </Transition>
+        </div>
       </div>
-      <DialogFooter>
-        <Button variant="ghost" :disabled="deleting" @click="confirmingDelete = false">Cancel</Button>
-        <Button variant="destructive" :disabled="deleting" @click="remove">
-          <BusyLabel :busy="deleting">Delete</BusyLabel>
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+      <div v-else class="relative">
+        <slot />
+        <div v-if="canEdit && !$slots.header" class="absolute right-1 bottom-1"><ReuseActions /></div>
+      </div>
+    </SwapBox>
+
+    <Dialog :open="confirmingDelete" @update:open="confirmingDelete = deleting || $event">
+      <DialogContent class="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete comment?</DialogTitle>
+        </DialogHeader>
+        <div>
+          <p class="text-sm text-muted-foreground">
+            {{ kind === 'draft' ? 'This removes the comment from your pending review.' : 'This deletes the comment on GitHub and cannot be undone.' }}
+          </p>
+          <Transition v-bind="collapse">
+            <div v-if="deleteError" :class="collapsible">
+              <div class="min-h-0"><p class="pt-2 text-sm text-destructive wow-shake">{{ deleteError }}</p></div>
+            </div>
+          </Transition>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" :disabled="deleting" @click="confirmingDelete = false">Cancel</Button>
+          <Button variant="destructive" :disabled="deleting" @click="remove">
+            <BusyLabel :busy="deleting">Delete</BusyLabel>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
 </template>
