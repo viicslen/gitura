@@ -9,7 +9,7 @@ const reviewTab = ref<ReviewTab>('overview')
 const tabBadges = reactive<Record<ReviewTab, number>>({ overview: 0, conversation: 0, files: 0 })
 
 /** How Overview lists activity; kept for the session, across PRs. */
-const overviewMode = ref<'grouped' | 'timeline'>('grouped')
+const overviewMode = ref<'details' | 'timeline'>('details')
 
 /** Shared review-tab state: the active tab, the per-tab badge counts and the Overview mode. */
 export function useReviewTabs() {

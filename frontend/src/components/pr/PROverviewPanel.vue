@@ -19,7 +19,7 @@ const props = defineProps<{
   threads: model.CommentThreadDTO[]
 }>()
 const showResolvedReviews = defineModel<boolean>('showResolvedReviews', { default: false })
-const mode = defineModel<'grouped' | 'timeline'>('mode', { default: 'grouped' })
+const mode = defineModel<'details' | 'timeline'>('mode', { default: 'details' })
 
 const { avatarSrc, handleAvatarError, avatarInitial } = useAvatarFallback()
 
@@ -158,7 +158,7 @@ function avatarKey(prefix: string, id: number): string {
                 :class="mode === 'timeline' && 'translate-x-full'"
               />
               <button
-                v-for="m in (['grouped', 'timeline'] as const)"
+                v-for="m in (['details', 'timeline'] as const)"
                 :key="m"
                 class="relative rounded px-2 py-0.5 capitalize transition-colors duration-fast"
                 :class="mode === m ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'"
@@ -170,7 +170,7 @@ function avatarKey(prefix: string, id: number): string {
 
           <PRTimelinePanel v-if="mode === 'timeline'" key="timeline" :timeline="timeline" :threads="threads" class="animate-in fade-in-0 animation-duration-base" />
 
-          <template v-for="section in (mode === 'grouped' ? sectionOrder : [])" :key="section">
+          <template v-for="section in (mode === 'details' ? sectionOrder : [])" :key="section">
             <section v-if="section === 'general'">
               <div class="flex items-center justify-between" :class="cascade && 'wow-rise'" :style="{ '--i': cardIndex('general', 0) }">
                 <h2 class="text-sm font-semibold">General comments</h2>

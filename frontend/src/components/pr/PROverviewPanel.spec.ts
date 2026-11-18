@@ -45,7 +45,7 @@ describe('PROverviewPanel review placement', () => {
 })
 
 describe('PROverviewPanel activity layout', () => {
-  it('swaps the grouped sections for the timeline and reports the choice', async () => {
+  it('swaps the detail sections for the timeline and reports the choice', async () => {
     const wrapper = mount(PROverviewPanel, { props: { overview: overview({}), timeline: null, threads: [] } })
     await wrapper.get('button[aria-pressed="false"]').trigger('click')
     expect(wrapper.emitted('update:mode')).toEqual([['timeline']])
