@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.1](https://github.com/viicslen/gitura/compare/v1.8.0...v1.8.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **ui:** keep long code in a comment from widening the comment box ([0cafc4a](https://github.com/viicslen/gitura/commit/0cafc4a659ac44a906a24da850943b05c310521a))
+* **ui:** move comment edit and delete to the author line so the run button can't cover them ([#82](https://github.com/viicslen/gitura/issues/82)) ([8764a87](https://github.com/viicslen/gitura/commit/8764a8726159b117f0797c61b0ef57734ceae62b))
+* **ui:** put edit and delete on the comment's author line in threads ([22f2072](https://github.com/viicslen/gitura/commit/22f207231802cd605c575e62f79a88fac5a70d39))
+* **ui:** stop long code in a comment from pushing its text off-screen ([#80](https://github.com/viicslen/gitura/issues/80)) ([29df5d0](https://github.com/viicslen/gitura/commit/29df5d0d2d56912dbc325f60c10dbffc064b82b3))
+* **ui:** stop the run button covering edit and delete on short comments ([eee7e4d](https://github.com/viicslen/gitura/commit/eee7e4d351b9c9cd7cdace074cd2b98a171319e8))
+
 ## [1.8.0](https://github.com/viicslen/gitura/compare/v1.7.0...v1.8.0) (2026-11-18)
 
 
