@@ -21,7 +21,7 @@ function pr(owner: string, repo: string, number: number) {
 }
 
 const listOpenPRs = vi.hoisted(() => vi.fn())
-vi.mock('@/bindings/gitura/internal/app/app', () => ({ ListOpenPRs: listOpenPRs }))
+vi.mock('@/bindings/gitura/internal/app/app', () => ({ ListOpenPRs: listOpenPRs, SetToggles: () => Promise.resolve() }))
 
 describe('PRListPage org filter', () => {
   beforeEach(() => {
@@ -120,5 +120,26 @@ describe('PRListPage org filter', () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain('rate limit')
     expect(wrapper.findAll('[role="list"] > li')).toHaveLength(2)
+  })
+
+  it('nests a stacked PR under its base PR in the tree layout, and lifts it out when the base is filtered away', async () => {
+    const stacked = (number: number, base: string, head: string, author = 'me') =>
+      ({ ...pr('FmTod', 'app', number), author_login: author, base_ref: base, head_ref: head, head_repo: 'FmTod/app' })
+    listOpenPRs.mockResolvedValue({ items: [stacked(2, 'feat1', 'feat2'), stacked(9, 'main', 'other'), stacked(1, 'main', 'feat1', 'alice')] })
+    const wrapper = mount(PRListPage)
+    await flushPromises()
+    const order = () => wrapper.findAll('[role="list"] > li').map((r) => r.attributes('data-pr-key'))
+    expect(order()).toEqual(['FmTod/app#2', 'FmTod/app#9', 'FmTod/app#1'])
+
+    await wrapper.get('[aria-label="PR list layout"] button[aria-pressed="false"]').trigger('click')
+    expect(order()).toEqual(['FmTod/app#9', 'FmTod/app#1', 'FmTod/app#2'])
+    expect(wrapper.get('[data-pr-key="FmTod/app#2"]').text()).toContain('stacked on #1')
+
+    await wrapper.get('input[aria-label="Filter by PR author"]').setValue('me')
+    expect(order()).toEqual(['FmTod/app#2', 'FmTod/app#9'])
+    expect(wrapper.get('[data-pr-key="FmTod/app#2"]').text()).not.toContain('stacked on')
+
+    await wrapper.get('[aria-label="PR list layout"] button[aria-pressed="false"]').trigger('click')
+    expect(order()).toEqual(['FmTod/app#2', 'FmTod/app#9'])
   })
 })

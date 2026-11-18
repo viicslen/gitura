@@ -39,6 +39,27 @@ describe('useToggles', () => {
     expect(toast.error).toHaveBeenCalled()
   })
 
+  it('saves one change at a time, so the last choice is the one written last', async () => {
+    let finishFirst = () => {}
+    backend.SetToggles.mockReturnValueOnce(new Promise<void>((resolve) => { finishFirst = resolve }))
+    const { setToggle } = await load()
+    const first = setToggle('pr_list_tree', true)
+    const second = setToggle('pr_list_tree', false)
+    await Promise.resolve()
+    expect(backend.SetToggles).toHaveBeenCalledTimes(1)
+    finishFirst()
+    await Promise.all([first, second])
+    expect(backend.SetToggles.mock.calls.map(([t]) => t.pr_list_tree)).toEqual([true, false])
+  })
+
+  it('falls back to the last saved values when queued saves all fail', async () => {
+    backend.SetToggles.mockRejectedValue(new Error('settings: save: disk full'))
+    const { setToggle, useToggles } = await load()
+    await Promise.all([setToggle('pr_list_tree', true), setToggle('hide_viewed', true)])
+    expect(useToggles().toggles.value.pr_list_tree).toBe(false)
+    expect(useToggles().toggles.value.hide_viewed).toBe(false)
+  })
+
   it('locks the last involvement filter on and toggles whose requirement is off', async () => {
     const { setToggle, toggleLock } = await load()
     expect(toggleLock('auto_view_tests')).not.toBe('')

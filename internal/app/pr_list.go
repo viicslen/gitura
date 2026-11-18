@@ -1,12 +1,17 @@
 package app
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"gitura/internal/ghapi"
 	"gitura/internal/logger"
 	"gitura/internal/model"
 )
+
+// branchRefsTimeout bounds the branch lookup so a slow GraphQL answer cannot hold up the list.
+const branchRefsTimeout = 5 * time.Second
 
 // ListOpenPRs fetches all open pull requests involving the authenticated user
 // using a single GitHub Search query (involves: qualifier). The returned items
@@ -32,6 +37,14 @@ func (a *App) ListOpenPRs(filters model.PRListFilters) (model.PRListResult, erro
 	if err != nil {
 		logger.L.Error("SearchOpenPRs error", "err", err)
 		return model.PRListResult{Error: fmt.Sprintf("search failed: %v", err)}, nil
+	}
+	if result.Error == "" {
+		// Without branch refs the tree layout shows every PR at the top level; the list itself is still good.
+		ctx, cancel := context.WithTimeout(a.ctx, branchRefsTimeout)
+		defer cancel()
+		if err := ghapi.AddBranchRefs(ctx, ghapi.NewHTTPClient(a.authToken), result.Items); err != nil {
+			logger.L.Warn("AddBranchRefs failed", "err", err)
+		}
 	}
 
 	logger.L.Info("ListOpenPRs complete",

@@ -806,6 +806,21 @@ export class PRListItem {
      */
     "is_reviewer": boolean;
 
+    /**
+     * branch the PR merges into; empty when not looked up
+     */
+    "base_ref"?: string;
+
+    /**
+     * branch the PR merges from
+     */
+    "head_ref"?: string;
+
+    /**
+     * "owner/repo" holding HeadRef; empty when that repository is gone
+     */
+    "head_repo"?: string;
+
     /** Creates a new PRListItem instance. */
     constructor($$source: Partial<PRListItem> = {}) {
         if (!("number" in $$source)) {

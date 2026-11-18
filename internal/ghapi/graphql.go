@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -58,18 +59,20 @@ func runGraphQL(ctx context.Context, httpClient *http.Client, query string, vars
 	if err := json.NewDecoder(resp.Body).Decode(&gqlResp); err != nil {
 		return fmt.Errorf("github: decode GraphQL response: %w", err)
 	}
+	// Data is decoded even alongside errors: a partial answer (some nodes null) is still useful to callers that want it.
+	partial := len(gqlResp.Data) > 0 && string(gqlResp.Data) != "null"
+	var decodeErr error
+	if out != nil && (len(gqlResp.Errors) == 0 || partial) {
+		if err := json.Unmarshal(gqlResp.Data, out); err != nil {
+			decodeErr = fmt.Errorf("github: decode GraphQL data: %w", err)
+		}
+	}
 	if len(gqlResp.Errors) > 0 {
 		msgs := make([]string, len(gqlResp.Errors))
 		for i, e := range gqlResp.Errors {
 			msgs[i] = e.Message
 		}
-		return fmt.Errorf("github: GraphQL errors: %s", strings.Join(msgs, "; "))
+		return errors.Join(fmt.Errorf("github: GraphQL errors: %s", strings.Join(msgs, "; ")), decodeErr)
 	}
-	if out == nil {
-		return nil
-	}
-	if err := json.Unmarshal(gqlResp.Data, out); err != nil {
-		return fmt.Errorf("github: decode GraphQL data: %w", err)
-	}
-	return nil
+	return decodeErr
 }
