@@ -232,8 +232,22 @@
           </Transition>
         </p>
         <div class="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="group/refresh"
+            :disabled="loading"
+            aria-label="Refresh pull request list"
+            @click="refresh()"
+          >
+            <RefreshCw :class="[refreshIcon, spinning && 'animate-spin']" @animationiteration="onSpinTurn" />
+          </Button>
+          <Button variant="outline" size="sm" class="gap-1.5" @click="openLocalReview()">
+            <FolderGit2 class="h-4 w-4" />
+            Review local changes
+          </Button>
           <!-- Equal columns, so the thumb can slide between them with a transform alone. -->
-          <div class="relative mr-2 grid shrink-0 grid-cols-2 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="PR list layout">
+          <div class="relative ml-2 grid shrink-0 grid-cols-2 whitespace-nowrap rounded-md bg-muted p-0.5 text-xs" role="group" aria-label="PR list layout">
             <span
               aria-hidden="true"
               class="absolute inset-y-0.5 left-0.5 w-[calc(50%-0.125rem)] rounded bg-background shadow-sm transition-[translate] duration-fast ease-in-out"
@@ -248,20 +262,6 @@
               @click="tree !== on && (tree = on)"
             >{{ on ? 'Tree' : 'List' }}</button>
           </div>
-          <Button variant="outline" size="sm" class="gap-1.5" @click="openLocalReview()">
-            <FolderGit2 class="h-4 w-4" />
-            Review local changes
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="group/refresh"
-            :disabled="loading"
-            aria-label="Refresh pull request list"
-            @click="refresh()"
-          >
-            <RefreshCw :class="[refreshIcon, spinning && 'animate-spin']" @animationiteration="onSpinTurn" />
-          </Button>
         </div>
       </div>
 
