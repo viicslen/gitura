@@ -129,7 +129,8 @@ function replyAvatarKey(replyId: number): string {
           </div>
 
           <div v-if="rootComment" class="mt-4 space-y-2">
-            <div class="flex items-center gap-2">
+            <EditableComment kind="review_comment" :id="rootComment.id" :target="rootComment" class="space-y-2">
+              <template #header>
               <img
                 v-if="rootComment.author_avatar && avatarSrc(rootAvatarKey(), rootComment.author_avatar)"
                 :src="avatarSrc(rootAvatarKey(), rootComment.author_avatar)"
@@ -150,10 +151,8 @@ function replyAvatarKey(replyId: number): string {
               <Badge v-if="rootComment.is_suggestion" variant="outline" class="text-xs">
                 Suggestion
               </Badge>
-            </div>
-
-            <EditableComment kind="review_comment" :id="rootComment.id" :target="rootComment">
-              <div class="rounded-md bg-muted/40 px-3 py-2">
+              </template>
+              <div class="relative rounded-md bg-muted/40 px-3 py-2 group/body">
                 <CommentBody
                   :content="rootComment.body"
                   :commands="commands"
@@ -163,18 +162,22 @@ function replyAvatarKey(replyId: number): string {
                   :toggle-task="taskToggler('review_comment', rootComment.id, rootComment)"
                   @ran="emit('ran')"
                 />
+                <!-- Stays visible while its own menu is open, when the pointer has left the comment. -->
+                <div
+                  v-if="commands.length > 0"
+                  class="absolute top-2 right-2 opacity-0 transition-opacity duration-faster group-hover/body:opacity-100 group-hover/body:duration-0 focus-within:opacity-100 focus-within:duration-0 has-[[data-state=open]]:opacity-100"
+                >
+                  <SplitRunButton
+                    :commands="commands"
+                    :default-command-name="defaultCommandName"
+                    :input="rootComment.body"
+                    :thread-root-id="thread.root_id"
+                    :comment-id="rootComment.id"
+                    size="sm"
+                    @ran="emit('ran')"
+                  />
+                </div>
               </div>
-              <template v-if="commands.length > 0" #actions>
-                <SplitRunButton
-                  :commands="commands"
-                  :default-command-name="defaultCommandName"
-                  :input="rootComment.body"
-                  :thread-root-id="thread.root_id"
-                  :comment-id="rootComment.id"
-                  size="sm"
-                  @ran="emit('ran')"
-                />
-              </template>
             </EditableComment>
 
             <CommentDiffHunk
@@ -194,8 +197,8 @@ function replyAvatarKey(replyId: number): string {
           <!-- Block layout with margins on the replies, not space-y: a reply opening or closing takes its gap with it. -->
           <TransitionGroup tag="div" class="border-l-2 border-border pl-4" v-bind="collapse">
             <div v-for="reply in replies" :key="reply.id" class="mt-3 first:mt-4" :class="collapsible">
-              <div class="min-h-0 space-y-1" :class="reply.id === freshReplyId && 'wow-rise'">
-                <div class="flex items-center gap-2">
+              <EditableComment kind="review_comment" :id="reply.id" :target="reply" class="min-h-0 space-y-1" :class="reply.id === freshReplyId && 'wow-rise'">
+                <template #header>
                   <img
                     v-if="reply.author_avatar && avatarSrc(replyAvatarKey(reply.id), reply.author_avatar)"
                     :src="avatarSrc(replyAvatarKey(reply.id), reply.author_avatar)"
@@ -213,13 +216,11 @@ function replyAvatarKey(replyId: number): string {
                   </span>
                   <span class="text-sm font-medium">{{ reply.author_login }}</span>
                   <span class="text-xs text-muted-foreground">{{ formatTimestamp(reply.created_at) }}</span>
-                </div>
+                </template>
                 <div class="relative rounded-md bg-muted/30 px-3 py-2" :class="reply.id === freshReplyId && 'fresh-reply wow-glow'">
-                  <EditableComment kind="review_comment" :id="reply.id" :target="reply">
-                    <MarkdownBody :content="reply.body" :toggle-task="taskToggler('review_comment', reply.id, reply)" />
-                  </EditableComment>
+                  <MarkdownBody :content="reply.body" :toggle-task="taskToggler('review_comment', reply.id, reply)" />
                 </div>
-              </div>
+              </EditableComment>
             </div>
           </TransitionGroup>
 
