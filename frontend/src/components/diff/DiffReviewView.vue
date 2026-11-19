@@ -621,6 +621,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
                 @resolve="emit('resolve', $event)"
                 @unresolve="emit('unresolve', $event)"
                 @reply-sent="emit('reply-sent', $event)"
+                @ran="emit('ran')"
               >
                 <template #header-actions>
                   <label

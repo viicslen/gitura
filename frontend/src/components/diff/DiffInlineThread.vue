@@ -13,6 +13,9 @@ import { taskToggler } from '@/lib/taskList'
 import { markdownPreview } from '@/lib/markdown'
 import GlideList from '@/components/motion/GlideList.vue'
 import Reveal from '@/components/motion/Reveal.vue'
+import SplitRunButton from '@/components/run/SplitRunButton.vue'
+import { commands, defaultCommandName } from '@/composables/useCommands'
+import { threadInput } from '@/lib/runInput'
 
 const props = defineProps<{
   thread: model.CommentThreadDTO
@@ -23,7 +26,10 @@ const emit = defineEmits<{
   (e: 'resolve', rootId: number): void
   (e: 'unresolve', rootId: number): void
   (e: 'reply-sent', comment: model.ReviewCommentDTO): void
+  (e: 'ran'): void
 }>()
+
+const cmds = computed(() => commands.value ?? [])
 
 const collapsed = ref(props.thread.resolved)
 const root = computed(() => props.thread.comments[0])
@@ -83,7 +89,7 @@ function toggleResolved(): void {
             <div class="border-t border-border px-3 py-2">
               <EditableComment kind="review_comment" :id="comment.id" :target="comment" class="space-y-1">
                 <template #header>
-                  <div class="flex items-center gap-2 text-xs">
+                  <div class="flex flex-1 items-center gap-2 text-xs">
                     <img
                       v-if="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
                       :src="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
@@ -98,6 +104,20 @@ function toggleResolved(): void {
                     >{{ avatarInitial(comment.author_login) }}</span>
                     <span class="font-medium">{{ comment.author_login }}</span>
                     <span class="text-muted-foreground">{{ formatTimestamp(comment.created_at) }}</span>
+                  </div>
+                  <!-- Stays visible while its own menu is open, when the pointer has left the comment. -->
+                  <div
+                    v-if="cmds.length > 0"
+                    class="opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0 has-[[data-state=open]]:opacity-100"
+                  >
+                    <SplitRunButton
+                      :commands="cmds"
+                      :default-command-name="defaultCommandName"
+                      :input="comment.body"
+                      :thread-root-id="thread.root_id"
+                      :comment-id="comment.id"
+                      @ran="emit('ran')"
+                    />
                   </div>
                 </template>
                 <MarkdownBody :content="comment.body" :toggle-task="taskToggler('review_comment', comment.id, comment)" />
@@ -121,6 +141,16 @@ function toggleResolved(): void {
                 >{{ label }}</span>
               </span>
             </Button>
+            <SplitRunButton
+              v-if="cmds.length > 0"
+              :commands="cmds"
+              :default-command-name="defaultCommandName"
+              :input="threadInput(thread)"
+              :thread-root-id="thread.root_id"
+              :comment-id="root?.id"
+              label="Run thread"
+              @ran="emit('ran')"
+            />
           </template>
         </ReplyComposer>
       </div>

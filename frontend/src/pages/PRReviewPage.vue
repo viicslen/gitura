@@ -490,6 +490,7 @@ watch(
               :timeline="timeline"
               :threads="threads"
               class="min-h-0 min-w-0 [grid-area:1/1]"
+              @ran="handleRan"
             />
           </Transition>
 
@@ -508,6 +509,7 @@ watch(
               @unresolve="handleUnresolve"
               @reply-sent="handleReplySent"
               @threads-changed="handleReviewActivity"
+              @ran="handleRan"
             />
           </Transition>
         </div>
