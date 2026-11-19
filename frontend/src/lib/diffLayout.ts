@@ -1,4 +1,5 @@
 import type * as model from '@/bindings/gitura/internal/model'
+import { pairChanges, type Range } from './inlineDiff'
 
 export type Side = 'LEFT' | 'RIGHT'
 
@@ -19,7 +20,7 @@ export type BlockKind = 'added' | 'deleted' | 'modified'
 
 /** One row of a pane: a code line, a collapsed run of unchanged lines, or the insertion point of a block with no lines on this side. */
 export type PaneItem =
-  | { type: 'line'; key: string; no: number; content: string; hunk: number; block: number }
+  | { type: 'line'; key: string; no: number; content: string; hunk: number; block: number; changes?: Range[] }
   | { type: 'gap'; key: string; hidden: number }
   | { type: 'mark'; key: string; block: number }
 
@@ -88,9 +89,9 @@ export function buildSplitLayout(hunks: model.DiffHunkDTO[]): SplitLayout {
     }
 
     const lines = hunk.lines ?? []
-    const line = (l: model.DiffLineDTO, side: Side, block: number): PaneItem => {
+    const line = (l: model.DiffLineDTO, side: Side, block: number, changes?: Range[]): PaneItem => {
       const no = side === 'LEFT' ? l.old_no : l.new_no
-      return { type: 'line', key: `${side}:${no}`, no, content: l.content, hunk: hi, block }
+      return { type: 'line', key: `${side}:${no}`, no, content: l.content, hunk: hi, block, ...(changes && { changes }) }
     }
 
     let i = 0
@@ -109,14 +110,15 @@ export function buildSplitLayout(hunks: model.DiffHunkDTO[]): SplitLayout {
         ;(l.type === 'delete' ? dels : adds).push(l)
       }
       const b = blocks.length
-      const fill = (pane: PaneItem[], side: Side, src: model.DiffLineDTO[]): [Edge, Edge] => {
+      const [delChanges, addChanges] = pairChanges(dels.map((l) => l.content), adds.map((l) => l.content))
+      const fill = (pane: PaneItem[], side: Side, src: model.DiffLineDTO[], changes: (Range[] | undefined)[]): [Edge, Edge] => {
         const start = pane.length
-        if (src.length) src.forEach((l) => pane.push(line(l, side, b)))
+        if (src.length) src.forEach((l, k) => pane.push(line(l, side, b, changes[k])))
         else pane.push({ type: 'mark', key: `mark-${b}`, block: b })
         return [top(start), bottom(pane.length - 1)]
       }
-      const l = fill(left, 'LEFT', dels)
-      const r = fill(right, 'RIGHT', adds)
+      const l = fill(left, 'LEFT', dels, delChanges)
+      const r = fill(right, 'RIGHT', adds, addChanges)
       blocks.push({ kind: !dels.length ? 'added' : !adds.length ? 'deleted' : 'modified', left: l, right: r })
       sync.push({ left: l[0], right: r[0] }, { left: l[1], right: r[1] })
     }
