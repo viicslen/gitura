@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.9.0](https://github.com/viicslen/gitura/compare/v1.8.1...v1.9.0) (2026-11-19)
+
+
+### Features
+
+* **commands:** compose commands with PR and comment placeholders, plus T3 Code fix templates ([#87](https://github.com/viicslen/gitura/issues/87)) ([c2130a3](https://github.com/viicslen/gitura/commit/c2130a3941254846634dfaf96f8d29710dba5540))
+* **commands:** fill PR and comment placeholders and allow editing commands ([03c7777](https://github.com/viicslen/gitura/commit/03c7777b5851dc3a971905163c1d39d42bd0671f))
+* comment on a whole file, not just its lines ([c753eb3](https://github.com/viicslen/gitura/commit/c753eb3808792f09dab2e05ad8fed8ad693630c5))
+* comment on a whole file, not just its lines ([#89](https://github.com/viicslen/gitura/issues/89)) ([e2dfd0a](https://github.com/viicslen/gitura/commit/e2dfd0a29e0140af4a2df3eb1c5581062e4fd95d))
+* find a PR's local clone in your project folders instead of asking for it ([b94f46a](https://github.com/viicslen/gitura/commit/b94f46a16043c42232c8516c7a1efea323f46e37))
+* open PRs ready to run commands by finding their local clone in your project folders ([#86](https://github.com/viicslen/gitura/issues/86)) ([3137eb6](https://github.com/viicslen/gitura/commit/3137eb62ea22b43fac0656b29bc336b96aa8c322))
+* **ui:** compose commands with placeholders and T3 Code templates ([5636bae](https://github.com/viicslen/gitura/commit/5636baeebb6aaa53fbe65fd2d93ca4d6901cdebb))
+* **ui:** mark the words that changed inside similar diff lines ([#88](https://github.com/viicslen/gitura/issues/88)) ([6a3c60e](https://github.com/viicslen/gitura/commit/6a3c60ed8832799f60faa5df92564a6b3843d969))
+* **ui:** mark the words that changed within similar lines of a diff ([c036829](https://github.com/viicslen/gitura/commit/c036829e242f96e61f79a28c629fcbc2eabbf282))
+* **ui:** open the command composer only when adding or editing ([5d04e99](https://github.com/viicslen/gitura/commit/5d04e99809ef7c14f265f49e32f2ad8bc7c34a77))
+* **ui:** pick project folders in settings so PRs open ready to run commands ([e40eb56](https://github.com/viicslen/gitura/commit/e40eb56613e8eae42f3c8d1eab03d00677c34c4a))
+
+
+### Bug Fixes
+
+* **commands:** keep a slow save from closing a newer editor; isolate test config on every OS ([2b81093](https://github.com/viicslen/gitura/commit/2b81093cb0c0da8a08a3ebf6d5e0ce988c4dffad))
+* keep line numbers when restoring a pending review from GitHub ([eb02fbd](https://github.com/viicslen/gitura/commit/eb02fbdc27bd505acb07b737b92b9e7fa86e899c))
+* never drop pending-review comments when restoring or resubmitting ([f69fba1](https://github.com/viicslen/gitura/commit/f69fba12c8348d54128879842c8dd00a9183cb49))
+* **ui:** keep comment edit and delete off the comment text on every view ([#83](https://github.com/viicslen/gitura/issues/83)) ([a5d18db](https://github.com/viicslen/gitura/commit/a5d18dbd212fdd5d62de0bd6e229b06c77f1d1b1))
+* **ui:** keep the run dropdown working after a run and show new commands without a reload ([#84](https://github.com/viicslen/gitura/issues/84)) ([6985a82](https://github.com/viicslen/gitura/commit/6985a8253421d94ff3053e977231444448c25756))
+* **ui:** keep the run dropdown working after running a command from it ([a60fa63](https://github.com/viicslen/gitura/commit/a60fa63801fb5306ef7f91c88afe2f2bf2338a40))
+* **ui:** put comment edit and delete in the comment header everywhere ([542ca60](https://github.com/viicslen/gitura/commit/542ca602cae4485ca311e37853030c53ccbee27a))
+* **ui:** show commands added in settings without reloading the app ([acf25ca](https://github.com/viicslen/gitura/commit/acf25ca6937781ccb1abe630f6dcf07cc7b7e47c))
+
 ## [1.8.1](https://github.com/viicslen/gitura/compare/v1.8.0...v1.8.1) (2026-11-18)
 
 
