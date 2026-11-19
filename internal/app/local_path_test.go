@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -108,4 +109,37 @@ func newTestAppWithStateDB(t *testing.T, stateDir string) (*App, *sql.DB) {
 	a.queries = db.New(sqlDB)
 
 	return a, sqlDB
+}
+
+func TestGetPRLocalPath_NoPathSet_FindsCloneAndReusesItForTheRepo(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	a, sqlDB := newTestAppWithStateDB(t, t.TempDir())
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	root := t.TempDir()
+	clone := filepath.Join(root, "acme", "api")
+	if err := os.MkdirAll(filepath.Join(clone, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(clone, ".git", "config"), []byte("[remote \"origin\"]\n\turl = git@github.com:acme/api.git\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SetProjectDirs([]string{root}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, _ := a.GetPRLocalPath("acme", "unknown", 1); got != "" {
+		t.Errorf("unknown repo: got %q, want empty", got)
+	}
+	if got, _ := a.GetPRLocalPath("Acme", "API", 1); got != clone {
+		t.Fatalf("got %q, want %q", got, clone)
+	}
+
+	// Another PR of the repo reuses the saved clone without the project folders.
+	if err := a.SetProjectDirs(nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := a.GetPRLocalPath("Acme", "API", 2); got != clone {
+		t.Errorf("sibling PR: got %q, want %q", got, clone)
+	}
 }

@@ -268,9 +268,9 @@ async function browseForPath(): Promise<void> {
 }
 
 onMounted(() => {
-  void loadPR()
+  // After the PR loads, so a found clone can prefer the worktree on its head branch.
+  void loadPR().then(loadLocalPath)
   void loadCommands()
-  void loadLocalPath()
 })
 
 watch(showResolvedReviews, async (value) => {

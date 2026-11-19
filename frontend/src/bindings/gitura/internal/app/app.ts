@@ -213,10 +213,10 @@ export function GetPRFiles(): $CancellablePromise<model$0.PRFileDTO[]> {
 }
 
 /**
- * GetPRLocalPath returns the local filesystem path associated with a PR,
- * or an empty string if none has been set.
+ * GetPRLocalPath returns the local checkout for a PR: the path set for it or, when none is, one
+ * found and saved for it; empty when no clone is found. See prLocalPath.
  * 
- * Error prefix: "validation:" — invalid owner/repo/number; "db:" — database query failure.
+ * Error prefix: "validation:" — invalid owner/repo/number.
  */
 export function GetPRLocalPath(owner: string, repo: string, $number: number): $CancellablePromise<string> {
     return $Call.ByID(3602399356, owner, repo, $number);
@@ -245,13 +245,24 @@ export function GetPRTimeline(): $CancellablePromise<model$0.PRTimelineDTO> {
 }
 
 /**
+ * GetProjectDirs returns the folders searched for a PR's local clone.
+ * 
+ * Error prefix: "settings:" — load failure.
+ */
+export function GetProjectDirs(): $CancellablePromise<string[]> {
+    return $Call.ByID(3672678943).then(($result: any) => {
+        return $$createType16($result);
+    });
+}
+
+/**
  * GetToggles returns the user's on/off preferences, keyed by toggle id.
  * 
  * Error prefix: "settings:" — load failure.
  */
 export function GetToggles(): $CancellablePromise<{ [_ in string]?: boolean }> {
     return $Call.ByID(3104845607).then(($result: any) => {
-        return $$createType16($result);
+        return $$createType17($result);
     });
 }
 
@@ -261,7 +272,7 @@ export function GetToggles(): $CancellablePromise<{ [_ in string]?: boolean }> {
  */
 export function GetViewedFiles(): $CancellablePromise<string[]> {
     return $Call.ByID(3160718169).then(($result: any) => {
-        return $$createType17($result);
+        return $$createType16($result);
     });
 }
 
@@ -293,7 +304,7 @@ export function ListOpenPRs(filters: model$0.PRListFilters): $CancellablePromise
  */
 export function ListSystemFonts(): $CancellablePromise<string[]> {
     return $Call.ByID(1934710823).then(($result: any) => {
-        return $$createType17($result);
+        return $$createType16($result);
     });
 }
 
@@ -485,6 +496,15 @@ export function SetPRLocalPath(owner: string, repo: string, $number: number, loc
 }
 
 /**
+ * SetProjectDirs replaces the folders searched for a PR's local clone.
+ * 
+ * Error prefix: "settings:" — load or save failure.
+ */
+export function SetProjectDirs(dirs: string[]): $CancellablePromise<void> {
+    return $Call.ByID(3858692107, dirs);
+}
+
+/**
  * SetToggles replaces the user's on/off preferences.
  * 
  * Error prefix: "settings:" — load or save failure.
@@ -610,8 +630,8 @@ const $$createType12 = model$0.PRFileDTO.createFrom;
 const $$createType13 = $Create.Array($$createType12);
 const $$createType14 = model$0.PROverviewDTO.createFrom;
 const $$createType15 = model$0.PRTimelineDTO.createFrom;
-const $$createType16 = $Create.Map($Create.Any, $Create.Any);
-const $$createType17 = $Create.Array($Create.Any);
+const $$createType16 = $Create.Array($Create.Any);
+const $$createType17 = $Create.Map($Create.Any, $Create.Any);
 const $$createType18 = model$0.PRListResult.createFrom;
 const $$createType19 = model$0.PullRequestSummary.createFrom;
 const $$createType20 = model$0.PollResult.createFrom;
