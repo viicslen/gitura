@@ -36,10 +36,13 @@ const props = defineProps<{
   threadRootId?: number
   /** Comment ID to associate this run with (0 = unlinked) */
   commentId?: number
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'ran'): void
+  /** A run is being started; a click while one is starting is ignored and emits nothing. */
+  (e: 'start'): void
+  (e: 'ran', runs: model.RunResult[]): void
 }>()
 
 const running = ref(false)
@@ -56,13 +59,15 @@ const primaryCommand = computed((): model.CommandDTO | null => {
 async function runCommand(cmd: model.CommandDTO): Promise<void> {
   if (running.value) return
   running.value = true
+  emit('start')
   burst.value++
   try {
-    await RunCommands([cmd.name], props.input, {
+    const runs = await RunCommands([cmd.name], props.input, {
       thread_root_id: props.threadRootId ?? 0,
       comment_id: props.commentId ?? 0,
     })
-    emit('ran')
+    // An unknown command name (deleted elsewhere) starts nothing.
+    if (runs?.length) emit('ran', runs)
   } finally {
     running.value = false
   }
@@ -86,6 +91,7 @@ const btnSize = computed(() => props.size ?? 'sm')
     <Button
       :size="btnSize"
       :aria-busy="running"
+      :disabled="disabled"
       variant="ghost"
       class="rounded-r-none border-r-0 gap-1.5 bg-muted/60 hover:bg-muted active:scale-100"
       @click="handlePrimary"
@@ -112,6 +118,7 @@ const btnSize = computed(() => props.size ?? 'sm')
       <DropdownMenuTrigger as-child>
         <Button
           :size="btnSize"
+          :disabled="disabled"
           variant="ghost"
           class="rounded-l-none px-1 bg-muted/60 hover:bg-muted active:scale-100"
           :aria-label="`Run with a different command`"

@@ -12,6 +12,7 @@ import { reducedMotion, vPointer } from '@/components/motion/wow'
 import type { UnsentComments } from '@/lib/diffLayout'
 import { StartLocalReview, StopLocalReview } from '@/bindings/gitura/internal/app/app'
 import { Events } from '@wailsio/runtime'
+import { loadCommands } from '@/composables/useCommands'
 
 const props = defineProps<{ path: string }>()
 
@@ -80,7 +81,10 @@ watch([base, () => props.path], async ([scope], [previous]) => {
 })
 
 const offChanged = Events.On('local:changed', () => void reload())
-onMounted(start)
+onMounted(() => {
+  void start()
+  void loadCommands()
+})
 onUnmounted(() => {
   offChanged()
   void StopLocalReview()

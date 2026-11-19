@@ -1,6 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+
+const run = vi.fn(async (_names: string[], input: string) => [{ input }])
+vi.mock('@/bindings/gitura/internal/app/app', () => ({
+  RunCommands: (...a: [string[], string]) => run(...a),
+  SetToggles: vi.fn(async () => {}),
+}))
+
 import InlineCommentForm from './InlineCommentForm.vue'
+import { commands } from '@/composables/useCommands'
+import { setToggle } from '@/composables/useToggles'
+import type * as model from '@/bindings/gitura/internal/model'
 
 const target = { path: 'a.ts', line: 3, side: 'RIGHT' }
 const text = (w: ReturnType<typeof mount>) => (w.find('textarea').element as HTMLTextAreaElement).value
@@ -46,5 +56,32 @@ describe('InlineCommentForm', () => {
     await wrapper.find('textarea').setValue('')
     await wrapper.find('textarea').trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('cancel')).toHaveLength(1)
+  })
+
+  describe('Run', () => {
+    async function runTyped(remove: boolean) {
+      commands.value = [{ name: 'fix', command: 'echo' } as model.CommandDTO]
+      await setToggle('remove_draft_after_run', remove)
+      const post = vi.fn()
+      const wrapper = mount(InlineCommentForm, { props: { target, post } })
+      await wrapper.find('textarea').setValue('  try this  ')
+      await wrapper.find('button[aria-busy]').trigger('click')
+      await flushPromises()
+      expect(run).toHaveBeenLastCalledWith(['fix'], 'try this', expect.anything())
+      expect(post).not.toHaveBeenCalled()
+      return wrapper
+    }
+
+    it('runs the typed comment without posting it, and keeps the text by default', async () => {
+      const wrapper = await runTyped(false)
+      expect(text(wrapper)).toBe('  try this  ')
+      expect(wrapper.emitted('cancel')).toBeUndefined()
+    })
+
+    it('discards the comment after the run when the setting is on', async () => {
+      const wrapper = await runTyped(true)
+      expect(text(wrapper)).toBe('')
+      expect(wrapper.emitted('cancel')).toHaveLength(1)
+    })
   })
 })

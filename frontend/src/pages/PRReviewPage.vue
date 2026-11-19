@@ -27,8 +27,8 @@ import { useAuth } from '@/composables/useAuth'
 import type { PRRef } from '@/types/pr'
 import type * as model from '@/bindings/gitura/internal/model'
 import { useToggles } from '@/composables/useToggles'
-import { commands as sharedCommands, defaultCommandName } from '@/composables/useCommands'
-import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, GetPRTimeline, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
+import { commands as sharedCommands, defaultCommandName, loadCommands } from '@/composables/useCommands'
+import { GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, GetPRTimeline, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
 import { toast } from 'vue-sonner'
 import { useReviewTabs, type ReviewTab } from '@/composables/useReviewTabs'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
@@ -66,19 +66,6 @@ reviewTab.value = 'overview'
 
 // ── Commands ────────────────────────────────────────────────────────────────
 const commands = computed(() => sharedCommands.value ?? [])
-
-async function loadCommands(): Promise<void> {
-  try {
-    sharedCommands.value = await GetCommands()
-  } catch {
-    // Non-fatal: commands panel will just be empty
-  }
-  try {
-    defaultCommandName.value = await GetDefaultCommandName()
-  } catch {
-    // Non-fatal
-  }
-}
 
 // ── Run panel ──────────────────────────────────────────────────────────────
 const { runs } = useRuns()
@@ -490,6 +477,7 @@ watch(
               :timeline="timeline"
               :threads="threads"
               class="min-h-0 min-w-0 [grid-area:1/1]"
+              @ran="handleRan"
             />
           </Transition>
 
@@ -508,6 +496,7 @@ watch(
               @unresolve="handleUnresolve"
               @reply-sent="handleReplySent"
               @threads-changed="handleReviewActivity"
+              @ran="handleRan"
             />
           </Transition>
         </div>

@@ -16,12 +16,19 @@ import { collapse, collapsible, crossfade } from '@/components/motion/motion'
 import CountUp from '@/components/motion/CountUp.vue'
 import DrawnCheck from '@/components/comment/DrawnCheck.vue'
 import PRTimelinePanel from '@/components/pr/PRTimelinePanel.vue'
+import SplitRunButton from '@/components/run/SplitRunButton.vue'
+import { commands, defaultCommandName } from '@/composables/useCommands'
+import { prInput, reviewInput } from '@/lib/runInput'
 
 const props = defineProps<{
   overview: model.PROverviewDTO | null
   timeline: model.PRTimelineDTO | null
   threads: model.CommentThreadDTO[]
 }>()
+const emit = defineEmits<{ (e: 'ran'): void }>()
+const cmds = computed(() => commands.value ?? [])
+// Stays visible while its own menu is open, when the pointer has left the card.
+const hoverRunClass = 'opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0 has-[[data-state=open]]:opacity-100'
 const showResolvedReviews = defineModel<boolean>('showResolvedReviews', { default: false })
 const mode = defineModel<'details' | 'timeline'>('mode', { default: 'details' })
 
@@ -149,7 +156,7 @@ async function copyBranch(name: string): Promise<void> {
         <TransitionGroup tag="div" class="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4" move-class="transition-transform duration-slow ease-in-out">
           <Card key="description" class="relative shadow-none" :class="cascade && 'card-in'">
             <CardContent>
-              <div v-if="hasBranches || overview.summary.labels?.length" class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <div v-if="hasBranches || overview.summary.labels?.length || cmds.length" class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <div
                   v-if="hasBranches"
                   class="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
@@ -172,16 +179,25 @@ async function copyBranch(name: string): Promise<void> {
                     </Button>
                   </span>
                 </div>
-                <ul v-if="overview.summary.labels?.length" class="labels flex flex-wrap gap-1.5" aria-label="Labels">
-                  <li
-                    v-for="label in overview.summary.labels"
-                    :key="label.name"
-                    :title="label.description || undefined"
-                    class="rounded-full px-2 py-0.5 text-xs font-medium"
-                    :class="cascade && 'pop-late'"
-                    :style="labelStyle(label.color)"
-                  >{{ label.name }}</li>
-                </ul>
+                <div class="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <ul v-if="overview.summary.labels?.length" class="labels flex flex-wrap gap-1.5" aria-label="Labels">
+                    <li
+                      v-for="label in overview.summary.labels"
+                      :key="label.name"
+                      :title="label.description || undefined"
+                      class="rounded-full px-2 py-0.5 text-xs font-medium"
+                      :class="cascade && 'pop-late'"
+                      :style="labelStyle(label.color)"
+                    >{{ label.name }}</li>
+                  </ul>
+                  <SplitRunButton
+                    :commands="cmds"
+                    :default-command-name="defaultCommandName"
+                    :input="prInput(overview, threads)"
+                    label="Run PR"
+                    @ran="emit('ran')"
+                  />
+                </div>
               </div>
               <div v-if="overview.summary.body">
                 <PlainMarkdownBody
@@ -241,7 +257,7 @@ async function copyBranch(name: string): Promise<void> {
                     <Card :class="[cardClass, cascade && cardIndex('general', index) < 15 && 'card-in']" :style="{ '--i': cardIndex('general', index) }">
                       <EditableComment kind="issue_comment" :id="comment.id" :target="comment" class="space-y-4 px-4">
                         <template #header>
-                          <div class="flex items-center gap-3 min-w-0">
+                          <div class="flex flex-1 items-center gap-3 min-w-0">
                             <img
                               v-if="comment.author_avatar && avatarSrc(avatarKey('pr-comment', comment.id), comment.author_avatar)"
                               :src="avatarSrc(avatarKey('pr-comment', comment.id), comment.author_avatar)"
@@ -257,6 +273,9 @@ async function copyBranch(name: string): Promise<void> {
                               <div class="text-sm font-medium truncate">{{ comment.author_login }}</div>
                               <div class="text-xs text-muted-foreground">{{ formatTimestamp(comment.created_at) }}</div>
                             </div>
+                          </div>
+                          <div v-if="cmds.length" :class="hoverRunClass">
+                            <SplitRunButton :commands="cmds" :default-command-name="defaultCommandName" :input="comment.body" @ran="emit('ran')" />
                           </div>
                         </template>
                         <div :class="surfaceClass">
@@ -342,6 +361,15 @@ async function copyBranch(name: string): Promise<void> {
                               <Badge variant="secondary" class="text-[0.625rem]"><DrawnCheck /> All conversations resolved</Badge>
                             </span>
                           </Transition>
+                          <div v-if="cmds.length" class="self-start" :class="hoverRunClass">
+                            <SplitRunButton
+                              :commands="cmds"
+                              :default-command-name="defaultCommandName"
+                              :input="reviewInput(review, threads)"
+                              label="Run review"
+                              @ran="emit('ran')"
+                            />
+                          </div>
                         </template>
                         <div class="space-y-3">
                           <div v-if="review.body" :class="surfaceClass">

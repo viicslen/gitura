@@ -37,6 +37,7 @@ const emit = defineEmits<{
   (e: 'resolve', rootId: number): void
   (e: 'unresolve', rootId: number): void
   (e: 'reply-sent', comment: model.ReviewCommentDTO): void
+  (e: 'ran'): void
 }>()
 
 const language = computed(() => langFromPath(props.file.filename))
@@ -501,6 +502,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                     @resolve="emit('resolve', $event)"
                     @unresolve="emit('unresolve', $event)"
                     @reply-sent="emit('reply-sent', $event)"
+                    @ran="emit('ran')"
                   />
                   <DiffDraftComment v-else-if="row.type === 'draft'" :draft="row.draft" :class="freshGlow(row.key)" />
                   <div v-else class="px-3 py-2 wow-pop origin-top-right">
@@ -575,6 +577,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                       @resolve="emit('resolve', $event)"
                       @unresolve="emit('unresolve', $event)"
                       @reply-sent="emit('reply-sent', $event)"
+                      @ran="emit('ran')"
                     />
                   </div>
                 </div>
@@ -672,6 +675,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
                         @resolve="emit('resolve', $event)"
                         @unresolve="emit('unresolve', $event)"
                         @reply-sent="emit('reply-sent', $event)"
+                        @ran="emit('ran')"
                       />
                       <DiffDraftComment v-else-if="row.type === 'draft'" :draft="row.draft" :class="freshGlow(row.key)" />
                       <!-- The form springs out of the line number it was opened from; clipped, so its overshoot never widens the pane. -->
