@@ -38,7 +38,8 @@ describe('markRanges', () => {
     const start = line.indexOf('<')
     const out = markRanges(html, [[start, line.length]], 'm')
     expect(out.replace(/<mark class="m">|<\/mark>/g, '')).toBe(html)
-    const marked = [...out.matchAll(/<mark class="m">(.*?)<\/mark>/g)].map((m) => m[1].replace(/<[^>]+>/g, '')).join('')
-    expect(marked).toBe('&lt; b) return &quot;x&quot;')
+    const el = document.createElement('div')
+    el.innerHTML = out
+    expect([...el.querySelectorAll('mark')].map((m) => m.textContent).join('')).toBe('< b) return "x"')
   })
 })
