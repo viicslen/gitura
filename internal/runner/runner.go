@@ -26,6 +26,21 @@ const instructionsToken = "{{instructions}}"
 // to indicate where the local repository path should be injected.
 const repoPathToken = "{{repo_path}}" // #nosec G101 -- template placeholder, not a credential.
 
+// Variables lists the PR and comment placeholders, besides {{instructions}}
+// and {{repo_path}}, that a command template can use.
+var Variables = []model.CommandVariableDTO{
+	{Name: "pr_number", Description: "Pull request number"},
+	{Name: "pr_title", Description: "Pull request title"},
+	{Name: "pr_url", Description: "Pull request URL"},
+	{Name: "repo", Description: "Repository as owner/name"},
+	{Name: "head_branch", Description: "Branch the PR merges from"},
+	{Name: "base_branch", Description: "Branch the PR merges into"},
+	{Name: "author", Description: "PR author's login"},
+	{Name: "comment_author", Description: "Login of the comment's author"},
+	{Name: "file", Description: "File the review thread is on"},
+	{Name: "line", Description: "Line the review thread is on"},
+}
+
 // OutputChunkHandler receives raw output chunks as they are read.
 // stream is either "stdout" or "stderr".
 type OutputChunkHandler func(stream string, chunk string)
@@ -38,8 +53,8 @@ type OutputChunkHandler func(stream string, chunk string)
 //   - Otherwise, input is written to the process's stdin pipe.
 //
 // If localPath is non-empty, it is used as the working directory for the
-// subprocess and is also substituted for any "{{repo_path}}" token in the
-// command string before argv-splitting.
+// subprocess and is also substituted for any "{{repo_path}}" token.
+// Each vars entry replaces the "{{name}}" token for its key.
 //
 // The command string is POSIX-shell-split (respects quoted tokens) to produce
 // the argv slice; placeholders are then substituted into individual argv
@@ -55,6 +70,7 @@ func Run(
 	cmd model.CommandDTO,
 	input string,
 	localPath string,
+	vars map[string]string,
 	onChunk OutputChunkHandler,
 ) model.RunResult {
 	startedAt := time.Now().UTC()
@@ -71,7 +87,7 @@ func Run(
 	if err != nil {
 		return parseFailureResult(result, err)
 	}
-	argv = substitutePlaceholders(argv, input, localPath, usePlaceholder)
+	argv = substitutePlaceholders(argv, placeholderReplacer(input, localPath, vars, usePlaceholder))
 
 	// #nosec G204 -- argv comes from the user's own command config; untrusted input is substituted per-argument, never re-split.
 	c := exec.CommandContext(ctx, argv[0], argv[1:]...)
@@ -161,19 +177,30 @@ func streamToBuffer(
 	}
 }
 
+// placeholderReplacer maps every placeholder token to its value. It replaces in
+// a single pass, so a value that contains a token is never expanded again.
+func placeholderReplacer(input string, localPath string, vars map[string]string, usePlaceholder bool) *strings.Replacer {
+	pairs := make([]string, 0, 2*len(vars)+4)
+	for name, value := range vars {
+		pairs = append(pairs, "{{"+name+"}}", value)
+	}
+	if localPath != "" {
+		pairs = append(pairs, repoPathToken, localPath)
+	}
+	if usePlaceholder {
+		pairs = append(pairs, instructionsToken, input)
+	}
+
+	return strings.NewReplacer(pairs...)
+}
+
 // substitutePlaceholders replaces the placeholder tokens within each argv
 // element. Substituting after the split — rather than into the command string
 // before it — keeps untrusted input confined to the argument it appears in.
-func substitutePlaceholders(argv []string, input string, localPath string, usePlaceholder bool) []string {
+func substitutePlaceholders(argv []string, r *strings.Replacer) []string {
 	out := make([]string, len(argv))
 	for i, arg := range argv {
-		if localPath != "" {
-			arg = strings.ReplaceAll(arg, repoPathToken, localPath)
-		}
-		if usePlaceholder {
-			arg = strings.ReplaceAll(arg, instructionsToken, input)
-		}
-		out[i] = arg
+		out[i] = r.Replace(arg)
 	}
 
 	return out

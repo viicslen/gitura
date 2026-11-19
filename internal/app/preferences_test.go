@@ -75,3 +75,32 @@ func TestSetAppearance_AfterSetKeybindings_KeepsBoth(t *testing.T) {
 		t.Fatalf("SetKeybindings dropped appearance: %+v, %v", cfg.Appearance, err)
 	}
 }
+
+func TestUpdateCommand_RenameDefault_PersistsAndKeepsDefault(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	seed := settings.Config{
+		Commands:           []model.CommandDTO{{Name: "fix", Command: "t3 thread start . x"}, {Name: "other", Command: "echo"}},
+		DefaultCommandName: "fix",
+	}
+	if err := settings.Save(seed); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	a := New("")
+
+	if _, err := a.UpdateCommand("fix", model.CommandDTO{Name: "other", Command: "echo"}); err == nil {
+		t.Fatal("rename onto an existing name: want error")
+	}
+	got, err := a.UpdateCommand("fix", model.CommandDTO{Name: " Fix with T3 ", Command: "t3 thread start . {{pr_number}}"})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	want := []model.CommandDTO{{Name: "Fix with T3", Command: "t3 thread start . {{pr_number}}"}, {Name: "other", Command: "echo"}}
+	cfg, err := settings.Load()
+	if err != nil {
+		t.Fatalf("load settings: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) || !reflect.DeepEqual(cfg.Commands, want) || cfg.DefaultCommandName != "Fix with T3" {
+		t.Fatalf("got %+v, on disk %+v", got, cfg)
+	}
+}

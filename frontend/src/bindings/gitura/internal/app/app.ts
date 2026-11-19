@@ -138,6 +138,15 @@ export function GetAuthState(): $CancellablePromise<model$0.AuthState> {
 }
 
 /**
+ * GetCommandVariables lists the PR and comment placeholders a command can use.
+ */
+export function GetCommandVariables(): $CancellablePromise<model$0.CommandVariableDTO[]> {
+    return $Call.ByID(1316219544).then(($result: any) => {
+        return $$createType7($result);
+    });
+}
+
+/**
  * GetCommands returns the current list of configured commands.
  * Error prefix: "settings:" — load failure.
  */
@@ -154,7 +163,7 @@ export function GetCommands(): $CancellablePromise<model$0.CommandDTO[]> {
  */
 export function GetCommentThreads(includeResolved: boolean): $CancellablePromise<model$0.CommentThreadDTO[]> {
     return $Call.ByID(3296099568, includeResolved).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType9($result);
     });
 }
 
@@ -175,7 +184,7 @@ export function GetDefaultCommandName(): $CancellablePromise<string> {
  */
 export function GetFileDiff(path: string): $CancellablePromise<model$0.ParsedDiffDTO> {
     return $Call.ByID(1861487559, path).then(($result: any) => {
-        return $$createType8($result);
+        return $$createType10($result);
     });
 }
 
@@ -186,7 +195,7 @@ export function GetFileDiff(path: string): $CancellablePromise<model$0.ParsedDif
  */
 export function GetIgnoredCommenters(): $CancellablePromise<model$0.IgnoredCommenterDTO[]> {
     return $Call.ByID(3422132091).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType12($result);
     });
 }
 
@@ -197,7 +206,7 @@ export function GetIgnoredCommenters(): $CancellablePromise<model$0.IgnoredComme
  */
 export function GetKeybindings(): $CancellablePromise<{ [_ in string]?: string }> {
     return $Call.ByID(120108699).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType13($result);
     });
 }
 
@@ -208,7 +217,7 @@ export function GetKeybindings(): $CancellablePromise<{ [_ in string]?: string }
  */
 export function GetPRFiles(): $CancellablePromise<model$0.PRFileDTO[]> {
     return $Call.ByID(1940290671).then(($result: any) => {
-        return $$createType13($result);
+        return $$createType15($result);
     });
 }
 
@@ -229,7 +238,7 @@ export function GetPRLocalPath(owner: string, repo: string, $number: number): $C
  */
 export function GetPROverview(includeResolvedReviews: boolean): $CancellablePromise<model$0.PROverviewDTO> {
     return $Call.ByID(3875917651, includeResolvedReviews).then(($result: any) => {
-        return $$createType14($result);
+        return $$createType16($result);
     });
 }
 
@@ -240,7 +249,7 @@ export function GetPROverview(includeResolvedReviews: boolean): $CancellableProm
  */
 export function GetPRTimeline(): $CancellablePromise<model$0.PRTimelineDTO> {
     return $Call.ByID(1841068179).then(($result: any) => {
-        return $$createType15($result);
+        return $$createType17($result);
     });
 }
 
@@ -251,7 +260,7 @@ export function GetPRTimeline(): $CancellablePromise<model$0.PRTimelineDTO> {
  */
 export function GetProjectDirs(): $CancellablePromise<string[]> {
     return $Call.ByID(3672678943).then(($result: any) => {
-        return $$createType16($result);
+        return $$createType18($result);
     });
 }
 
@@ -262,7 +271,7 @@ export function GetProjectDirs(): $CancellablePromise<string[]> {
  */
 export function GetToggles(): $CancellablePromise<{ [_ in string]?: boolean }> {
     return $Call.ByID(3104845607).then(($result: any) => {
-        return $$createType17($result);
+        return $$createType19($result);
     });
 }
 
@@ -272,7 +281,7 @@ export function GetToggles(): $CancellablePromise<{ [_ in string]?: boolean }> {
  */
 export function GetViewedFiles(): $CancellablePromise<string[]> {
     return $Call.ByID(3160718169).then(($result: any) => {
-        return $$createType16($result);
+        return $$createType18($result);
     });
 }
 
@@ -293,7 +302,7 @@ export function IsFocused(): $CancellablePromise<boolean> {
  */
 export function ListOpenPRs(filters: model$0.PRListFilters): $CancellablePromise<model$0.PRListResult> {
     return $Call.ByID(1328633817, filters).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType20($result);
     });
 }
 
@@ -304,7 +313,7 @@ export function ListOpenPRs(filters: model$0.PRListFilters): $CancellablePromise
  */
 export function ListSystemFonts(): $CancellablePromise<string[]> {
     return $Call.ByID(1934710823).then(($result: any) => {
-        return $$createType16($result);
+        return $$createType18($result);
     });
 }
 
@@ -320,7 +329,7 @@ export function ListSystemFonts(): $CancellablePromise<string[]> {
  */
 export function LoadPR(owner: string, repo: string, $number: number): $CancellablePromise<model$0.PullRequestSummary> {
     return $Call.ByID(19891564, owner, repo, $number).then(($result: any) => {
-        return $$createType19($result);
+        return $$createType21($result);
     });
 }
 
@@ -354,7 +363,7 @@ export function OpenFolderPicker(title: string, defaultDir: string): $Cancellabl
  */
 export function PollDeviceFlow(): $CancellablePromise<model$0.PollResult> {
     return $Call.ByID(536289881).then(($result: any) => {
-        return $$createType20($result);
+        return $$createType22($result);
     });
 }
 
@@ -365,7 +374,7 @@ export function PollDeviceFlow(): $CancellablePromise<model$0.PollResult> {
  */
 export function PostImmediateComment(comment: model$0.DraftCommentDTO): $CancellablePromise<model$0.ReviewCommentDTO> {
     return $Call.ByID(2936724426, comment).then(($result: any) => {
-        return $$createType21($result);
+        return $$createType23($result);
     });
 }
 
@@ -376,7 +385,7 @@ export function PostImmediateComment(comment: model$0.DraftCommentDTO): $Cancell
  */
 export function ReloadReviewActivity(): $CancellablePromise<model$0.CommentThreadDTO[]> {
     return $Call.ByID(840291334).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType9($result);
     });
 }
 
@@ -408,7 +417,7 @@ export function RemoveIgnoredCommenter(login: string): $CancellablePromise<void>
  */
 export function ReplyToComment(threadRootID: number, body: string): $CancellablePromise<model$0.ReviewCommentDTO> {
     return $Call.ByID(891857116, threadRootID, body).then(($result: any) => {
-        return $$createType21($result);
+        return $$createType23($result);
     });
 }
 
@@ -436,7 +445,7 @@ export function ResolveThread(threadRootID: number): $CancellablePromise<void> {
  */
 export function RunCommands(commandNames: string[], input: string, runCtx: model$0.RunContext): $CancellablePromise<model$0.RunResult[]> {
     return $Call.ByID(779693889, commandNames, input, runCtx).then(($result: any) => {
-        return $$createType23($result);
+        return $$createType25($result);
     });
 }
 
@@ -446,7 +455,7 @@ export function RunCommands(commandNames: string[], input: string, runCtx: model
  */
 export function SearchPRs(text: string): $CancellablePromise<model$0.PRListResult> {
     return $Call.ByID(3656722189, text).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType20($result);
     });
 }
 
@@ -519,7 +528,7 @@ export function SetToggles(toggles: { [_ in string]?: boolean }): $CancellablePr
  */
 export function StartDeviceFlow(): $CancellablePromise<model$0.DeviceFlowInfo> {
     return $Call.ByID(539006732).then(($result: any) => {
-        return $$createType24($result);
+        return $$createType26($result);
     });
 }
 
@@ -553,7 +562,7 @@ export function StopLocalReview(): $CancellablePromise<void> {
  */
 export function SubmitReview(req: model$0.ReviewSubmitRequest): $CancellablePromise<model$0.ReviewSubmitResult> {
     return $Call.ByID(174168682, req).then(($result: any) => {
-        return $$createType25($result);
+        return $$createType27($result);
     });
 }
 
@@ -580,7 +589,7 @@ export function SyncPendingReview(): $CancellablePromise<model$0.PendingReviewDT
  */
 export function TakeLaunch(): $CancellablePromise<$models.Launch | null> {
     return $Call.ByID(4182159370).then(($result: any) => {
-        return $$createType27($result);
+        return $$createType29($result);
     });
 }
 
@@ -604,6 +613,18 @@ export function UpdateBodyIfUnchanged(kind: string, id: number, expected: string
 }
 
 /**
+ * UpdateCommand replaces the command named name with cmd, which may rename it.
+ * A renamed default command stays the default.
+ * Error prefixes: "validation:" — missing name or command, name taken by another
+ * command; "not_found:" — unknown name; "settings:" — load or save failure.
+ */
+export function UpdateCommand(name: string, cmd: model$0.CommandDTO): $CancellablePromise<model$0.CommandDTO[]> {
+    return $Call.ByID(806249264, name, cmd).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+/**
  * UpdateDraftComment replaces the body of the pending draft at index, provided it still reads expected.
  * Error prefixes: "validation:" — empty body; "conflict:" — draft moved or changed.
  */
@@ -620,25 +641,27 @@ const $$createType2 = model$0.PendingReviewDTO.createFrom;
 const $$createType3 = model$0.SuggestionCommitResult.createFrom;
 const $$createType4 = model$0.AppearanceDTO.createFrom;
 const $$createType5 = model$0.AuthState.createFrom;
-const $$createType6 = model$0.CommentThreadDTO.createFrom;
+const $$createType6 = model$0.CommandVariableDTO.createFrom;
 const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = model$0.ParsedDiffDTO.createFrom;
-const $$createType9 = model$0.IgnoredCommenterDTO.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = $Create.Map($Create.Any, $Create.Any);
-const $$createType12 = model$0.PRFileDTO.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = model$0.PROverviewDTO.createFrom;
-const $$createType15 = model$0.PRTimelineDTO.createFrom;
-const $$createType16 = $Create.Array($Create.Any);
-const $$createType17 = $Create.Map($Create.Any, $Create.Any);
-const $$createType18 = model$0.PRListResult.createFrom;
-const $$createType19 = model$0.PullRequestSummary.createFrom;
-const $$createType20 = model$0.PollResult.createFrom;
-const $$createType21 = model$0.ReviewCommentDTO.createFrom;
-const $$createType22 = model$0.RunResult.createFrom;
-const $$createType23 = $Create.Array($$createType22);
-const $$createType24 = model$0.DeviceFlowInfo.createFrom;
-const $$createType25 = model$0.ReviewSubmitResult.createFrom;
-const $$createType26 = $models.Launch.createFrom;
-const $$createType27 = $Create.Nullable($$createType26);
+const $$createType8 = model$0.CommentThreadDTO.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = model$0.ParsedDiffDTO.createFrom;
+const $$createType11 = model$0.IgnoredCommenterDTO.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = $Create.Map($Create.Any, $Create.Any);
+const $$createType14 = model$0.PRFileDTO.createFrom;
+const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = model$0.PROverviewDTO.createFrom;
+const $$createType17 = model$0.PRTimelineDTO.createFrom;
+const $$createType18 = $Create.Array($Create.Any);
+const $$createType19 = $Create.Map($Create.Any, $Create.Any);
+const $$createType20 = model$0.PRListResult.createFrom;
+const $$createType21 = model$0.PullRequestSummary.createFrom;
+const $$createType22 = model$0.PollResult.createFrom;
+const $$createType23 = model$0.ReviewCommentDTO.createFrom;
+const $$createType24 = model$0.RunResult.createFrom;
+const $$createType25 = $Create.Array($$createType24);
+const $$createType26 = model$0.DeviceFlowInfo.createFrom;
+const $$createType27 = model$0.ReviewSubmitResult.createFrom;
+const $$createType28 = $models.Launch.createFrom;
+const $$createType29 = $Create.Nullable($$createType28);

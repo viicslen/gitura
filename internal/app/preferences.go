@@ -3,11 +3,13 @@ package app
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	"gitura/internal/fonts"
 	"gitura/internal/logger"
 	"gitura/internal/model"
+	"gitura/internal/runner"
 	"gitura/internal/settings"
 )
 
@@ -91,6 +93,46 @@ func (a *App) RemoveCommand(name string) ([]model.CommandDTO, error) {
 	result := make([]model.CommandDTO, len(a.commands))
 	copy(result, a.commands)
 	return result, nil
+}
+
+// UpdateCommand replaces the command named name with cmd, which may rename it.
+// A renamed default command stays the default.
+// Error prefixes: "validation:" — missing name or command, name taken by another
+// command; "not_found:" — unknown name; "settings:" — load or save failure.
+func (a *App) UpdateCommand(name string, cmd model.CommandDTO) ([]model.CommandDTO, error) {
+	cmd.Name = strings.TrimSpace(cmd.Name)
+	cmd.Command = strings.TrimSpace(cmd.Command)
+	if cmd.Name == "" || cmd.Command == "" {
+		return nil, fmt.Errorf("validation: name and command required")
+	}
+	if err := a.loadConfig(); err != nil {
+		return nil, fmt.Errorf("settings: load: %w", err)
+	}
+	idx := slices.IndexFunc(a.commands, func(c model.CommandDTO) bool { return c.Name == name })
+	if idx == -1 {
+		return nil, fmt.Errorf("not_found: command %q", name)
+	}
+	if cmd.Name != name && slices.ContainsFunc(a.commands, func(c model.CommandDTO) bool { return c.Name == cmd.Name }) {
+		return nil, fmt.Errorf("validation: a command named %q already exists", cmd.Name)
+	}
+	cfg := a.config()
+	cfg.Commands = slices.Clone(a.commands)
+	cfg.Commands[idx] = cmd
+	if a.defaultCommandName == name {
+		cfg.DefaultCommandName = cmd.Name
+	}
+	if err := settings.Save(cfg); err != nil {
+		return nil, fmt.Errorf("settings: save: %w", err)
+	}
+	a.commands = cfg.Commands
+	a.defaultCommandName = cfg.DefaultCommandName
+	logger.L.Info("UpdateCommand", "name", name, "new_name", cmd.Name)
+	return slices.Clone(a.commands), nil
+}
+
+// GetCommandVariables lists the PR and comment placeholders a command can use.
+func (a *App) GetCommandVariables() []model.CommandVariableDTO {
+	return slices.Clone(runner.Variables)
 }
 
 // GetKeybindings returns the user's shortcut overrides, keyed by action id.
