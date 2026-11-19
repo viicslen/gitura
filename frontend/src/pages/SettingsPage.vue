@@ -10,6 +10,9 @@ import {
   RemoveCommand,
   GetDefaultCommandName,
   SetDefaultCommandName,
+  GetProjectDirs,
+  SetProjectDirs,
+  OpenFolderPicker,
 } from '@/bindings/gitura/internal/app/app'
 import type * as model from '@/bindings/gitura/internal/model'
 import { Button } from '@/components/ui/button'
@@ -17,7 +20,7 @@ import { Input } from '@/components/ui/input'
 import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List } from '@lucide/vue'
+import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
 import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles, type ToggleId } from '@/composables/useToggles'
 import {
   useAppearance,
@@ -39,6 +42,7 @@ const SECTIONS = [
   { value: 'prList', label: TOGGLE_SECTIONS.prList, icon: List },
   { value: 'commenters', label: 'Ignored commenters', icon: UserX },
   { value: 'commands', label: 'Commands', icon: Terminal },
+  { value: 'projects', label: 'Project folders', icon: FolderGit2 },
   { value: 'keybindings', label: 'Keybindings', icon: Keyboard },
 ] as const
 const section = ref<string>('appearance')
@@ -128,7 +132,36 @@ onMounted(async () => {
   } catch {
     // non-fatal
   }
+  try {
+    projectDirs.value = await GetProjectDirs()
+  } catch (e: unknown) {
+    projectError.value = errorMessage(e)
+  }
 })
+
+// ── Project folders ────────────────────────────────────────────────────────
+const projectDirs = ref<string[] | null>(null)
+const projectError = ref('')
+
+async function saveProjectDirs(dirs: string[]) {
+  try {
+    await SetProjectDirs(dirs)
+    projectDirs.value = dirs
+    projectError.value = ''
+  } catch (e: unknown) {
+    projectError.value = errorMessage(e)
+  }
+}
+
+async function handleAddProjectDir() {
+  try {
+    const dir = await OpenFolderPicker('Select a folder with your projects', '')
+    const dirs = projectDirs.value ?? []
+    if (dir && !dirs.includes(dir)) await saveProjectDirs([...dirs, dir])
+  } catch (e: unknown) {
+    projectError.value = errorMessage(e)
+  }
+}
 
 async function handleAdd() {
   const login = newLogin.value.trim()
@@ -491,6 +524,51 @@ async function handleRemoveCommand(name: string) {
           </div>
           <Transition v-bind="alarm">
             <p v-if="addCmdError" class="text-xs text-destructive" role="alert">{{ addCmdError }}</p>
+          </Transition>
+        </TabsContent>
+
+        <TabsContent value="projects" class="space-y-3">
+          <p class="text-xs text-muted-foreground">
+            When a pull request has no local path, gitura looks for its clone up to three levels deep in these
+            folders, preferring a worktree on the PR's branch.
+          </p>
+          <div :class="box">
+            <div :class="[row, 'wow-rise']">
+              <span class="flex-1 text-sm text-muted-foreground">Add a folder where you keep repositories.</span>
+              <Button size="sm" aria-label="Add project folder" @click="handleAddProjectDir">
+                <Plus class="h-3.5 w-3.5" aria-hidden="true" />
+                Add folder
+              </Button>
+            </div>
+            <TransitionGroup tag="ul" v-bind="rows" aria-label="Project folders list">
+              <li v-if="projectDirs?.length === 0" key="empty" class="grid">
+                <div class="min-h-0 overflow-hidden">
+                  <div class="flex flex-col items-center gap-2 border-t border-border py-6 text-muted-foreground">
+                    <FolderGit2 class="h-8 w-8 opacity-40" aria-hidden="true" />
+                    <p class="text-sm">No project folders.</p>
+                  </div>
+                </div>
+              </li>
+              <li v-for="(dir, i) in projectDirs ?? []" :key="`dir:${dir}`" class="grid">
+                <div class="min-h-0 overflow-hidden">
+                  <div :class="[row, 'group wow-rise border-t border-border py-2']" :style="{ '--i': rowDelay(i) }">
+                    <span class="min-w-0 flex-1 truncate font-mono text-sm">{{ dir }}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-6 w-6 text-destructive opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+                      :aria-label="`Remove ${dir} from project folders`"
+                      @click="saveProjectDirs((projectDirs ?? []).filter((d) => d !== dir))"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+              </li>
+            </TransitionGroup>
+          </div>
+          <Transition v-bind="alarm">
+            <p v-if="projectError" class="text-xs text-destructive" role="alert">{{ projectError }}</p>
           </Transition>
         </TabsContent>
 
