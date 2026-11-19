@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { ref } from 'vue'
+import { ref, toRaw } from 'vue'
 
 const run = vi.fn()
 vi.mock('@/bindings/gitura/internal/app/app', () => ({
@@ -16,7 +16,7 @@ import type * as model from '@/bindings/gitura/internal/model'
 const draft = { body: 'Rename this', path: 'a.go', line: 3, side: 'RIGHT' } as model.DraftCommentDTO
 
 function mountDraft() {
-  const actions = { indexOf: () => 0, update: vi.fn(), remove: vi.fn(async () => {}), ran: vi.fn() } satisfies DraftActions
+  const actions = { indexOf: (_d: model.DraftCommentDTO) => 0, update: vi.fn(), remove: vi.fn(async () => {}), ran: vi.fn() } satisfies DraftActions
   const w = mount(DiffDraftComment, {
     props: { draft },
     global: { provide: { draftActions: actions, viewerLogin: ref('dev') } },
@@ -58,6 +58,23 @@ describe('DiffDraftComment', () => {
     const { w, actions } = mountDraft()
     await runIt(w)
     expect(actions.ran).not.toHaveBeenCalled()
+    expect(actions.remove).not.toHaveBeenCalled()
+  })
+
+  it('leaves an identical draft alone when the one it ran was removed while the run started', async () => {
+    await setToggle('remove_draft_after_run', true)
+    let start!: () => void
+    run.mockImplementation((_names: string[], input: string) => new Promise((r) => (start = () => r([{ input }]))))
+    const twin = { ...draft } as model.DraftCommentDTO
+    let pending = [draft, twin]
+    const { w, actions } = mountDraft()
+    actions.indexOf = (d: model.DraftCommentDTO) => pending.indexOf(toRaw(d))
+
+    await w.find('button[aria-busy]').trigger('click')
+    pending = [twin]
+    await w.setProps({ draft: twin })
+    start()
+    await flushPromises()
     expect(actions.remove).not.toHaveBeenCalled()
   })
 

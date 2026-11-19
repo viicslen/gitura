@@ -25,12 +25,17 @@ const [DefineHeader, ReuseHeader] = createReusableTemplate()
 const cmds = computed(() => commands.value ?? [])
 const { toggles } = useToggles()
 
+// The draft whose button was pressed: the row can show another draft by the time the run has started.
+let runDraft: model.DraftCommentDTO | null = null
+const holdDraft = () => { runDraft = props.draft }
+
 async function handleRan(runs: model.RunResult[]): Promise<void> {
   actions!.ran()
-  // An edit landing while the run started is kept: only the text that was run is removed.
-  if (!toggles.value.remove_draft_after_run || runs[0].input !== props.draft.body) return
+  const target = runDraft
+  // An edit or removal landing while the run started replaces the draft, which is then kept.
+  if (!toggles.value.remove_draft_after_run || !target || actions!.indexOf(target) < 0 || runs[0].input !== target.body) return
   try {
-    await actions!.remove(props.draft)
+    await actions!.remove(target)
   } catch (err) {
     toast.error('Could not remove the pending comment: ' + errorMessage(err))
   }
@@ -63,6 +68,7 @@ async function handleRan(runs: model.RunResult[]): Promise<void> {
         <div
           v-if="cmds.length > 0"
           class="opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0 has-[[data-state=open]]:opacity-100"
+          @click.capture="holdDraft"
         >
           <SplitRunButton :commands="cmds" :default-command-name="defaultCommandName" :input="draft.body" @ran="handleRan" />
         </div>
