@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.10.0](https://github.com/viicslen/gitura/compare/v1.9.0...v1.10.0) (2026-11-19)
+
+
+### Features
+
+* **run:** run a comment straight from the comment form ([e270fa4](https://github.com/viicslen/gitura/commit/e270fa45ad985cd2d08f70da8ec46a66f1e50be9))
+* **run:** run a pending comment, optionally removing it afterwards ([c18bbf9](https://github.com/viicslen/gitura/commit/c18bbf90d19dd341fc7f983f78f47ad3f86a1043))
+* **run:** run commands from the overview and the diff's inline threads ([4f51cc2](https://github.com/viicslen/gitura/commit/4f51cc22e1551dc1d0d219c77dcf939f814c038a))
+* **run:** run commands on the whole PR, a review, a thread, a pending comment or one you're writing ([#92](https://github.com/viicslen/gitura/issues/92)) ([b51ad7b](https://github.com/viicslen/gitura/commit/b51ad7bc8d9dc01a9864eb4c6517a91a56a09862))
+* **ui:** mark threads GitHub calls outdated in the Conversation tab ([aa02b9e](https://github.com/viicslen/gitura/commit/aa02b9e94ac2ac498cc54e9123aac2c30b636db5))
+* **ui:** show when GitHub marks a review thread outdated ([#90](https://github.com/viicslen/gitura/issues/90)) ([aa02b9e](https://github.com/viicslen/gitura/commit/aa02b9e94ac2ac498cc54e9123aac2c30b636db5))
+
+
+### Bug Fixes
+
+* **run:** hold the pending comment when its run starts, not on click ([c551f13](https://github.com/viicslen/gitura/commit/c551f136e003e29caedda982d45201c368f315d1))
+* **run:** remove a pending comment only when its run started with its current text ([11f4adb](https://github.com/viicslen/gitura/commit/11f4adbe7295f3d2ed4d330df58d9ba3ab213b52))
+* **run:** remove only the pending comment whose run button was pressed ([7afb150](https://github.com/viicslen/gitura/commit/7afb1502bd097ea7f16c3f2bd7ecd9bee65268f0))
+
 ## [1.9.0](https://github.com/viicslen/gitura/compare/v1.8.1...v1.9.0) (2026-11-19)
 
 
