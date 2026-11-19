@@ -226,14 +226,18 @@ const loadCmdError = ref('')
 const composingCmd = ref(false)
 const editingCmd = ref<model.CommandDTO | null>(null)
 const addCmdError = ref('')
+// Bumped whenever the composer opens or closes, so a slow save only closes the session that started it.
+let composerSession = 0
 
 function openComposer(cmd: model.CommandDTO | null): void {
+  composerSession++
   editingCmd.value = cmd
   composingCmd.value = true
   addCmdError.value = ''
 }
 
 function closeComposer(): void {
+  composerSession++
   composingCmd.value = false
   editingCmd.value = null
   addCmdError.value = ''
@@ -250,11 +254,13 @@ async function handleSetDefault(name: string): Promise<void> {
 
 async function saveCommand(cmd: model.CommandDTO): Promise<void> {
   const editing = editingCmd.value
+  const session = composerSession
   try {
     commands.value = editing ? await UpdateCommand(editing.name, cmd) : await AddCommand(cmd)
     if (editing && defaultCommandName.value === editing.name) defaultCommandName.value = cmd.name.trim()
-    closeComposer()
+    if (session === composerSession) closeComposer()
   } catch (e: unknown) {
+    if (session !== composerSession) return
     const msg = errorMessage(e)
     addCmdError.value = msg.replace(/^(validation|not_found):/, '').trim() || 'Failed to save command.'
   }
