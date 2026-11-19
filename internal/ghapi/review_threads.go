@@ -31,10 +31,14 @@ type graphQLPageInfo struct {
 }
 
 type graphQLThread struct {
-	ID         string                   `json:"id"`
-	IsResolved bool                     `json:"isResolved"`
-	DiffSide   string                   `json:"diffSide"`
-	Comments   graphQLCommentConnection `json:"comments"`
+	ID            string                   `json:"id"`
+	IsResolved    bool                     `json:"isResolved"`
+	DiffSide      string                   `json:"diffSide"`
+	OriginalLine  *int                     `json:"originalLine"`
+	OriginalStart *int                     `json:"originalStartLine"`
+	StartDiffSide string                   `json:"startDiffSide"`
+	SubjectType   string                   `json:"subjectType"`
+	Comments      graphQLCommentConnection `json:"comments"`
 }
 
 type graphQLCommentConnection struct {
@@ -80,6 +84,10 @@ query($owner: String!, $repo: String!, $number: Int!, $after: String) {
           id
           isResolved
           diffSide
+          originalLine
+          originalStartLine
+          startDiffSide
+          subjectType
           comments(first: 100) {
             nodes {
               databaseId
@@ -118,11 +126,72 @@ func FetchReviewThreads(
 	number int,
 	progressFn func(loaded, total int),
 ) ([]model.CommentThreadDTO, error) {
-	var (
-		threads     []model.CommentThreadDTO
-		afterCursor *string
-	)
+	threads := []model.CommentThreadDTO{}
+	err := forEachThreadPage(ctx, httpClient, owner, repo, number, func(nodes []graphQLThread) {
+		for _, node := range nodes {
+			threads = append(threads, mapGraphQLThread(node))
+		}
+		if progressFn != nil {
+			progressFn(len(threads), -1)
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return threads, nil
+}
 
+// FetchPendingReviewDrafts returns the threads that the pending review reviewID starts, as drafts.
+// The REST review-comments endpoint omits line and side on pending comments, so threads are read instead.
+// Replies the review adds to existing threads are skipped, since a draft always starts a thread.
+// Errors are prefixed with "github:" on API failures or "auth:" on HTTP 401.
+func FetchPendingReviewDrafts(
+	ctx context.Context,
+	httpClient *http.Client,
+	owner, repo string,
+	number int,
+	reviewID int64,
+) ([]model.DraftCommentDTO, error) {
+	var drafts []model.DraftCommentDTO
+	err := forEachThreadPage(ctx, httpClient, owner, repo, number, func(nodes []graphQLThread) {
+		for _, node := range nodes {
+			if d, ok := pendingDraft(node, reviewID); ok {
+				drafts = append(drafts, d)
+			}
+		}
+	})
+	return drafts, err
+}
+
+func pendingDraft(node graphQLThread, reviewID int64) (model.DraftCommentDTO, bool) {
+	if len(node.Comments.Nodes) == 0 {
+		return model.DraftCommentDTO{}, false
+	}
+	root := node.Comments.Nodes[0]
+	if root.Review == nil || root.Review.DatabaseID != reviewID {
+		return model.DraftCommentDTO{}, false
+	}
+	d := model.DraftCommentDTO{Path: root.Path, Body: root.Body, Side: node.DiffSide}
+	// GitHub reports line 1 on a file thread.
+	if node.SubjectType == "FILE" || node.OriginalLine == nil {
+		return d, true
+	}
+	d.Line = *node.OriginalLine
+	if node.OriginalStart != nil {
+		d.StartLine, d.StartSide = *node.OriginalStart, node.StartDiffSide
+	}
+	return d, true
+}
+
+// forEachThreadPage passes each page of the PR's review threads to fn, 50 threads at a time.
+func forEachThreadPage(
+	ctx context.Context,
+	httpClient *http.Client,
+	owner, repo string,
+	number int,
+	fn func([]graphQLThread),
+) error {
+	var afterCursor *string
 	for {
 		vars := map[string]any{
 			"owner":  owner,
@@ -136,30 +205,16 @@ func FetchReviewThreads(
 
 		var data graphQLReviewData
 		if err := runGraphQL(ctx, httpClient, reviewThreadsQueryBase, vars, &data); err != nil {
-			return nil, err
+			return err
 		}
-
-		nodes := data.Repository.PullRequest.ReviewThreads.Nodes
-		for _, node := range nodes {
-			thread := mapGraphQLThread(node)
-			threads = append(threads, thread)
-		}
-
-		if progressFn != nil {
-			progressFn(len(threads), -1)
-		}
+		fn(data.Repository.PullRequest.ReviewThreads.Nodes)
 
 		pageInfo := data.Repository.PullRequest.ReviewThreads.PageInfo
 		if !pageInfo.HasNextPage {
-			break
+			return nil
 		}
 		afterCursor = &pageInfo.EndCursor
 	}
-
-	if threads == nil {
-		threads = []model.CommentThreadDTO{}
-	}
-	return threads, nil
 }
 
 // mapGraphQLThread converts a GraphQL thread node to a CommentThreadDTO.

@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"gitura/internal/model"
 )
 
 func TestAddFileReviewThread_Success_SendsFileSubjectForReview(t *testing.T) {
@@ -28,4 +30,30 @@ func TestAddFileReviewThread_Success_SendsFileSubjectForReview(t *testing.T) {
 	require.NoError(t, AddFileReviewThread(context.Background(), srv.Client(), "PRR_1", "a.go", "split this"))
 	assert.Contains(t, got.Query, "subjectType: FILE")
 	assert.Equal(t, map[string]any{"reviewID": "PRR_1", "path": "a.go", "body": "split this"}, got.Variables)
+}
+
+func TestFetchPendingReviewDrafts_MixedThreads_ReturnsOwnLineRangeAndFileDrafts(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"repository":{"pullRequest":{"reviewThreads":{
+			"pageInfo":{"hasNextPage":false},
+			"nodes":[
+				{"diffSide":"RIGHT","originalLine":9,"originalStartLine":7,"startDiffSide":"RIGHT","subjectType":"LINE",
+				 "comments":{"nodes":[{"body":"range","path":"a.go","pullRequestReview":{"databaseId":7}}]}},
+				{"diffSide":"RIGHT","originalLine":1,"subjectType":"FILE",
+				 "comments":{"nodes":[{"body":"file","path":"a.go","pullRequestReview":{"databaseId":7}}]}},
+				{"diffSide":"LEFT","originalLine":3,"subjectType":"LINE",
+				 "comments":{"nodes":[{"body":"someone else","path":"b.go","pullRequestReview":{"databaseId":8}}]}}
+			]}}}}}`))
+	}))
+	defer srv.Close()
+	origURL := githubGraphQLURL
+	githubGraphQLURL = srv.URL
+	defer func() { githubGraphQLURL = origURL }()
+
+	drafts, err := FetchPendingReviewDrafts(context.Background(), srv.Client(), "o", "r", 1, 7)
+	require.NoError(t, err)
+	assert.Equal(t, []model.DraftCommentDTO{
+		{Path: "a.go", Body: "range", Side: "RIGHT", Line: 9, StartLine: 7, StartSide: "RIGHT"},
+		{Path: "a.go", Body: "file", Side: "RIGHT"},
+	}, drafts)
 }

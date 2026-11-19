@@ -79,27 +79,14 @@ func (a *App) restorePendingReview() (model.PendingReviewDTO, error) {
 	a.pendingReviewID = reviewID
 	a.pendingHeadSHA = reviewCommit
 
-	// Fetch the comments for this review to populate the local cache.
-	rawComments, _, err := a.ghClient.PullRequests.ListReviewComments(
-		a.ctx, a.prOwner, a.prRepo, a.prNumber, reviewID, nil,
+	drafts, err := ghapi.FetchPendingReviewDrafts(
+		a.ctx, ghapi.NewHTTPClient(a.authToken), a.prOwner, a.prRepo, a.prNumber, reviewID,
 	)
 	if err != nil {
 		// Non-fatal: we have the review ID; comment list will just be empty.
 		logger.L.Warn("SyncPendingReview: failed to fetch review comments", "err", err)
-		a.pendingComments = nil
-	} else {
-		a.pendingComments = make([]model.DraftCommentDTO, 0, len(rawComments))
-		for _, c := range rawComments {
-			a.pendingComments = append(a.pendingComments, model.DraftCommentDTO{
-				Path:      c.GetPath(),
-				Body:      c.GetBody(),
-				Line:      c.GetLine(),
-				Side:      c.GetSide(),
-				StartLine: c.GetStartLine(),
-				StartSide: c.GetStartSide(),
-			})
-		}
 	}
+	a.pendingComments = drafts
 
 	dtos := make([]model.DraftCommentDTO, len(a.pendingComments))
 	copy(dtos, a.pendingComments)
