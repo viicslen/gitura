@@ -40,6 +40,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  /** A run is being started; a click while one is starting is ignored and emits nothing. */
+  (e: 'start'): void
   (e: 'ran', runs: model.RunResult[]): void
 }>()
 
@@ -57,6 +59,7 @@ const primaryCommand = computed((): model.CommandDTO | null => {
 async function runCommand(cmd: model.CommandDTO): Promise<void> {
   if (running.value) return
   running.value = true
+  emit('start')
   burst.value++
   try {
     const runs = await RunCommands([cmd.name], props.input, {

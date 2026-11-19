@@ -73,6 +73,8 @@ describe('DiffDraftComment', () => {
     await w.find('button[aria-busy]').trigger('click')
     pending = [twin]
     await w.setProps({ draft: twin })
+    // Ignored: the first run is still starting.
+    await w.find('button[aria-busy]').trigger('click')
     start()
     await flushPromises()
     expect(actions.remove).not.toHaveBeenCalled()
