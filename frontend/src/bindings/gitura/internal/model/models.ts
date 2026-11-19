@@ -417,6 +417,7 @@ export enum DiffLineType {
  * DraftCommentDTO is the request payload for creating an inline review comment.
  * Uses comfort-fade positioning (line + side), not legacy diff position integers.
  * StartLine and StartSide are only required for multi-line comments.
+ * Line 0 marks a comment on the whole file rather than on its lines.
  */
 export class DraftCommentDTO {
     "path": string;

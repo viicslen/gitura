@@ -2,7 +2,8 @@
 import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useElementSize, useEventListener, useResizeObserver } from '@vueuse/core'
 import { Badge } from '@/components/ui/badge'
-import { FileSymlink, Plus } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { FileSymlink, MessageSquarePlus, Plus } from '@lucide/vue'
 import { describePathChange } from '@/lib/pathChange'
 import DiffPane from './DiffPane.vue'
 import DiffInlineThread from './DiffInlineThread.vue'
@@ -61,10 +62,12 @@ const threadKey = (t: model.CommentThreadDTO) => anchorKey(t.side === 'LEFT' ? '
 const draftKey = (d: model.DraftCommentDTO) => anchorKey(d.side === 'LEFT' ? 'LEFT' : 'RIGHT', d.line)
 
 const visibleThreads = computed(() => (props.showThreads ? props.threads : []))
+// A thread with no line, outdated or not, is on the whole file.
+const fileThreads = computed(() => visibleThreads.value.filter((t) => !t.line))
 const placedThreads = computed(() =>
   visibleThreads.value.filter((t) => !t.outdated && lineKeys.value.has(threadKey(t))),
 )
-const unplacedThreads = computed(() => visibleThreads.value.filter((t) => !placedThreads.value.includes(t)))
+const unplacedThreads = computed(() => visibleThreads.value.filter((t) => t.line && !placedThreads.value.includes(t)))
 
 // Keyed by line, not by position in the review: removing one draft must not re-key the others.
 const indexedDrafts = computed(() => {
@@ -76,15 +79,21 @@ const indexedDrafts = computed(() => {
     return { draft, key: `draft:${at}:${n}` }
   })
 })
+const fileDrafts = computed(() => (props.draftsStale ? [] : indexedDrafts.value.filter((d) => !d.draft.line)))
 const placedDrafts = computed(() =>
   props.draftsStale ? [] : indexedDrafts.value.filter((d) => lineKeys.value.has(draftKey(d.draft))),
 )
-const unplacedDrafts = computed(() => indexedDrafts.value.filter((d) => !placedDrafts.value.includes(d)))
+const unplacedDrafts = computed(() =>
+  indexedDrafts.value.filter((d) => !placedDrafts.value.includes(d) && !fileDrafts.value.includes(d)),
+)
 
 // ── Comment form ───────────────────────────────────────────────────────────
 
 type FormTarget = CommentTarget
 const form = ref<FormTarget | null>(null)
+/** Line 0 targets the whole file; no hunk matches it, so Shift-clicking a line never extends it. */
+const FILE_TARGET: FormTarget = { side: 'RIGHT', hunk: -1, line: 0 }
+const fileForm = computed(() => form.value?.line === 0)
 const formDraft = reactive({ body: '' })
 
 // A comment that is sending stays in the shared map marked `sending`, so every view of the file
@@ -158,14 +167,14 @@ const selection = computed<LineSelection | null>(() => {
   const d = drag.value
   if (d) return { side: d.side, from: Math.min(d.anchor, d.current), to: Math.max(d.anchor, d.current) }
   const f = form.value
-  return f ? { side: f.side, from: f.startLine ?? f.line, to: f.line } : null
+  return f?.line ? { side: f.side, from: f.startLine ?? f.line, to: f.line } : null
 })
 
 // The form stays up until the posted comment comes back as a thread (3s at most), so the two swap in one move.
 const unmounted = ref(false)
 onBeforeUnmount(() => (unmounted.value = true))
 function threadLands(at: string): Promise<void> {
-  const count = () => placedThreads.value.filter((t) => threadKey(t) === at).length
+  const count = () => visibleThreads.value.filter((t) => threadKey(t) === at).length
   const before = count()
   return new Promise((resolve) => {
     const finish = () => {
@@ -213,6 +222,7 @@ type Inline =
   | { type: 'draft'; key: string; draft: model.DraftCommentDTO }
   | { type: 'form'; key: string }
 
+const FILE_KEY = 'file'
 const inlineByKey = computed(() => {
   const m = new Map<string, Inline[]>()
   const add = (key: string, row: Inline) => {
@@ -222,7 +232,10 @@ const inlineByKey = computed(() => {
   }
   for (const t of placedThreads.value) add(threadKey(t), { type: 'thread', key: `thread:${t.root_id}`, thread: t })
   for (const d of placedDrafts.value) add(draftKey(d.draft), { type: 'draft', key: d.key, draft: d.draft })
-  if (form.value) add(anchorKey(form.value.side, form.value.line), { type: 'form', key: 'form' })
+  for (const t of fileThreads.value) add(FILE_KEY, { type: 'thread', key: `thread:${t.root_id}`, thread: t })
+  for (const d of fileDrafts.value) add(FILE_KEY, { type: 'draft', key: d.key, draft: d.draft })
+  if (fileForm.value) add(FILE_KEY, { type: 'form', key: 'form' })
+  if (form.value?.line) add(anchorKey(form.value.side, form.value.line), { type: 'form', key: 'form' })
   return m
 })
 // A line keeps its inline container once it had a row, so the last row has somewhere to animate out of.
@@ -239,6 +252,7 @@ const rowKeys = () => new Set([...props.threads.map((t) => `thread:${t.root_id}`
 let opened = rowKeys()
 const freshGlow = (key: string) => ({ 'wow-glow fresh-glow': !opened.has(key) })
 const NO_ROWS: Inline[] = []
+const fileRows = computed(() => inlineByKey.value.get(FILE_KEY) ?? NO_ROWS)
 const rewrapped = ref(0)
 watch(() => props.wrapLines, () => rewrapped.value++)
 const rowKey = (row: Inline) => row.key
@@ -455,8 +469,55 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
         <span class="text-green-600 dark:text-green-400">+{{ file.additions }}</span>
         <span class="text-red-500 dark:text-red-400">-{{ file.deletions }}</span>
       </span>
+      <Button
+        v-if="commentable"
+        variant="ghost"
+        size="icon-sm"
+        class="size-7 shrink-0 text-muted-foreground"
+        title="Comment on this file"
+        aria-label="Comment on this file"
+        :disabled="sending"
+        @click="form = FILE_TARGET"
+      >
+        <MessageSquarePlus />
+      </Button>
       <slot name="header-actions" />
     </div>
+
+    <Transition v-bind="ROW_GLIDE">
+      <div v-if="fileRows.length" class="grid max-h-[40%] shrink-0 bg-muted/20 shadow-[inset_0_-1px_0_var(--color-border)]">
+        <div class="min-h-0 overflow-y-auto">
+          <div class="py-1">
+            <p class="px-4 pt-1 text-xs text-muted-foreground">On this file</p>
+            <GlideList v-slot="{ item: row }" :items="fileRows" :item-key="rowKey" :appear="settled">
+              <div class="grid">
+                <div class="min-h-0 min-w-0">
+                  <DiffInlineThread
+                    v-if="row.type === 'thread'"
+                    :thread="row.thread"
+                    :language="language"
+                    :class="freshGlow(row.key)"
+                    @resolve="emit('resolve', $event)"
+                    @unresolve="emit('unresolve', $event)"
+                    @reply-sent="emit('reply-sent', $event)"
+                  />
+                  <DiffDraftComment v-else-if="row.type === 'draft'" :draft="row.draft" :class="freshGlow(row.key)" />
+                  <div v-else class="px-3 py-2 wow-pop origin-top-right">
+                    <InlineCommentForm
+                      :draft="formDraft"
+                      :target="{ path: file.filename, side: FILE_TARGET.side, line: 0 }"
+                      :post="submitComment"
+                      :sending="sending"
+                      @cancel="form = null"
+                    />
+                  </div>
+                </div>
+              </div>
+            </GlideList>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <div v-if="file.is_binary" class="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
       Binary file — diff not available

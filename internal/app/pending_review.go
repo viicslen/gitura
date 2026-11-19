@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-github/v93/github"
 
+	"gitura/internal/ghapi"
 	"gitura/internal/logger"
 	"gitura/internal/model"
 )
@@ -198,7 +199,10 @@ func (a *App) PostImmediateComment(comment model.DraftCommentDTO) (model.ReviewC
 		Line:     &comment.Line,
 		Side:     &comment.Side,
 	}
-	if comment.StartLine > 0 {
+	if comment.Line == 0 {
+		subject := "file"
+		prComment.Line, prComment.Side, prComment.SubjectType = nil, nil, &subject
+	} else if comment.StartLine > 0 {
 		prComment.StartLine = &comment.StartLine
 		prComment.StartSide = &comment.StartSide
 	}
@@ -247,21 +251,30 @@ func (a *App) SubmitReview(req model.ReviewSubmitRequest) (model.ReviewSubmitRes
 		a.pendingReviewID = 0
 	}
 
-	draftComments := make([]*github.DraftReviewComment, len(a.pendingComments))
-	for i, c := range a.pendingComments {
-		draftComments[i] = draftCommentToGitHub(c)
+	var lineComments []*github.DraftReviewComment
+	var fileComments []model.DraftCommentDTO
+	for _, c := range a.pendingComments {
+		if c.Line == 0 {
+			fileComments = append(fileComments, c)
+		} else {
+			lineComments = append(lineComments, draftCommentToGitHub(c))
+		}
 	}
 
 	commitSHA := a.reviewCommitSHA()
-	review, _, err := a.ghClient.PullRequests.CreateReview(
-		a.ctx, a.prOwner, a.prRepo, a.prNumber,
-		&github.PullRequestReviewRequest{
-			CommitID: &commitSHA,
-			Body:     &req.Body,
-			Event:    &req.Verdict,
-			Comments: draftComments,
-		},
-	)
+	request := &github.PullRequestReviewRequest{
+		CommitID: &commitSHA,
+		Body:     &req.Body,
+		Event:    &req.Verdict,
+		Comments: lineComments,
+	}
+	var review *github.PullRequestReview
+	var err error
+	if len(fileComments) == 0 {
+		review, _, err = a.ghClient.PullRequests.CreateReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, request)
+	} else {
+		review, err = a.submitReviewWithFileComments(request, fileComments)
+	}
 	if err != nil {
 		return model.ReviewSubmitResult{}, fmt.Errorf("github: submit review: %w", err)
 	}
@@ -273,6 +286,33 @@ func (a *App) SubmitReview(req model.ReviewSubmitRequest) (model.ReviewSubmitRes
 		ReviewID: review.GetID(),
 		HTMLURL:  review.GetHTMLURL(),
 	}, nil
+}
+
+// submitReviewWithFileComments submits req plus file-level comments, which the REST review
+// endpoint cannot take: they join the review over GraphQL while it is still pending.
+func (a *App) submitReviewWithFileComments(req *github.PullRequestReviewRequest, files []model.DraftCommentDTO) (*github.PullRequestReview, error) {
+	event, body := *req.Event, req.Body
+	req.Event, req.Body = nil, nil
+	pending, _, err := a.ghClient.PullRequests.CreateReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, req)
+	if err != nil {
+		return nil, err
+	}
+	// Should a step below fail, a retry deletes this half-built review before starting over.
+	a.pendingReviewID = pending.GetID()
+
+	httpClient := ghapi.NewHTTPClient(a.authToken)
+	for _, c := range files {
+		if err := ghapi.AddFileReviewThread(a.ctx, httpClient, pending.GetNodeID(), c.Path, c.Body); err != nil {
+			return nil, err
+		}
+	}
+	review, _, err := a.ghClient.PullRequests.SubmitReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, pending.GetID(),
+		github.PullRequestSubmitReviewRequest{Body: body, Event: event})
+	if err != nil {
+		return nil, err
+	}
+	a.pendingReviewID = 0
+	return review, nil
 }
 
 // DiscardPendingReview clears the local pending review state and, if a GitHub

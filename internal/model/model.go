@@ -272,6 +272,7 @@ type ParsedDiffDTO struct {
 // DraftCommentDTO is the request payload for creating an inline review comment.
 // Uses comfort-fade positioning (line + side), not legacy diff position integers.
 // StartLine and StartSide are only required for multi-line comments.
+// Line 0 marks a comment on the whole file rather than on its lines.
 type DraftCommentDTO struct {
 	Path      string `json:"path"`
 	Body      string `json:"body"`

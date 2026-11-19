@@ -681,7 +681,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
               class="flex flex-col gap-0.5 border-b border-border px-2 py-1.5 last:border-b-0"
             >
               <span class="truncate font-mono text-muted-foreground">
-                {{ c.path }}:{{ c.start_line ? `${c.start_line}–` : '' }}{{ c.line }}
+                {{ c.path }}<template v-if="c.line">:{{ c.start_line ? `${c.start_line}–` : '' }}{{ c.line }}</template>
                 <span v-if="!changedPaths.has(c.path)" class="text-amber-700 dark:text-amber-300">· file no longer changed</span>
               </span>
               <span class="whitespace-pre-wrap break-words">{{ c.body }}</span>
@@ -762,7 +762,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
               class="flex flex-col gap-0.5 border-b border-border px-2 py-1.5 last:border-b-0"
             >
               <span class="truncate font-mono text-muted-foreground">
-                {{ c.path }}:{{ c.start_line ? `${c.start_line}–` : '' }}{{ c.line }}
+                {{ c.path }}<template v-if="c.line">:{{ c.start_line ? `${c.start_line}–` : '' }}{{ c.line }}</template>
                 <span v-if="!changedPaths.has(c.path)" class="text-amber-700 dark:text-amber-300">· file no longer in this PR</span>
               </span>
               <span class="whitespace-pre-wrap break-words">{{ c.body }}</span>
