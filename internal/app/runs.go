@@ -108,9 +108,7 @@ func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunC
 	return pendingResults, nil
 }
 
-// runVars returns the values for the PR and comment placeholders a command
-// template can use. Placeholders without a value (no PR loaded, no comment)
-// become empty strings, so the template never passes a literal "{{...}}" on.
+// runVars fills every placeholder, unknown ones with "", so none reaches the command as a literal "{{...}}".
 func (a *App) runVars(runCtx model.RunContext) map[string]string {
 	vars := make(map[string]string, len(runner.Variables))
 	for _, v := range runner.Variables {

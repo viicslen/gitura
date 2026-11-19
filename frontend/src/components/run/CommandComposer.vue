@@ -35,7 +35,7 @@ const CONTEXT = `You are on {{repo}} PR #{{pr_number}} by {{author}}, {{head_bra
 
 {{instructions}}`
 
-// Run in the PR's checkout ("." is the working directory), so set its local path first.
+// "." is the T3 project: the run's working directory, which is the PR's local clone.
 const TEMPLATES = [
   {
     name: 'Fix with T3 Code',

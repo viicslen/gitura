@@ -222,7 +222,6 @@ async function handleResetBindings(): Promise<void> {
 // ── Commands ───────────────────────────────────────────────────────────────
 const loadCmdError = ref('')
 
-// The composer opens for a new command (composingCmd) or for the command being edited.
 const composingCmd = ref(false)
 const editingCmd = ref<model.CommandDTO | null>(null)
 const addCmdError = ref('')
