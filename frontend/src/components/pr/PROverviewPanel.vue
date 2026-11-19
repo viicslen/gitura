@@ -9,7 +9,7 @@ import { ArrowLeft, Copy } from '@lucide/vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
 import { taskToggler } from '@/lib/taskList'
 import { collapse, collapsible, crossfade } from '@/components/motion/motion'
@@ -239,32 +239,30 @@ async function copyBranch(name: string): Promise<void> {
                 <div v-for="(comment, index) in visibleGeneralComments" :key="comment.id" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
                     <Card :class="[cardClass, cascade && cardIndex('general', index) < 15 && 'card-in']" :style="{ '--i': cardIndex('general', index) }">
-                      <CardHeader class="px-4 pb-0">
-                        <div class="flex items-center gap-3 min-w-0">
-                          <img
-                            v-if="comment.author_avatar && avatarSrc(avatarKey('pr-comment', comment.id), comment.author_avatar)"
-                            :src="avatarSrc(avatarKey('pr-comment', comment.id), comment.author_avatar)"
-                            :alt="comment.author_login"
-                            class="h-7 w-7 rounded-full bg-muted"
-                            :class="cascade && 'wow-pop'"
-                            @error="handleAvatarError(avatarKey('pr-comment', comment.id), comment.author_avatar)"
-                          />
-                          <span v-else :class="avatarFallbackClass">
-                            {{ avatarInitial(comment.author_login) }}
-                          </span>
-                          <div class="min-w-0">
-                            <div class="text-sm font-medium truncate">{{ comment.author_login }}</div>
-                            <div class="text-xs text-muted-foreground">{{ formatTimestamp(comment.created_at) }}</div>
+                      <EditableComment kind="issue_comment" :id="comment.id" :target="comment" class="space-y-4 px-4">
+                        <template #header>
+                          <div class="flex items-center gap-3 min-w-0">
+                            <img
+                              v-if="comment.author_avatar && avatarSrc(avatarKey('pr-comment', comment.id), comment.author_avatar)"
+                              :src="avatarSrc(avatarKey('pr-comment', comment.id), comment.author_avatar)"
+                              :alt="comment.author_login"
+                              class="h-7 w-7 rounded-full bg-muted"
+                              :class="cascade && 'wow-pop'"
+                              @error="handleAvatarError(avatarKey('pr-comment', comment.id), comment.author_avatar)"
+                            />
+                            <span v-else :class="avatarFallbackClass">
+                              {{ avatarInitial(comment.author_login) }}
+                            </span>
+                            <div class="min-w-0">
+                              <div class="text-sm font-medium truncate">{{ comment.author_login }}</div>
+                              <div class="text-xs text-muted-foreground">{{ formatTimestamp(comment.created_at) }}</div>
+                            </div>
                           </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent class="px-4">
+                        </template>
                         <div :class="surfaceClass">
-                          <EditableComment kind="issue_comment" :id="comment.id" :target="comment">
-                            <PlainMarkdownBody :content="comment.body" :baseURL="comment.html_url" :toggle-task="taskToggler('issue_comment', comment.id, comment)" />
-                          </EditableComment>
+                          <PlainMarkdownBody :content="comment.body" :baseURL="comment.html_url" :toggle-task="taskToggler('issue_comment', comment.id, comment)" />
                         </div>
-                      </CardContent>
+                      </EditableComment>
                     </Card>
                   </div>
                 </div>
@@ -308,15 +306,15 @@ async function copyBranch(name: string): Promise<void> {
                 <div v-for="(review, index) in visibleReviews" :key="review.review_id" class="mt-3" :class="collapsible">
                   <div class="min-h-0">
                     <Card :class="[cardClass, cascade && cardIndex('reviews', index) < 15 && 'card-in']" :style="{ '--i': cardIndex('reviews', index) }">
-                      <CardHeader class="px-4 pb-0">
-                        <div class="flex items-start gap-3 justify-between">
-                          <div class="flex items-center gap-3 min-w-0">
+                      <EditableComment kind="review" :id="review.review_id" :target="review" class="space-y-4 px-4">
+                        <template #header>
+                          <div class="flex flex-1 items-center gap-3 min-w-0">
                             <img
                               v-if="review.author_avatar && avatarSrc(avatarKey('review', review.review_id), review.author_avatar)"
                               :src="avatarSrc(avatarKey('review', review.review_id), review.author_avatar)"
                               :alt="review.author_login"
                               class="h-7 w-7 rounded-full bg-muted"
-                            :class="cascade && 'wow-pop'"
+                              :class="cascade && 'wow-pop'"
                               @error="handleAvatarError(avatarKey('review', review.review_id), review.author_avatar)"
                             />
                             <span v-else :class="avatarFallbackClass">
@@ -340,24 +338,22 @@ async function copyBranch(name: string): Promise<void> {
                             leave-to-class="opacity-0 scale-90"
                             :duration="{ enter: 700, leave: 80 }"
                           >
-                            <span v-if="review.all_threads_resolved" class="relative inline-flex shrink-0 rounded-full">
+                            <span v-if="review.all_threads_resolved" class="relative inline-flex shrink-0 self-start rounded-full">
                               <Badge variant="secondary" class="text-[0.625rem]"><DrawnCheck /> All conversations resolved</Badge>
                             </span>
                           </Transition>
-                        </div>
-                      </CardHeader>
-                      <CardContent class="px-4 space-y-3">
-                        <div v-if="review.body" :class="surfaceClass">
-                          <EditableComment kind="review" :id="review.review_id" :target="review">
+                        </template>
+                        <div class="space-y-3">
+                          <div v-if="review.body" :class="surfaceClass">
                             <PlainMarkdownBody :content="review.body" :baseURL="review.html_url" :toggle-task="taskToggler('review', review.review_id, review)" />
-                          </EditableComment>
-                        </div>
-                        <div v-else class="text-sm text-muted-foreground">No review body.</div>
+                          </div>
+                          <div v-else class="text-sm text-muted-foreground">No review body.</div>
 
-                        <div v-if="review.has_threads" class="text-xs text-muted-foreground">
-                          <CountUp :value="review.resolved_thread_count" />/{{ review.total_thread_count }} linked conversation{{ review.total_thread_count !== 1 ? 's' : '' }} resolved
+                          <div v-if="review.has_threads" class="text-xs text-muted-foreground">
+                            <CountUp :value="review.resolved_thread_count" />/{{ review.total_thread_count }} linked conversation{{ review.total_thread_count !== 1 ? 's' : '' }} resolved
+                          </div>
                         </div>
-                      </CardContent>
+                      </EditableComment>
                     </Card>
                   </div>
                 </div>

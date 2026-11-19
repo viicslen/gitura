@@ -9,7 +9,6 @@ const edits = reactive<Record<string, { base: string; text: string; saving?: boo
 
 <script setup lang="ts">
 import { computed, inject, ref, type Ref } from 'vue'
-import { createReusableTemplate } from '@vueuse/core'
 import { Pencil, Trash2 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,8 +18,6 @@ import type { TaskSource } from '@/lib/taskList'
 import BusyLabel from '@/components/motion/BusyLabel.vue'
 import SwapBox from '@/components/motion/SwapBox.vue'
 import { collapse, collapsible, crossfade } from '@/components/motion/motion'
-
-const [DefineActions, ReuseActions] = createReusableTemplate()
 
 const props = defineProps<{
   kind: Exclude<TaskSource, 'pr_body'> | 'draft'
@@ -32,7 +29,8 @@ const props = defineProps<{
 }>()
 
 const viewerLogin = inject<Ref<string>>('viewerLogin', ref(''))
-const canEdit = computed(() => props.kind === 'draft' || (!!viewerLogin.value && viewerLogin.value === props.target.author_login))
+// A review submitted without a body has nothing to edit.
+const canEdit = computed(() => !!props.target.body && (props.kind === 'draft' || (!!viewerLogin.value && viewerLogin.value === props.target.author_login)))
 const key = computed(() => `${props.kind}:${props.id}`)
 const edit = computed(() => edits[key.value])
 const error = ref('')
@@ -96,8 +94,9 @@ function onKeydown(event: KeyboardEvent): void {
 
 <template>
   <div class="group/edit">
-    <DefineActions>
-      <div class="flex gap-0.5 opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0">
+    <div v-if="$slots.header || (canEdit && !edit)" class="flex items-center gap-2">
+      <slot name="header" />
+      <div v-if="canEdit && !edit" class="ml-auto flex gap-0.5 opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0">
         <Button variant="ghost" size="icon" class="h-6 w-6" aria-label="Edit comment" title="Edit comment" @click="start">
           <Pencil class="h-3.5 w-3.5" />
         </Button>
@@ -114,10 +113,6 @@ function onKeydown(event: KeyboardEvent): void {
           <Trash2 class="h-3.5 w-3.5" />
         </Button>
       </div>
-    </DefineActions>
-    <div v-if="$slots.header" class="flex items-center gap-2">
-      <slot name="header" />
-      <div v-if="canEdit && !edit" class="ml-auto"><ReuseActions /></div>
     </div>
     <SwapBox>
       <div v-if="edit" class="space-y-2">
@@ -143,9 +138,8 @@ function onKeydown(event: KeyboardEvent): void {
           </div>
         </div>
       </div>
-      <div v-else class="relative">
+      <div v-else>
         <slot />
-        <div v-if="canEdit && !$slots.header" class="absolute right-1 bottom-1"><ReuseActions /></div>
       </div>
     </SwapBox>
 

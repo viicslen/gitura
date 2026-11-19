@@ -81,23 +81,25 @@ function toggleResolved(): void {
         <div class="grid">
           <div class="min-h-0 min-w-0">
             <div class="border-t border-border px-3 py-2">
-              <div class="mb-1 flex items-center gap-2 text-xs">
-                <img
-                  v-if="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
-                  :src="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
-                  :alt="comment.author_login"
-                  class="h-5 w-5 rounded-full"
-                  @error="handleAvatarError(`diff:${comment.id}`, comment.author_avatar)"
-                />
-                <span
-                  v-else
-                  class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[0.625rem] font-semibold text-muted-foreground"
-                  aria-hidden="true"
-                >{{ avatarInitial(comment.author_login) }}</span>
-                <span class="font-medium">{{ comment.author_login }}</span>
-                <span class="text-muted-foreground">{{ formatTimestamp(comment.created_at) }}</span>
-              </div>
-              <EditableComment kind="review_comment" :id="comment.id" :target="comment">
+              <EditableComment kind="review_comment" :id="comment.id" :target="comment" class="space-y-1">
+                <template #header>
+                  <div class="flex items-center gap-2 text-xs">
+                    <img
+                      v-if="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
+                      :src="avatarSrc(`diff:${comment.id}`, comment.author_avatar)"
+                      :alt="comment.author_login"
+                      class="h-5 w-5 rounded-full"
+                      @error="handleAvatarError(`diff:${comment.id}`, comment.author_avatar)"
+                    />
+                    <span
+                      v-else
+                      class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[0.625rem] font-semibold text-muted-foreground"
+                      aria-hidden="true"
+                    >{{ avatarInitial(comment.author_login) }}</span>
+                    <span class="font-medium">{{ comment.author_login }}</span>
+                    <span class="text-muted-foreground">{{ formatTimestamp(comment.created_at) }}</span>
+                  </div>
+                </template>
                 <MarkdownBody :content="comment.body" :toggle-task="taskToggler('review_comment', comment.id, comment)" />
               </EditableComment>
             </div>
