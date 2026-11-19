@@ -2,11 +2,17 @@ package app
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"gitura/internal/db"
+	"gitura/internal/gitlocal"
+	"gitura/internal/logger"
+	"gitura/internal/settings"
 )
 
 // validatePRIdentity checks whether owner/repo/number can uniquely identify a PR.
@@ -23,27 +29,121 @@ func validatePRIdentity(owner, repo string, number int) error {
 	return nil
 }
 
-// GetPRLocalPath returns the local filesystem path associated with a PR,
-// or an empty string if none has been set.
+// rescanInterval limits how often a clone that can't be found triggers another project folder scan.
+const rescanInterval = time.Minute
+
+// GetPRLocalPath returns the local checkout for a PR: the path set for it or, when none is, one
+// found and saved for it; empty when no clone is found. See prLocalPath.
 //
-// Error prefix: "validation:" — invalid owner/repo/number; "db:" — database query failure.
+// Error prefix: "validation:" — invalid owner/repo/number.
 func (a *App) GetPRLocalPath(owner, repo string, number int) (string, error) {
 	if err := validatePRIdentity(owner, repo, number); err != nil {
 		return "", err
 	}
-	if a.queries == nil {
-		return "", nil
+	return a.prLocalPath(owner, repo, number), nil
+}
+
+// prLocalPath returns the PR's saved path; otherwise it takes the clone saved for another PR of the
+// repository or finds one in the project folders, prefers its worktree on the PR's head branch, and
+// saves that for the PR.
+func (a *App) prLocalPath(owner, repo string, number int) string {
+	if a.queries != nil {
+		state, err := a.queries.GetPRState(a.ctx, db.GetPRStateParams{Owner: owner, Repo: repo, Number: int64(number)})
+		if err == nil && state.LocalPath != "" {
+			return state.LocalPath
+		}
 	}
-	state, err := a.queries.GetPRState(a.ctx, db.GetPRStateParams{
-		Owner:  owner,
-		Repo:   repo,
-		Number: int64(number),
-	})
+	clone := a.repoClone(owner, repo)
+	if clone == "" {
+		return ""
+	}
+	head := ""
+	if a.isLoadedPR(owner, repo, number) {
+		head = a.prCache.HeadBranch
+	}
+	path := gitlocal.WorktreeFor(a.ctx, clone, head)
+	if a.queries != nil {
+		err := a.queries.UpsertPRLocalPath(a.ctx, db.UpsertPRLocalPathParams{Owner: owner, Repo: repo, Number: int64(number), LocalPath: path})
+		if err != nil {
+			logger.L.Warn("save found local path", "path", path, "err", err)
+		}
+	}
+	return path
+}
+
+// repoClone returns a local clone of owner/repo, or an empty string when none is known.
+func (a *App) repoClone(owner, repo string) string {
+	if a.queries != nil {
+		p, err := a.queries.GetRepoLocalPath(a.ctx, db.GetRepoLocalPathParams{Owner: owner, Repo: repo})
+		if err == nil && isDir(p) {
+			return p
+		}
+	}
+	if err := a.loadConfig(); err != nil || len(a.projectDirs) == 0 {
+		return ""
+	}
+	key := strings.ToLower(owner + "/" + repo)
+	a.repoIndexMu.Lock()
+	defer a.repoIndexMu.Unlock()
+	if p := a.repoIndex[key]; p != "" && isDir(p) {
+		return p
+	}
+	if time.Since(a.repoIndexAt) < rescanInterval {
+		return ""
+	}
+	dirs := make([]string, len(a.projectDirs))
+	for i, d := range a.projectDirs {
+		dirs[i] = expandHome(d)
+	}
+	a.repoIndex = gitlocal.FindRepos(dirs)
+	a.repoIndexAt = time.Now()
+	return a.repoIndex[key]
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+func expandHome(path string) string {
+	rest, ok := strings.CutPrefix(path, "~")
+	if !ok || (rest != "" && rest[0] != '/' && rest[0] != filepath.Separator) {
+		return path
+	}
+	home, err := os.UserHomeDir()
 	if err != nil {
-		// sql.ErrNoRows is expected when no path has been set yet.
-		return "", nil
+		return path
 	}
-	return state.LocalPath, nil
+	return filepath.Join(home, rest)
+}
+
+// GetProjectDirs returns the folders searched for a PR's local clone.
+//
+// Error prefix: "settings:" — load failure.
+func (a *App) GetProjectDirs() ([]string, error) {
+	if err := a.loadConfig(); err != nil {
+		return nil, fmt.Errorf("settings: load: %w", err)
+	}
+	return append([]string{}, a.projectDirs...), nil
+}
+
+// SetProjectDirs replaces the folders searched for a PR's local clone.
+//
+// Error prefix: "settings:" — load or save failure.
+func (a *App) SetProjectDirs(dirs []string) error {
+	if err := a.loadConfig(); err != nil {
+		return fmt.Errorf("settings: load: %w", err)
+	}
+	cfg := a.config()
+	cfg.ProjectDirs = dirs
+	if err := settings.Save(cfg); err != nil {
+		return fmt.Errorf("settings: save: %w", err)
+	}
+	a.projectDirs = append([]string{}, dirs...)
+	a.repoIndexMu.Lock()
+	a.repoIndex, a.repoIndexAt = nil, time.Time{}
+	a.repoIndexMu.Unlock()
+	return nil
 }
 
 // SetPRLocalPath persists a local filesystem path for a PR.

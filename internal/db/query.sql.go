@@ -33,6 +33,26 @@ func (q *Queries) GetPRState(ctx context.Context, arg GetPRStateParams) (PRState
 	return i, err
 }
 
+const getRepoLocalPath = `-- name: GetRepoLocalPath :one
+SELECT local_path
+FROM pr_state
+WHERE owner = ? AND repo = ? AND local_path != ''
+ORDER BY rowid DESC
+LIMIT 1
+`
+
+type GetRepoLocalPathParams struct {
+	Owner string
+	Repo  string
+}
+
+func (q *Queries) GetRepoLocalPath(ctx context.Context, arg GetRepoLocalPathParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getRepoLocalPath, arg.Owner, arg.Repo)
+	var local_path string
+	err := row.Scan(&local_path)
+	return local_path, err
+}
+
 const upsertPRLocalPath = `-- name: UpsertPRLocalPath :exec
 INSERT INTO pr_state (owner, repo, number, local_path)
 VALUES (?, ?, ?, ?)

@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"gitura/internal/db"
 	"gitura/internal/logger"
 	"gitura/internal/model"
 	"gitura/internal/runner"
@@ -33,19 +32,11 @@ func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunC
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
 
-	// Look up the per-PR local path from the state DB (best-effort).
 	localPath := ""
 	if a.local != nil {
 		localPath = a.local.dir
-	} else if a.queries != nil {
-		state, err := a.queries.GetPRState(a.ctx, db.GetPRStateParams{
-			Owner:  a.prOwner,
-			Repo:   a.prRepo,
-			Number: int64(a.prNumber),
-		})
-		if err == nil {
-			localPath = state.LocalPath
-		}
+	} else if a.prNumber > 0 {
+		localPath = a.prLocalPath(a.prOwner, a.prRepo, a.prNumber)
 	}
 
 	// Build a lookup map for fast name -> command resolution.

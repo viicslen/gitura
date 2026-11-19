@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/go-github/v93/github"
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -82,6 +83,13 @@ type App struct {
 	keybindings map[string]string
 	// toggles maps on/off preference ids to values; see settings.Config.Toggles.
 	toggles map[string]bool
+	// projectDirs are searched for a PR's clone; see settings.Config.ProjectDirs.
+	projectDirs []string
+
+	// repoIndex caches gitlocal.FindRepos over projectDirs; repoIndexAt is when it was built.
+	repoIndexMu sync.Mutex
+	repoIndex   map[string]string
+	repoIndexAt time.Time
 
 	// runCancels maps run IDs to their context cancel functions, allowing
 	// in-flight commands to be stopped via CancelRun.
@@ -163,6 +171,7 @@ func (a *App) loadConfig() error {
 	a.appearance = cfg.Appearance
 	a.keybindings = cfg.Keybindings
 	a.toggles = cfg.Toggles
+	a.projectDirs = cfg.ProjectDirs
 	logger.L.Debug("config loaded",
 		"ignored_commenters", len(a.ignoredCommenters),
 		"commands", len(a.commands),
@@ -179,6 +188,7 @@ func (a *App) config() settings.Config {
 		Appearance:         a.appearance,
 		Keybindings:        a.keybindings,
 		Toggles:            a.toggles,
+		ProjectDirs:        a.projectDirs,
 	}
 }
 

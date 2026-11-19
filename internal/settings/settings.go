@@ -33,6 +33,8 @@ type Config struct {
 	// Toggles maps an on/off preference id (e.g. "wrap_lines") to its value.
 	// Ids missing here use the frontend's defaults.
 	Toggles map[string]bool `toml:"toggles"`
+	// ProjectDirs are the folders searched for a PR's local clone when it has no path set.
+	ProjectDirs []string `toml:"project_dirs"`
 }
 
 // ConfigDir returns the OS-appropriate configuration directory for gitura,
@@ -87,6 +89,7 @@ type decodedConfig struct {
 	Appearance         model.AppearanceDTO         `toml:"appearance"`
 	Keybindings        map[string]string           `toml:"keybindings"`
 	Toggles            map[string]bool             `toml:"toggles"`
+	ProjectDirs        []string                    `toml:"project_dirs"`
 }
 
 func readFile(path string) ([]byte, error) {
@@ -119,6 +122,7 @@ func buildConfig(raw decodedConfig) Config {
 		Appearance:         raw.Appearance,
 		Keybindings:        raw.Keybindings,
 		Toggles:            raw.Toggles,
+		ProjectDirs:        raw.ProjectDirs,
 	}
 	for _, c := range raw.Commands {
 		cfg.Commands = append(cfg.Commands, model.CommandDTO{
