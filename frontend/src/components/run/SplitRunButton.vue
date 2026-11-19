@@ -81,7 +81,7 @@ const btnSize = computed(() => props.size ?? 'sm')
     v-if="commands.length > 0"
     class="relative flex items-center transition-[scale] duration-slower ease-spring active:scale-x-110 active:scale-y-85 active:duration-faster"
   >
-    <span v-if="burst" :key="burst" aria-hidden="true" class="absolute inset-0 rounded-md wow-ring" />
+    <span v-if="burst" :key="burst" aria-hidden="true" class="pointer-events-none absolute inset-0 rounded-md wow-ring" />
     <!-- Primary action button -->
     <Button
       :size="btnSize"

@@ -28,6 +28,7 @@ import {
   type AppearanceKey,
 } from '@/composables/useAppearance'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { commands, defaultCommandName } from '@/composables/useCommands'
 import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
 import { reducedMotion } from '@/components/motion/wow'
 
@@ -184,9 +185,7 @@ async function handleResetBindings(): Promise<void> {
 }
 
 // ── Commands ───────────────────────────────────────────────────────────────
-const commands = ref<model.CommandDTO[] | null>(null)
 const loadCmdError = ref('')
-const defaultCommandName = ref('')
 
 const newCmdName = ref('')
 const newCmdCommand = ref('')
