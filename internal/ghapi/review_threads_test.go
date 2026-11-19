@@ -319,6 +319,16 @@ func TestMapGraphQLThread_ReplyTo_SetsInReplyToID(t *testing.T) {
 	assert.Equal(t, int64(501), dto.Comments[1].ReviewID)
 }
 
+func TestMapGraphQLThread_Outdated(t *testing.T) {
+	line := 111
+	onLine := graphQLCommentConnection{Nodes: []graphQLComment{{DatabaseID: 1, Line: &line}}}
+	noLine := graphQLCommentConnection{Nodes: []graphQLComment{{DatabaseID: 1, OriginalLine: &line}}}
+
+	assert.False(t, mapGraphQLThread(graphQLThread{Comments: onLine}).Outdated)
+	assert.True(t, mapGraphQLThread(graphQLThread{IsOutdated: true, Comments: onLine}).Outdated, "GitHub's flag, line still set")
+	assert.True(t, mapGraphQLThread(graphQLThread{Comments: noLine}).Outdated, "line gone")
+}
+
 func TestMapGraphQLThread_DiffSide_DefaultsToRight(t *testing.T) {
 	line := 3
 	comments := graphQLCommentConnection{Nodes: []graphQLComment{{DatabaseID: 1, Line: &line}}}

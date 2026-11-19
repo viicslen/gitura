@@ -35,6 +35,7 @@ type graphQLPageInfo struct {
 type graphQLThread struct {
 	ID            string                   `json:"id"`
 	IsResolved    bool                     `json:"isResolved"`
+	IsOutdated    bool                     `json:"isOutdated"`
 	DiffSide      string                   `json:"diffSide"`
 	OriginalLine  *int                     `json:"originalLine"`
 	OriginalStart *int                     `json:"originalStartLine"`
@@ -85,6 +86,7 @@ query($owner: String!, $repo: String!, $number: Int!, $after: String) {
         nodes {
           id
           isResolved
+          isOutdated
           diffSide
           originalLine
           originalStartLine
@@ -250,7 +252,7 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 
 	root := node.Comments.Nodes[0]
 	line := 0
-	outdated := false
+	outdated := node.IsOutdated
 	if root.Line != nil {
 		line = *root.Line
 	} else if root.OriginalLine != nil {
@@ -259,7 +261,7 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 	}
 
 	if node.SubjectType == "FILE" {
-		line, outdated = 0, false
+		line, outdated = 0, node.IsOutdated
 	}
 
 	side := node.DiffSide
