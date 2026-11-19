@@ -7,6 +7,7 @@ import {
   RemoveIgnoredCommenter,
   GetCommands,
   AddCommand,
+  UpdateCommand,
   RemoveCommand,
   GetDefaultCommandName,
   SetDefaultCommandName,
@@ -20,7 +21,8 @@ import { Input } from '@/components/ui/input'
 import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
+import CommandComposer from '@/components/run/CommandComposer.vue'
+import { Trash2, UserX, Terminal, Plus, Star, Pencil, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
 import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles, type ToggleId } from '@/composables/useToggles'
 import {
   useAppearance,
@@ -220,10 +222,8 @@ async function handleResetBindings(): Promise<void> {
 // ── Commands ───────────────────────────────────────────────────────────────
 const loadCmdError = ref('')
 
-const newCmdName = ref('')
-const newCmdCommand = ref('')
+const editingCmd = ref<model.CommandDTO | null>(null)
 const addCmdError = ref('')
-const addingCmd = ref(false)
 
 async function handleSetDefault(name: string): Promise<void> {
   try {
@@ -234,35 +234,25 @@ async function handleSetDefault(name: string): Promise<void> {
   }
 }
 
-async function handleAddCommand() {
-  const name = newCmdName.value.trim()
-  const command = newCmdCommand.value.trim()
-  if (addingCmd.value) return
-  if (!name) {
-    addCmdError.value = 'Enter a command name.'
-    return
-  }
-  if (!command) {
-    addCmdError.value = 'Enter a command to run.'
-    return
-  }
-  addingCmd.value = true
+async function saveCommand(cmd: model.CommandDTO): Promise<boolean> {
+  const editing = editingCmd.value
   try {
-    commands.value = await AddCommand({ name, command })
-    newCmdName.value = ''
-    newCmdCommand.value = ''
+    commands.value = editing ? await UpdateCommand(editing.name, cmd) : await AddCommand(cmd)
+    if (editing && defaultCommandName.value === editing.name) defaultCommandName.value = cmd.name.trim()
+    editingCmd.value = null
     addCmdError.value = ''
+    return true
   } catch (e: unknown) {
     const msg = errorMessage(e)
-    addCmdError.value = msg.replace('validation:', '').trim() || 'Failed to add command.'
-  } finally {
-    addingCmd.value = false
+    addCmdError.value = msg.replace(/^(validation|not_found):/, '').trim() || 'Failed to save command.'
+    return false
   }
 }
 
 async function handleRemoveCommand(name: string) {
   try {
     commands.value = await RemoveCommand(name)
+    if (editingCmd.value?.name === name) editingCmd.value = null
     // If the removed command was the default, clear local state
     if (defaultCommandName.value === name) {
       defaultCommandName.value = ''
@@ -438,34 +428,10 @@ async function handleRemoveCommand(name: string) {
           <p class="text-xs text-muted-foreground">
             CLI commands to run against PR comment content. Use
             <code v-pre class="rounded bg-muted px-1 font-mono">{{instructions}}</code>
-            as a placeholder for the comment text, or omit it to receive the text via stdin.
+            for the comment text, or omit it to receive the text via stdin. The other placeholders fill in the PR and comment the command runs on.
           </p>
           <div :class="box">
-            <div :class="[row, 'wow-rise']">
-              <Input
-                v-model="newCmdName"
-                placeholder="Name (e.g. opencode)"
-                class="h-8 w-36 text-sm"
-                aria-label="Command name"
-                @keydown.enter="newCmdCommand ? handleAddCommand() : undefined"
-              />
-              <Input
-                v-model="newCmdCommand"
-                placeholder="Command (e.g. opencode run --agent reviewer)"
-                class="h-8 flex-1 font-mono text-sm"
-                aria-label="Command to run"
-                @keydown.enter="handleAddCommand"
-              />
-              <Button
-                size="sm"
-                :disabled="!newCmdName.trim() || !newCmdCommand.trim()"
-                aria-label="Add command"
-                @click="handleAddCommand"
-              >
-                <Plus class="h-3.5 w-3.5" aria-hidden="true" />
-                Add
-              </Button>
-            </div>
+            <CommandComposer class="wow-rise" :editing="editingCmd" :save="saveCommand" @cancel="editingCmd = null" />
             <TransitionGroup tag="ul" v-bind="rows" aria-label="Commands list">
               <li v-if="loadCmdError" key="error" class="grid" role="alert">
                 <div class="min-h-0 overflow-hidden">
@@ -482,7 +448,7 @@ async function handleRemoveCommand(name: string) {
               </li>
               <li v-for="(cmd, i) in loadCmdError ? [] : commands ?? []" :key="`item:${cmd.name}`" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div :class="[row, 'group wow-rise border-t border-border py-2.5']" :style="{ '--i': rowDelay(i) }">
+                  <div :class="[row, 'group wow-rise border-t border-border py-2.5 transition-colors', editingCmd?.name === cmd.name && 'bg-accent/40']" :style="{ '--i': rowDelay(i) }">
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
                         <p class="text-sm font-medium">{{ cmd.name }}</p>
@@ -496,6 +462,16 @@ async function handleRemoveCommand(name: string) {
                       </div>
                       <p class="truncate font-mono text-xs text-muted-foreground">{{ cmd.command }}</p>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-6 w-6 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                      :aria-label="`Edit command ${cmd.name}`"
+                      title="Edit"
+                      @click="editingCmd = cmd"
+                    >
+                      <Pencil class="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
                     <!-- Stays mounted and hidden on the default command, so it fades out under the pointer and the row keeps its layout. -->
                     <Button
                       variant="ghost"
