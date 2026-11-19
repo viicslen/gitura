@@ -2,7 +2,9 @@ package ghapi
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"gitura/internal/model"
@@ -143,8 +145,8 @@ func FetchReviewThreads(
 
 // FetchPendingReviewDrafts returns the threads that the pending review reviewID starts, as drafts.
 // The REST review-comments endpoint omits line and side on pending comments, so threads are read instead.
-// Replies the review adds to existing threads are skipped, since a draft always starts a thread.
-// Errors are prefixed with "github:" on API failures or "auth:" on HTTP 401.
+// Errors are prefixed with "github:" on API failures, "auth:" on HTTP 401, and "conflict:" when the
+// review holds comments a draft can't (replies to existing threads), since submitting would drop them.
 func FetchPendingReviewDrafts(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -153,28 +155,47 @@ func FetchPendingReviewDrafts(
 	reviewID int64,
 ) ([]model.DraftCommentDTO, error) {
 	var drafts []model.DraftCommentDTO
+	unheld := 0
 	err := forEachThreadPage(ctx, httpClient, owner, repo, number, func(nodes []graphQLThread) {
 		for _, node := range nodes {
-			if d, ok := pendingDraft(node, reviewID); ok {
-				drafts = append(drafts, d)
+			d, ok := pendingDraft(node, reviewID)
+			if !ok {
+				unheld++
+			} else if d != nil {
+				drafts = append(drafts, *d)
 			}
 		}
 	})
-	return drafts, err
+	if err != nil {
+		return nil, err
+	}
+	if unheld > 0 {
+		return nil, fmt.Errorf("conflict: your pending review on GitHub has replies gitura can't edit; submit or discard it on GitHub")
+	}
+	return drafts, nil
 }
 
-func pendingDraft(node graphQLThread, reviewID int64) (model.DraftCommentDTO, bool) {
+// pendingDraft returns the draft for a thread that reviewID starts, or nil for a thread it doesn't.
+// ok is false when the review has a comment in the thread that a draft can't hold.
+func pendingDraft(node graphQLThread, reviewID int64) (*model.DraftCommentDTO, bool) {
+	inReview := func(c graphQLComment) bool { return c.Review != nil && c.Review.DatabaseID == reviewID }
 	if len(node.Comments.Nodes) == 0 {
-		return model.DraftCommentDTO{}, false
+		return nil, true
+	}
+	if slices.ContainsFunc(node.Comments.Nodes[1:], inReview) {
+		return nil, false
 	}
 	root := node.Comments.Nodes[0]
-	if root.Review == nil || root.Review.DatabaseID != reviewID {
-		return model.DraftCommentDTO{}, false
+	if !inReview(root) {
+		return nil, true
 	}
-	d := model.DraftCommentDTO{Path: root.Path, Body: root.Body, Side: node.DiffSide}
+	d := &model.DraftCommentDTO{Path: root.Path, Body: root.Body, Side: node.DiffSide}
 	// GitHub reports line 1 on a file thread.
-	if node.SubjectType == "FILE" || node.OriginalLine == nil {
+	if node.SubjectType == "FILE" {
 		return d, true
+	}
+	if node.OriginalLine == nil {
+		return nil, false
 	}
 	d.Line = *node.OriginalLine
 	if node.OriginalStart != nil {
@@ -235,6 +256,10 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 	} else if root.OriginalLine != nil {
 		line = *root.OriginalLine
 		outdated = true
+	}
+
+	if node.SubjectType == "FILE" {
+		line, outdated = 0, false
 	}
 
 	side := node.DiffSide

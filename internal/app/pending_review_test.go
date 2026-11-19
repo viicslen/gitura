@@ -79,6 +79,25 @@ func TestSubmitReview_WithFileComment_CreatesPendingReviewWithLineCommentsOnly(t
 	assert.Len(t, app.pendingComments, 2, "a failed submit keeps the drafts")
 }
 
+func TestSubmitReview_DeletingPendingReviewFails_KeepsItForRetry(t *testing.T) {
+	var posted bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		posted = posted || r.Method == http.MethodPost
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer srv.Close()
+	base := srv.URL + "/"
+	client, err := github.NewClient(github.WithURLs(&base, nil))
+	require.NoError(t, err)
+	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}, pendingReviewID: 5}
+	app.pendingComments = []model.DraftCommentDTO{{Path: "a.go", Side: "RIGHT", Body: "file"}}
+
+	_, err = app.SubmitReview(model.ReviewSubmitRequest{Verdict: "COMMENT"})
+	require.ErrorContains(t, err, "github: delete pending review")
+	assert.Equal(t, int64(5), app.pendingReviewID)
+	assert.False(t, posted, "no new review while the old pending one may still exist")
+}
+
 func TestAddDraftComment_HeadMovedAfterFirstDraft_KeepsOriginalCommit(t *testing.T) {
 	client, err := github.NewClient()
 	require.NoError(t, err)

@@ -57,3 +57,34 @@ func TestFetchPendingReviewDrafts_MixedThreads_ReturnsOwnLineRangeAndFileDrafts(
 		{Path: "a.go", Body: "file", Side: "RIGHT"},
 	}, drafts)
 }
+
+func TestFetchPendingReviewDrafts_ReviewRepliesToThread_ReturnsConflict(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"repository":{"pullRequest":{"reviewThreads":{
+			"pageInfo":{"hasNextPage":false},
+			"nodes":[
+				{"diffSide":"RIGHT","originalLine":9,"subjectType":"LINE",
+				 "comments":{"nodes":[{"body":"own","path":"a.go","pullRequestReview":{"databaseId":7}}]}},
+				{"diffSide":"RIGHT","originalLine":3,"subjectType":"LINE",
+				 "comments":{"nodes":[{"body":"theirs","pullRequestReview":{"databaseId":8}},{"body":"reply","pullRequestReview":{"databaseId":7}}]}}
+			]}}}}}`))
+	}))
+	defer srv.Close()
+	origURL := githubGraphQLURL
+	githubGraphQLURL = srv.URL
+	defer func() { githubGraphQLURL = origURL }()
+
+	drafts, err := FetchPendingReviewDrafts(context.Background(), srv.Client(), "o", "r", 1, 7)
+	require.ErrorContains(t, err, "conflict:")
+	assert.Nil(t, drafts)
+}
+
+func TestMapGraphQLThread_FileSubject_HasNoLine(t *testing.T) {
+	one := 1
+	dto := mapGraphQLThread(graphQLThread{
+		SubjectType: "FILE",
+		Comments:    graphQLCommentConnection{Nodes: []graphQLComment{{Path: "a.go", OriginalLine: &one}}},
+	})
+	assert.Zero(t, dto.Line)
+	assert.False(t, dto.Outdated)
+}

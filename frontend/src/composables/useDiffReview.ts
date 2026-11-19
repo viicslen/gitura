@@ -202,8 +202,10 @@ export function useDiffReview() {
   async function loadPendingReview(): Promise<void> {
     try {
       pendingReview.value = await App.SyncPendingReview()
-    } catch {
+    } catch (err) {
       pendingReview.value = null
+      const message = errorMessage(err)
+      if (message.includes('conflict:')) toast.error(message)
     }
   }
 

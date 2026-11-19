@@ -79,7 +79,8 @@ const indexedDrafts = computed(() => {
     return { draft, key: `draft:${at}:${n}` }
   })
 })
-const fileDrafts = computed(() => (props.draftsStale ? [] : indexedDrafts.value.filter((d) => !d.draft.line)))
+// No line numbers to go stale, so these show even when the drafts were written on an older commit.
+const fileDrafts = computed(() => indexedDrafts.value.filter((d) => !d.draft.line))
 const placedDrafts = computed(() =>
   props.draftsStale ? [] : indexedDrafts.value.filter((d) => lineKeys.value.has(draftKey(d.draft))),
 )

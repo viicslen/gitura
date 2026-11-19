@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -76,16 +77,15 @@ func (a *App) restorePendingReview() (model.PendingReviewDTO, error) {
 		return model.PendingReviewDTO{HasPending: false}, nil
 	}
 
-	a.pendingReviewID = reviewID
-	a.pendingHeadSHA = reviewCommit
-
 	drafts, err := ghapi.FetchPendingReviewDrafts(
 		a.ctx, ghapi.NewHTTPClient(a.authToken), a.prOwner, a.prRepo, a.prNumber, reviewID,
 	)
 	if err != nil {
-		// Non-fatal: we have the review ID; comment list will just be empty.
-		logger.L.Warn("SyncPendingReview: failed to fetch review comments", "err", err)
+		// Adopting the review without its comments would let the next submit delete them.
+		return model.PendingReviewDTO{}, err
 	}
+	a.pendingReviewID = reviewID
+	a.pendingHeadSHA = reviewCommit
 	a.pendingComments = drafts
 
 	dtos := make([]model.DraftCommentDTO, len(a.pendingComments))
@@ -226,16 +226,10 @@ func (a *App) SubmitReview(req model.ReviewSubmitRequest) (model.ReviewSubmitRes
 		return model.ReviewSubmitResult{}, fmt.Errorf("notfound: no PR loaded; call LoadPR first")
 	}
 
-	// If we synced an existing GitHub pending review, delete it first.
-	// We recreate it as a submitted review with all local comments below.
-	if a.pendingReviewID != 0 {
-		_, _, delErr := a.ghClient.PullRequests.DeletePendingReview(
-			a.ctx, a.prOwner, a.prRepo, a.prNumber, a.pendingReviewID,
-		)
-		if delErr != nil {
-			logger.L.Warn("SubmitReview: failed to delete old pending review (continuing)", "review_id", a.pendingReviewID, "err", delErr)
-		}
-		a.pendingReviewID = 0
+	// A synced or half-built pending review is recreated below from the local comments;
+	// GitHub allows one pending review per user, so it has to go first.
+	if err := a.dropPendingReview(); err != nil {
+		return model.ReviewSubmitResult{}, err
 	}
 
 	var lineComments []*github.DraftReviewComment
@@ -273,6 +267,19 @@ func (a *App) SubmitReview(req model.ReviewSubmitRequest) (model.ReviewSubmitRes
 		ReviewID: review.GetID(),
 		HTMLURL:  review.GetHTMLURL(),
 	}, nil
+}
+
+// dropPendingReview deletes the pending review on GitHub, if any; one already gone counts as deleted.
+func (a *App) dropPendingReview() error {
+	if a.pendingReviewID == 0 {
+		return nil
+	}
+	_, resp, err := a.ghClient.PullRequests.DeletePendingReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, a.pendingReviewID)
+	if err != nil && (resp == nil || resp.StatusCode != http.StatusNotFound) {
+		return fmt.Errorf("github: delete pending review: %w", err)
+	}
+	a.pendingReviewID = 0
+	return nil
 }
 
 // submitReviewWithFileComments submits req plus file-level comments, which the REST review
