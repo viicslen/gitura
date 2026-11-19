@@ -36,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { commands, defaultCommandName } from '@/composables/useCommands'
 import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
 import { reducedMotion } from '@/components/motion/wow'
+import { createReusableTemplate } from '@vueuse/core'
 
 const SECTIONS = [
   { value: 'appearance', label: 'Appearance', icon: Palette },
@@ -100,7 +101,10 @@ const appearanceRows: { key: AppearanceKey; label: string; hint: string }[] = [
 
 // ── Toggles ────────────────────────────────────────────────────────────────
 const { toggles } = useToggles()
-const toggleSections = Object.keys(TOGGLE_SECTIONS) as (keyof typeof TOGGLE_SECTIONS)[]
+type ToggleSection = keyof typeof TOGGLE_SECTIONS
+// Commands has its own tab content; its toggles sit under the command list.
+const toggleSections = (Object.keys(TOGGLE_SECTIONS) as ToggleSection[]).filter((s) => s !== 'commands')
+const [DefineToggles, ReuseToggles] = createReusableTemplate<{ section: ToggleSection }>()
 
 async function saveToggle(id: ToggleId, value: boolean): Promise<void> {
   await setToggle(id, value)
@@ -369,7 +373,7 @@ async function handleRemoveCommand(name: string) {
           </div>
         </TabsContent>
 
-        <TabsContent v-for="key in toggleSections" :key="key" :value="key">
+        <DefineToggles v-slot="{ section: key }">
           <ul :class="card">
             <li v-for="(t, i) in TOGGLES.filter((t) => t.section === key)" :key="t.id" :class="[row, 'wow-rise']" :style="{ '--i': i }">
               <div class="min-w-0 flex-1">
@@ -391,6 +395,10 @@ async function handleRemoveCommand(name: string) {
               </span>
             </li>
           </ul>
+        </DefineToggles>
+
+        <TabsContent v-for="key in toggleSections" :key="key" :value="key">
+          <ReuseToggles :section="key" />
         </TabsContent>
 
         <TabsContent value="commenters" class="space-y-3">
@@ -542,6 +550,7 @@ async function handleRemoveCommand(name: string) {
           <Transition v-bind="alarm">
             <p v-if="addCmdError" class="text-xs text-destructive" role="alert">{{ addCmdError }}</p>
           </Transition>
+          <ReuseToggles section="commands" />
         </TabsContent>
 
         <TabsContent value="projects" class="space-y-3">

@@ -245,7 +245,7 @@ const discardLoading = ref(false)
 provide('hasPendingReview', computed(() => pendingReview.value?.has_pending ?? false))
 provide('draftsStale', draftsStale)
 provide('localReview', props.local)
-provide<DraftActions>('draftActions', { indexOf: draftIndex, update: updateDraftComment, remove: deleteDraftComment })
+provide<DraftActions>('draftActions', { indexOf: draftIndex, update: updateDraftComment, remove: deleteDraftComment, ran: () => emit('ran') })
 
 // Holding two diffs at once drops frames once either is large: then the old one goes in one frame and only the new one moves.
 const HEAVY_DIFF_LINES = 200
