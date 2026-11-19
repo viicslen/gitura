@@ -27,6 +27,7 @@ import { useAuth } from '@/composables/useAuth'
 import type { PRRef } from '@/types/pr'
 import type * as model from '@/bindings/gitura/internal/model'
 import { useToggles } from '@/composables/useToggles'
+import { commands as sharedCommands, defaultCommandName } from '@/composables/useCommands'
 import { GetCommands, GetDefaultCommandName, GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, GetPRTimeline, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
 import { toast } from 'vue-sonner'
 import { useReviewTabs, type ReviewTab } from '@/composables/useReviewTabs'
@@ -64,12 +65,11 @@ const emit = defineEmits<{
 reviewTab.value = 'overview'
 
 // ── Commands ────────────────────────────────────────────────────────────────
-const commands = ref<model.CommandDTO[]>([])
-const defaultCommandName = ref('')
+const commands = computed(() => sharedCommands.value ?? [])
 
 async function loadCommands(): Promise<void> {
   try {
-    commands.value = await GetCommands()
+    sharedCommands.value = await GetCommands()
   } catch {
     // Non-fatal: commands panel will just be empty
   }
