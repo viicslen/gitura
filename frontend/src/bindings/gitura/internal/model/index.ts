@@ -5,6 +5,7 @@ export {
     AppearanceDTO,
     AuthState,
     CommandDTO,
+    CommandVariableDTO,
     CommentThreadDTO,
     CommitDTO,
     DeviceFlowInfo,

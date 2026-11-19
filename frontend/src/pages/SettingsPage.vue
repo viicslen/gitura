@@ -7,6 +7,7 @@ import {
   RemoveIgnoredCommenter,
   GetCommands,
   AddCommand,
+  UpdateCommand,
   RemoveCommand,
   GetDefaultCommandName,
   SetDefaultCommandName,
@@ -20,7 +21,8 @@ import { Input } from '@/components/ui/input'
 import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Trash2, UserX, Terminal, Plus, Star, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
+import CommandComposer from '@/components/run/CommandComposer.vue'
+import { Trash2, UserX, Terminal, Plus, Star, Pencil, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
 import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles, type ToggleId } from '@/composables/useToggles'
 import {
   useAppearance,
@@ -220,10 +222,25 @@ async function handleResetBindings(): Promise<void> {
 // ── Commands ───────────────────────────────────────────────────────────────
 const loadCmdError = ref('')
 
-const newCmdName = ref('')
-const newCmdCommand = ref('')
+const composingCmd = ref(false)
+const editingCmd = ref<model.CommandDTO | null>(null)
 const addCmdError = ref('')
-const addingCmd = ref(false)
+// Bumped whenever the composer opens or closes, so a slow save only closes the session that started it.
+let composerSession = 0
+
+function openComposer(cmd: model.CommandDTO | null): void {
+  composerSession++
+  editingCmd.value = cmd
+  composingCmd.value = true
+  addCmdError.value = ''
+}
+
+function closeComposer(): void {
+  composerSession++
+  composingCmd.value = false
+  editingCmd.value = null
+  addCmdError.value = ''
+}
 
 async function handleSetDefault(name: string): Promise<void> {
   try {
@@ -234,35 +251,24 @@ async function handleSetDefault(name: string): Promise<void> {
   }
 }
 
-async function handleAddCommand() {
-  const name = newCmdName.value.trim()
-  const command = newCmdCommand.value.trim()
-  if (addingCmd.value) return
-  if (!name) {
-    addCmdError.value = 'Enter a command name.'
-    return
-  }
-  if (!command) {
-    addCmdError.value = 'Enter a command to run.'
-    return
-  }
-  addingCmd.value = true
+async function saveCommand(cmd: model.CommandDTO): Promise<void> {
+  const editing = editingCmd.value
+  const session = composerSession
   try {
-    commands.value = await AddCommand({ name, command })
-    newCmdName.value = ''
-    newCmdCommand.value = ''
-    addCmdError.value = ''
+    commands.value = editing ? await UpdateCommand(editing.name, cmd) : await AddCommand(cmd)
+    if (editing && defaultCommandName.value === editing.name) defaultCommandName.value = cmd.name.trim()
+    if (session === composerSession) closeComposer()
   } catch (e: unknown) {
+    if (session !== composerSession) return
     const msg = errorMessage(e)
-    addCmdError.value = msg.replace('validation:', '').trim() || 'Failed to add command.'
-  } finally {
-    addingCmd.value = false
+    addCmdError.value = msg.replace(/^(validation|not_found):/, '').trim() || 'Failed to save command.'
   }
 }
 
 async function handleRemoveCommand(name: string) {
   try {
     commands.value = await RemoveCommand(name)
+    if (editingCmd.value?.name === name) closeComposer()
     // If the removed command was the default, clear local state
     if (defaultCommandName.value === name) {
       defaultCommandName.value = ''
@@ -297,16 +303,29 @@ async function handleRemoveCommand(name: string) {
             <span :key="section" class="col-start-1 row-start-1 justify-self-start">{{ SECTIONS.find((s) => s.value === section)?.label }}</span>
           </Transition>
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="ml-auto h-7 text-xs transition-[opacity,visibility]"
-          :class="section !== 'keybindings' && 'invisible opacity-0'"
-          @click="handleResetBindings"
-        >
-          <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
-          Restore defaults
-        </Button>
+        <!-- Both section actions share one cell, so they crossfade in place. -->
+        <span class="ml-auto grid justify-items-end *:col-start-1 *:row-start-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 text-xs transition-[opacity,visibility]"
+            :class="section !== 'keybindings' && 'invisible opacity-0'"
+            @click="handleResetBindings"
+          >
+            <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
+            Restore defaults
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 text-xs transition-[opacity,visibility]"
+            :class="(section !== 'commands' || (composingCmd && !editingCmd)) && 'invisible opacity-0'"
+            @click="openComposer(null)"
+          >
+            <Plus class="h-3.5 w-3.5" aria-hidden="true" />
+            New command
+          </Button>
+        </span>
       </header>
 
       <div class="relative min-h-0 flex-1 overflow-hidden">
@@ -436,45 +455,33 @@ async function handleRemoveCommand(name: string) {
 
         <TabsContent value="commands" class="space-y-3">
           <p class="text-xs text-muted-foreground">
-            CLI commands to run against PR comment content. Use
+            CLI commands to run on a comment.
             <code v-pre class="rounded bg-muted px-1 font-mono">{{instructions}}</code>
-            as a placeholder for the comment text, or omit it to receive the text via stdin.
+            is its text; leave it out to pipe the text to stdin.
           </p>
           <div :class="box">
-            <div :class="[row, 'wow-rise']">
-              <Input
-                v-model="newCmdName"
-                placeholder="Name (e.g. opencode)"
-                class="h-8 w-36 text-sm"
-                aria-label="Command name"
-                @keydown.enter="newCmdCommand ? handleAddCommand() : undefined"
-              />
-              <Input
-                v-model="newCmdCommand"
-                placeholder="Command (e.g. opencode run --agent reviewer)"
-                class="h-8 flex-1 font-mono text-sm"
-                aria-label="Command to run"
-                @keydown.enter="handleAddCommand"
-              />
-              <Button
-                size="sm"
-                :disabled="!newCmdName.trim() || !newCmdCommand.trim()"
-                aria-label="Add command"
-                @click="handleAddCommand"
-              >
-                <Plus class="h-3.5 w-3.5" aria-hidden="true" />
-                Add
-              </Button>
-            </div>
-            <TransitionGroup tag="ul" v-bind="rows" aria-label="Commands list">
+            <Transition v-bind="rows">
+              <div v-if="composingCmd" class="grid">
+                <div class="min-h-0 overflow-hidden">
+                  <CommandComposer
+                    :key="editingCmd?.name ?? ':new'"
+                    class="border-b border-border"
+                    :editing="editingCmd"
+                    :save="saveCommand"
+                    @cancel="closeComposer"
+                  />
+                </div>
+              </div>
+            </Transition>
+            <TransitionGroup tag="ul" v-bind="rows" class="divide-y divide-border" aria-label="Commands list">
               <li v-if="loadCmdError" key="error" class="grid" role="alert">
                 <div class="min-h-0 overflow-hidden">
-                  <p class="border-t border-border px-4 py-3 text-xs text-destructive">{{ loadCmdError }}</p>
+                  <p class="px-4 py-3 text-xs text-destructive">{{ loadCmdError }}</p>
                 </div>
               </li>
               <li v-else-if="commands?.length === 0" key="empty" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div class="flex flex-col items-center gap-2 border-t border-border py-6 text-muted-foreground">
+                  <div class="flex flex-col items-center gap-2 py-6 text-muted-foreground">
                     <Terminal class="h-8 w-8 opacity-30" aria-hidden="true" />
                     <p class="text-sm">No commands configured.</p>
                   </div>
@@ -482,7 +489,7 @@ async function handleRemoveCommand(name: string) {
               </li>
               <li v-for="(cmd, i) in loadCmdError ? [] : commands ?? []" :key="`item:${cmd.name}`" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div :class="[row, 'group wow-rise border-t border-border py-2.5']" :style="{ '--i': rowDelay(i) }">
+                  <div :class="[row, 'group wow-rise py-2.5 transition-colors', editingCmd?.name === cmd.name && 'bg-accent/40']" :style="{ '--i': rowDelay(i) }">
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
                         <p class="text-sm font-medium">{{ cmd.name }}</p>
@@ -496,6 +503,16 @@ async function handleRemoveCommand(name: string) {
                       </div>
                       <p class="truncate font-mono text-xs text-muted-foreground">{{ cmd.command }}</p>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-6 w-6 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                      :aria-label="`Edit command ${cmd.name}`"
+                      title="Edit"
+                      @click="openComposer(cmd)"
+                    >
+                      <Pencil class="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
                     <!-- Stays mounted and hidden on the default command, so it fades out under the pointer and the row keeps its layout. -->
                     <Button
                       variant="ghost"

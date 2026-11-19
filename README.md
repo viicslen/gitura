@@ -46,7 +46,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Batch reviews** — draft comments, then submit them together as comment, approval, or changes requested (approve and request changes are off on your own PRs)
 - **Reply, resolve, unresolve** — posted straight to GitHub with optimistic UI updates
 - **Commit suggestions** — accept a GitHub suggestion block and commit it to the PR branch
-- **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch its output stream live in the run panel
+- **Run commands** — pipe a comment into any CLI (e.g. an `opencode` agent) from the comment itself and watch its output stream live in the run panel. Compose commands in Settings → Commands with placeholders for the comment text, PR number, title, branches, author, comment author, file and line, or start from a T3 Code template that fixes or evaluates the comment
 - **Ignored commenters** — filter out CI bot noise by username
 - **Configurable shortcuts** — rebind the keys that move between files and threads, and the quick open chord, in Settings → Keybindings
 - **Preferences in one place** — theme, line wrapping, hiding viewed or test files, and the PR list's default filters live in Settings and `settings.toml`; the quick toggles in the app use the same values. Settings → Review → Leave the review after merging goes back to the PR list once you merge from the review (a `--focus` window closes instead)

@@ -101,7 +101,8 @@ export class AuthState {
  * CommandDTO is a named CLI invocation template configured by the user.
  * Command may contain the literal string "{{instructions}}" as a placeholder;
  * if present, the input text is substituted as a shell argument rather than
- * piped via stdin.
+ * piped via stdin. It may also use "{{repo_path}}" and the CommandVariableDTO
+ * placeholders.
  */
 export class CommandDTO {
     "name": string;
@@ -125,6 +126,34 @@ export class CommandDTO {
     static createFrom($$source: any = {}): CommandDTO {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new CommandDTO($$parsedSource as Partial<CommandDTO>);
+    }
+}
+
+/**
+ * CommandVariableDTO is a placeholder a command template can use as "{{Name}}".
+ */
+export class CommandVariableDTO {
+    "name": string;
+    "description": string;
+
+    /** Creates a new CommandVariableDTO instance. */
+    constructor($$source: Partial<CommandVariableDTO> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("description" in $$source)) {
+            this["description"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CommandVariableDTO instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CommandVariableDTO {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CommandVariableDTO($$parsedSource as Partial<CommandVariableDTO>);
     }
 }
 

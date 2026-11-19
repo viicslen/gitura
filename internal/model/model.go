@@ -306,10 +306,17 @@ type ReviewSubmitResult struct {
 // CommandDTO is a named CLI invocation template configured by the user.
 // Command may contain the literal string "{{instructions}}" as a placeholder;
 // if present, the input text is substituted as a shell argument rather than
-// piped via stdin.
+// piped via stdin. It may also use "{{repo_path}}" and the CommandVariableDTO
+// placeholders.
 type CommandDTO struct {
 	Name    string `json:"name" toml:"name"`
 	Command string `json:"command" toml:"command"`
+}
+
+// CommandVariableDTO is a placeholder a command template can use as "{{Name}}".
+type CommandVariableDTO struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 // AppearanceDTO holds the user's font and text-size choices. Values are option

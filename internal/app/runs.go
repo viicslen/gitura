@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -38,6 +39,8 @@ func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunC
 	} else if a.prNumber > 0 {
 		localPath = a.prLocalPath(a.prOwner, a.prRepo, a.prNumber)
 	}
+
+	vars := a.runVars(runCtx)
 
 	// Build a lookup map for fast name -> command resolution.
 	cmdMap := make(map[string]model.CommandDTO, len(a.commands))
@@ -85,7 +88,7 @@ func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunC
 				delete(a.runCancels, rID)
 				a.runCancelsMu.Unlock()
 			}()
-			result := runner.Run(ctx, c, input, lp, func(stream string, chunk string) {
+			result := runner.Run(ctx, c, input, lp, vars, func(stream string, chunk string) {
 				a.emit("command:run:output", model.RunOutput{RunID: rID, Stream: stream, Chunk: chunk})
 			})
 			result.RunID = rID
@@ -103,6 +106,39 @@ func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunC
 	}
 
 	return pendingResults, nil
+}
+
+// runVars fills every placeholder, unknown ones with "", so none reaches the command as a literal "{{...}}".
+func (a *App) runVars(runCtx model.RunContext) map[string]string {
+	vars := make(map[string]string, len(runner.Variables))
+	for _, v := range runner.Variables {
+		vars[v.Name] = ""
+	}
+	if pr := a.prCache; pr != nil {
+		vars["pr_number"] = strconv.Itoa(pr.Number)
+		vars["pr_title"] = pr.Title
+		vars["pr_url"] = pr.HTMLURL
+		vars["repo"] = pr.Owner + "/" + pr.Repo
+		vars["head_branch"] = pr.HeadBranch
+		vars["base_branch"] = pr.BaseBranch
+		vars["author"] = pr.AuthorLogin
+	}
+	for _, t := range a.threads {
+		if t.RootID != runCtx.ThreadRootID || runCtx.ThreadRootID == 0 {
+			continue
+		}
+		vars["file"] = t.Path
+		if t.Line > 0 {
+			vars["line"] = strconv.Itoa(t.Line)
+		}
+		for _, c := range t.Comments {
+			if c.ID == runCtx.CommentID {
+				vars["comment_author"] = c.AuthorLogin
+			}
+		}
+	}
+
+	return vars
 }
 
 // CancelRun stops an in-flight command by its run ID.
