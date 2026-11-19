@@ -130,8 +130,10 @@ function handleKeydown(event: KeyboardEvent): void {
             </span>
           </Transition>
         </div>
-        <div class="text-xs text-muted-foreground truncate min-w-0">
-          {{ thread.path }}<span v-if="thread.line" class="text-muted-foreground/70">:{{ thread.line }}</span>
+        <!-- Here and not with the badges above: a third badge there squeezes out the author name. -->
+        <div class="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+          <span class="truncate">{{ thread.path }}<span v-if="thread.line" class="text-muted-foreground/70">:{{ thread.line }}</span></span>
+          <span v-if="thread.outdated" class="shrink-0 rounded border border-muted-foreground/40 px-1 text-[0.625rem] leading-3.5">Outdated</span>
         </div>
         <!-- Two lines reserved: an edited comment must not change the height of its row and move the rows below. -->
         <p class="text-xs text-muted-foreground mt-0.5 min-h-8 line-clamp-2">

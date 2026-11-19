@@ -178,8 +178,7 @@ export class CommentThreadDTO {
     "side": string;
 
     /**
-     * Outdated is true when GitHub reports the thread's current line as null
-     * (the surrounding code changed since the comment was posted).
+     * Outdated is true when the code under the thread changed since it was posted.
      */
     "outdated": boolean;
 

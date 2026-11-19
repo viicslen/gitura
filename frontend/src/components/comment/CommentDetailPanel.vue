@@ -115,6 +115,7 @@ function replyAvatarKey(replyId: number): string {
           <!-- Fixed height: the badge is taller than the path and must not push the thread down. -->
           <div class="flex h-6 items-center gap-2 text-xs text-muted-foreground">
             <span class="font-mono truncate">{{ thread.path }}<span v-if="thread.line">:{{ thread.line }}</span></span>
+            <Badge v-if="thread.outdated" variant="outline" class="shrink-0 text-xs">Outdated</Badge>
             <!-- The explicit duration lets the ring finish: left to itself the enter ends with the shorter pop. -->
             <Transition
               enter-active-class="wow-pop wow-ring"

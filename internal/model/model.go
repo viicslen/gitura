@@ -60,8 +60,7 @@ type CommentThreadDTO struct {
 	Path     string             `json:"path"`
 	Line     int                `json:"line"`
 	Side     string             `json:"side"` // "LEFT" (old file) or "RIGHT" (new file)
-	// Outdated is true when GitHub reports the thread's current line as null
-	// (the surrounding code changed since the comment was posted).
+	// Outdated is true when the code under the thread changed since it was posted.
 	Outdated bool `json:"outdated"`
 }
 
