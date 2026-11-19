@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { highlightLine, lineLanguages } from '@/lib/highlight'
+import { markRanges, pairChanges } from '@/lib/inlineDiff'
 
 const props = defineProps<{
   diffHunk: string
@@ -28,7 +29,7 @@ const lines = computed<DiffLine[]>(() => {
   const langs = lineLanguages(codes, props.language ?? 'plaintext')
   let contentIndex = 0
 
-  return raws.map((raw) => {
+  const rows = raws.map((raw): DiffLine => {
     if (raw.startsWith('@@')) {
       return { prefix: '', highlighted: escapeHtml(raw), kind: 'header' as const, contentIndex: 0 }
     }
@@ -39,7 +40,23 @@ const lines = computed<DiffLine[]>(() => {
     const kind: DiffLine['kind'] = prefix === '+' ? 'add' : prefix === '-' ? 'remove' : 'context'
     return { prefix, highlighted, kind, contentIndex }
   })
+
+  const changed = (k: number) => rows[k]?.kind === 'add' || rows[k]?.kind === 'remove'
+  for (let i = 0; i < rows.length; i++) {
+    if (!changed(i)) continue
+    const dels: number[] = []
+    const adds: number[] = []
+    for (; changed(i); i++) (rows[i].kind === 'remove' ? dels : adds).push(i)
+    const code = (k: number) => codes[rows[k].contentIndex - 1]
+    const [delChanges, addChanges] = pairChanges(dels.map(code), adds.map(code))
+    dels.forEach((k, j) => (rows[k].highlighted = markRanges(rows[k].highlighted, delChanges[j], REMOVED_MARK)))
+    adds.forEach((k, j) => (rows[k].highlighted = markRanges(rows[k].highlighted, addChanges[j], ADDED_MARK)))
+  }
+  return rows
 })
+
+const REMOVED_MARK = 'bg-[#fdb8c0] dark:bg-red-500/45 text-inherit'
+const ADDED_MARK = 'bg-[#acf2bd] dark:bg-green-500/40 text-inherit'
 </script>
 
 <template>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { highlightLine, lineLanguages } from '@/lib/highlight'
+import { markRanges } from '@/lib/inlineDiff'
 import { anchorKey, type BlockKind, type LineSelection, type PaneItem, type Side } from '@/lib/diffLayout'
 
 const props = defineProps<{
@@ -35,9 +36,10 @@ const html = computed(() => {
   const carry = {}
   let run: number[] = []
   const flush = () => {
-    const contents = run.map((i) => (props.items[i] as Extract<PaneItem, { type: 'line' }>).content)
+    const lines = run.map((i) => props.items[i] as Extract<PaneItem, { type: 'line' }>)
+    const contents = lines.map((l) => l.content)
     const langs = lineLanguages(contents, props.language, carry)
-    run.forEach((i, k) => (out[i] = highlightLine(contents[k], langs[k])))
+    run.forEach((i, k) => (out[i] = markRanges(highlightLine(contents[k], langs[k]), lines[k].changes, CHANGE_MARK)))
     run = []
   }
   props.items.forEach((it, i) => {
@@ -64,6 +66,8 @@ const STICKY_TINT: Record<BlockKind, string> = {
   deleted: 'before:bg-rose-500/15',
   modified: 'before:bg-sky-500/15',
 }
+// Only modified blocks pair lines, so changed words always sit on a modified-tinted line.
+const CHANGE_MARK = 'rounded-sm bg-sky-500/35 text-inherit'
 const MARK_BG: Record<BlockKind, string> = {
   added: 'bg-emerald-500/70',
   deleted: 'bg-rose-500/70',

@@ -38,7 +38,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Side rail and title strip** — a frameless window with a slim rail for the PR list, Overview, Conversation and Files views (badged with open reviews, unresolved threads and unviewed files), and a title strip with the PR's state, Refresh and Open on GitHub
 - **Overview** — base ← head branches (click either to copy it), description, labels, general comments and reviews; reviews with open conversations come first. Switch to Timeline to see commits, reviews, comments and thread replies in the order they happened, with resolved and outdated threads marked
 - **Conversation view** — step through review comments one at a time with diff hunk context and thread replies
-- **Files changed view** — JetBrains-style side-by-side diff with curved connectors mapping each changed block; added and deleted files open as a single full-width panel, and moved or renamed files say so
+- **Files changed view** — JetBrains-style side-by-side diff with curved connectors mapping each changed block, and the words that changed marked within similar lines; added and deleted files open as a single full-width panel, and moved or renamed files say so
 - **Viewed files** — tick files as viewed (synced with GitHub), jump to the next one, and hide viewed or test files from the list
 - **Diff view options** — show or hide inline comments and toggle line wrapping; Vue and Svelte files are highlighted per template, script and style block
 - **GitHub-flavoured comments** — alerts, tables, `<picture>` images, and task lists you can tick straight from the app
