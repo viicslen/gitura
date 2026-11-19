@@ -35,7 +35,7 @@ export const TOGGLES = [
   { id: 'pr_list_reviewer', section: 'prList', label: 'Review requested', hint: 'Shown by default.', default: true },
   { id: 'pr_list_drafts', section: 'prList', label: 'Include drafts', hint: 'Shown by default.', default: false },
   { id: 'pr_list_tree', section: 'prList', label: 'Tree layout', hint: 'Nest each pull request under the one whose branch it is based on. Same as the List / Tree switch above the list.', default: false },
-  { id: 'remove_draft_after_run', section: 'commands', label: 'Remove pending comments you run', hint: 'A pending comment sent to a command is taken out of your review.', default: false },
+  { id: 'remove_draft_after_run', section: 'commands', label: 'Remove comments you run', hint: 'A pending comment sent to a command is taken out of your review, and one you are writing is discarded.', default: false },
 ] as const satisfies readonly ToggleDef[]
 
 export type ToggleId = (typeof TOGGLES)[number]['id']

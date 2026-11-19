@@ -3,6 +3,10 @@ import { ref, computed, inject, reactive } from 'vue'
 import type { ComputedRef } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import SplitRunButton from '@/components/run/SplitRunButton.vue'
+import { commands, defaultCommandName } from '@/composables/useCommands'
+import { useToggles } from '@/composables/useToggles'
+import type { DraftActions } from './DiffDraftComment.vue'
 
 const props = withDefaults(defineProps<{
   target: { path: string; line: number; side: string; startLine?: number }
@@ -27,6 +31,17 @@ const busy = computed(() => submitting.value || props.sending)
 const hasPendingReview = inject<ComputedRef<boolean>>('hasPendingReview')
 const draftsStale = inject<ComputedRef<boolean> | null>('draftsStale', null)
 const localReview = inject('localReview', false)
+const draftActions = inject<DraftActions | null>('draftActions', null)
+const cmds = computed(() => commands.value ?? [])
+const { toggles } = useToggles()
+
+function handleRan(runs: { input: string }[]): void {
+  draftActions?.ran()
+  // An edit landing while the run started is kept.
+  if (!toggles.value.remove_draft_after_run || runs[0].input !== body.value.trim()) return
+  body.value = ''
+  emit('cancel')
+}
 
 async function submit(mode: 'draft' | 'immediate'): Promise<void> {
   if (!body.value.trim() || busy.value) return
@@ -67,10 +82,21 @@ function handleKeydown(event: KeyboardEvent): void {
       @keydown="handleKeydown"
     />
     <div class="flex flex-wrap items-center justify-end gap-2">
-      <span v-if="busy" class="mr-auto text-xs text-muted-foreground animate-in fade-in-0 delay-200 fill-mode-backwards" role="status">Sending…</span>
-      <span v-else-if="draftsStale" class="mr-auto text-xs text-muted-foreground">
-        Your pending review was started on an earlier commit. Submit or discard it to add review comments here.
-      </span>
+      <div class="mr-auto flex items-center gap-2">
+        <SplitRunButton
+          v-if="cmds.length > 0"
+          :commands="cmds"
+          :default-command-name="defaultCommandName"
+          :input="body.trim()"
+          :disabled="!body.trim() || busy"
+          label="Run"
+          @ran="handleRan"
+        />
+        <span v-if="busy" class="text-xs text-muted-foreground animate-in fade-in-0 delay-200 fill-mode-backwards" role="status">Sending…</span>
+        <span v-else-if="draftsStale" class="text-xs text-muted-foreground">
+          Your pending review was started on an earlier commit. Submit or discard it to add review comments here.
+        </span>
+      </div>
       <Button
         variant="ghost"
         size="sm"

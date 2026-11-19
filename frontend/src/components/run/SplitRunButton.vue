@@ -36,6 +36,7 @@ const props = defineProps<{
   threadRootId?: number
   /** Comment ID to associate this run with (0 = unlinked) */
   commentId?: number
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -87,6 +88,7 @@ const btnSize = computed(() => props.size ?? 'sm')
     <Button
       :size="btnSize"
       :aria-busy="running"
+      :disabled="disabled"
       variant="ghost"
       class="rounded-r-none border-r-0 gap-1.5 bg-muted/60 hover:bg-muted active:scale-100"
       @click="handlePrimary"
@@ -113,6 +115,7 @@ const btnSize = computed(() => props.size ?? 'sm')
       <DropdownMenuTrigger as-child>
         <Button
           :size="btnSize"
+          :disabled="disabled"
           variant="ghost"
           class="rounded-l-none px-1 bg-muted/60 hover:bg-muted active:scale-100"
           :aria-label="`Run with a different command`"
