@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
  * CommandComposer — adds or edits a command: a name, a multi-line template, and
- * buttons that insert placeholders at the cursor or fill in a ready-made template.
+ * menus that insert a placeholder at the cursor or fill in a ready-made template.
  */
-import { nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
-import { Check, ChevronDown, Plus } from '@lucide/vue'
+import { onMounted, ref, useTemplateRef, watch } from 'vue'
+import { Braces, Check, ChevronDown, Plus } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,6 +12,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { GetCommandVariables } from '@/bindings/gitura/internal/app/app'
@@ -20,8 +22,7 @@ import type * as model from '@/bindings/gitura/internal/model'
 const props = defineProps<{
   /** The command being edited; null composes a new one. */
   editing: model.CommandDTO | null
-  /** Saves the command; resolves true when it was saved, so the composer clears. */
-  save: (cmd: model.CommandDTO) => Promise<boolean>
+  save: (cmd: model.CommandDTO) => Promise<void>
 }>()
 
 const emit = defineEmits<{
@@ -78,16 +79,28 @@ watch(
 )
 
 const textarea = useTemplateRef<{ $el: HTMLTextAreaElement }>('textarea')
+const nameInput = useTemplateRef<{ $el: HTMLInputElement }>('nameInput')
+onMounted(() => nameInput.value?.$el.focus())
 
-async function insert(variable: string): Promise<void> {
+// Where the caret goes after an insert. The menu holds focus until it closes, so it is placed then.
+let caret: number | null = null
+
+function insert(variable: string): void {
   const el = textarea.value?.$el
   const token = `{{${variable}}}`
   const start = el?.selectionStart ?? command.value.length
   const end = el?.selectionEnd ?? command.value.length
   command.value = command.value.slice(0, start) + token + command.value.slice(end)
-  await nextTick()
+  caret = start + token.length
+}
+
+function restoreCaret(event: Event): void {
+  if (caret === null) return
+  event.preventDefault()
+  const el = textarea.value?.$el
   el?.focus()
-  el?.setSelectionRange(start + token.length, start + token.length)
+  el?.setSelectionRange(caret, caret)
+  caret = null
 }
 
 function applyTemplate(t: (typeof TEMPLATES)[number]): void {
@@ -99,10 +112,7 @@ async function submit(): Promise<void> {
   if (saving.value || !name.value.trim() || !command.value.trim()) return
   saving.value = true
   try {
-    if (await props.save({ name: name.value, command: command.value }) && !props.editing) {
-      name.value = ''
-      command.value = ''
-    }
+    await props.save({ name: name.value, command: command.value })
   } finally {
     saving.value = false
   }
@@ -120,6 +130,7 @@ function onKeydown(event: KeyboardEvent): void {
   <div class="space-y-2 px-4 py-3" @keydown="onKeydown">
     <div class="flex items-center gap-2">
       <Input
+        ref="nameInput"
         v-model="name"
         placeholder="Name (e.g. Fix with T3 Code)"
         class="h-8 flex-1 text-sm"
@@ -149,27 +160,34 @@ function onKeydown(event: KeyboardEvent): void {
       ref="textarea"
       v-model="command"
       placeholder="Command (e.g. opencode run --agent reviewer &quot;{{instructions}}&quot;)"
-      class="max-h-64 min-h-20 font-mono text-xs md:text-xs"
+      class="max-h-48 min-h-20 font-mono text-xs md:text-xs"
       aria-label="Command to run"
       spellcheck="false"
     />
-    <div class="flex flex-wrap gap-1" role="group" aria-label="Insert a placeholder">
-      <Button
-        v-for="v in variables"
-        :key="v.name"
-        variant="secondary"
-        size="sm"
-        class="h-6 px-1.5 font-mono text-[11px] font-normal"
-        :title="v.description"
-        :aria-label="`Insert ${v.name}: ${v.description}`"
-        @click="insert(v.name)"
-      >
-        {{ v.name }}
-      </Button>
-    </div>
-    <div class="flex items-center justify-end gap-2">
-      <span class="mr-auto text-xs text-muted-foreground">Placeholders never split into extra arguments.</span>
-      <Button v-if="editing" variant="ghost" size="sm" @click="emit('cancel')">Cancel</Button>
+    <div class="flex items-center gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="sm" class="h-8 text-xs">
+            <Braces class="h-3.5 w-3.5" aria-hidden="true" />
+            Insert placeholder
+            <ChevronDown class="h-3 w-3" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" class="max-h-72 w-72" @close-auto-focus="restoreCaret">
+          <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">Each fills in where it stands and never adds arguments.</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            v-for="v in variables"
+            :key="v.name"
+            class="flex flex-col items-start gap-0.5"
+            @select="insert(v.name)"
+          >
+            <span class="font-mono text-xs">{{ v.name }}</span>
+            <span class="text-xs text-muted-foreground">{{ v.description }}</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button variant="ghost" size="sm" class="ml-auto" @click="emit('cancel')">Cancel</Button>
       <Button size="sm" :disabled="!name.trim() || !command.trim()" @click="submit">
         <component :is="editing ? Check : Plus" class="h-3.5 w-3.5" aria-hidden="true" />
         {{ editing ? 'Save' : 'Add' }}

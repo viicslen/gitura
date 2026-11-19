@@ -222,8 +222,22 @@ async function handleResetBindings(): Promise<void> {
 // ── Commands ───────────────────────────────────────────────────────────────
 const loadCmdError = ref('')
 
+// The composer opens for a new command (composingCmd) or for the command being edited.
+const composingCmd = ref(false)
 const editingCmd = ref<model.CommandDTO | null>(null)
 const addCmdError = ref('')
+
+function openComposer(cmd: model.CommandDTO | null): void {
+  editingCmd.value = cmd
+  composingCmd.value = true
+  addCmdError.value = ''
+}
+
+function closeComposer(): void {
+  composingCmd.value = false
+  editingCmd.value = null
+  addCmdError.value = ''
+}
 
 async function handleSetDefault(name: string): Promise<void> {
   try {
@@ -234,25 +248,22 @@ async function handleSetDefault(name: string): Promise<void> {
   }
 }
 
-async function saveCommand(cmd: model.CommandDTO): Promise<boolean> {
+async function saveCommand(cmd: model.CommandDTO): Promise<void> {
   const editing = editingCmd.value
   try {
     commands.value = editing ? await UpdateCommand(editing.name, cmd) : await AddCommand(cmd)
     if (editing && defaultCommandName.value === editing.name) defaultCommandName.value = cmd.name.trim()
-    editingCmd.value = null
-    addCmdError.value = ''
-    return true
+    closeComposer()
   } catch (e: unknown) {
     const msg = errorMessage(e)
     addCmdError.value = msg.replace(/^(validation|not_found):/, '').trim() || 'Failed to save command.'
-    return false
   }
 }
 
 async function handleRemoveCommand(name: string) {
   try {
     commands.value = await RemoveCommand(name)
-    if (editingCmd.value?.name === name) editingCmd.value = null
+    if (editingCmd.value?.name === name) closeComposer()
     // If the removed command was the default, clear local state
     if (defaultCommandName.value === name) {
       defaultCommandName.value = ''
@@ -287,16 +298,29 @@ async function handleRemoveCommand(name: string) {
             <span :key="section" class="col-start-1 row-start-1 justify-self-start">{{ SECTIONS.find((s) => s.value === section)?.label }}</span>
           </Transition>
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="ml-auto h-7 text-xs transition-[opacity,visibility]"
-          :class="section !== 'keybindings' && 'invisible opacity-0'"
-          @click="handleResetBindings"
-        >
-          <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
-          Restore defaults
-        </Button>
+        <!-- Both section actions share one cell, so they crossfade in place. -->
+        <span class="ml-auto grid justify-items-end *:col-start-1 *:row-start-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 text-xs transition-[opacity,visibility]"
+            :class="section !== 'keybindings' && 'invisible opacity-0'"
+            @click="handleResetBindings"
+          >
+            <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
+            Restore defaults
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 text-xs transition-[opacity,visibility]"
+            :class="(section !== 'commands' || (composingCmd && !editingCmd)) && 'invisible opacity-0'"
+            @click="openComposer(null)"
+          >
+            <Plus class="h-3.5 w-3.5" aria-hidden="true" />
+            New command
+          </Button>
+        </span>
       </header>
 
       <div class="relative min-h-0 flex-1 overflow-hidden">
@@ -426,21 +450,33 @@ async function handleRemoveCommand(name: string) {
 
         <TabsContent value="commands" class="space-y-3">
           <p class="text-xs text-muted-foreground">
-            CLI commands to run against PR comment content. Use
+            CLI commands to run on a comment.
             <code v-pre class="rounded bg-muted px-1 font-mono">{{instructions}}</code>
-            for the comment text, or omit it to receive the text via stdin. The other placeholders fill in the PR and comment the command runs on.
+            is its text; leave it out to pipe the text to stdin.
           </p>
           <div :class="box">
-            <CommandComposer class="wow-rise" :editing="editingCmd" :save="saveCommand" @cancel="editingCmd = null" />
-            <TransitionGroup tag="ul" v-bind="rows" aria-label="Commands list">
+            <Transition v-bind="rows">
+              <div v-if="composingCmd" class="grid">
+                <div class="min-h-0 overflow-hidden">
+                  <CommandComposer
+                    :key="editingCmd?.name ?? ':new'"
+                    class="border-b border-border"
+                    :editing="editingCmd"
+                    :save="saveCommand"
+                    @cancel="closeComposer"
+                  />
+                </div>
+              </div>
+            </Transition>
+            <TransitionGroup tag="ul" v-bind="rows" class="divide-y divide-border" aria-label="Commands list">
               <li v-if="loadCmdError" key="error" class="grid" role="alert">
                 <div class="min-h-0 overflow-hidden">
-                  <p class="border-t border-border px-4 py-3 text-xs text-destructive">{{ loadCmdError }}</p>
+                  <p class="px-4 py-3 text-xs text-destructive">{{ loadCmdError }}</p>
                 </div>
               </li>
               <li v-else-if="commands?.length === 0" key="empty" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div class="flex flex-col items-center gap-2 border-t border-border py-6 text-muted-foreground">
+                  <div class="flex flex-col items-center gap-2 py-6 text-muted-foreground">
                     <Terminal class="h-8 w-8 opacity-30" aria-hidden="true" />
                     <p class="text-sm">No commands configured.</p>
                   </div>
@@ -448,7 +484,7 @@ async function handleRemoveCommand(name: string) {
               </li>
               <li v-for="(cmd, i) in loadCmdError ? [] : commands ?? []" :key="`item:${cmd.name}`" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div :class="[row, 'group wow-rise border-t border-border py-2.5 transition-colors', editingCmd?.name === cmd.name && 'bg-accent/40']" :style="{ '--i': rowDelay(i) }">
+                  <div :class="[row, 'group wow-rise py-2.5 transition-colors', editingCmd?.name === cmd.name && 'bg-accent/40']" :style="{ '--i': rowDelay(i) }">
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
                         <p class="text-sm font-medium">{{ cmd.name }}</p>
@@ -468,7 +504,7 @@ async function handleRemoveCommand(name: string) {
                       class="h-6 w-6 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
                       :aria-label="`Edit command ${cmd.name}`"
                       title="Edit"
-                      @click="editingCmd = cmd"
+                      @click="openComposer(cmd)"
                     >
                       <Pencil class="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
