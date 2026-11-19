@@ -1,6 +1,10 @@
 package app
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/go-github/v93/github"
@@ -30,6 +34,68 @@ func TestUpdateAndDeleteDraftComment_StaleOrBlankThenValid_RejectsThenApplies(t 
 	require.NoError(t, err)
 	assert.False(t, got.HasPending)
 	assert.Empty(t, app.pendingHeadSHA)
+}
+
+func TestPostImmediateComment_WholeFile_SendsFileSubjectWithoutLine(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id": 1}`))
+	}))
+	defer srv.Close()
+	base := srv.URL + "/"
+	client, err := github.NewClient(github.WithURLs(&base, nil))
+	require.NoError(t, err)
+	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}}
+
+	_, err = app.PostImmediateComment(model.DraftCommentDTO{Path: "a.go", Side: "RIGHT", Body: "x"})
+	require.NoError(t, err)
+	assert.Equal(t, "file", got["subject_type"])
+	assert.NotContains(t, got, "line")
+	assert.NotContains(t, got, "side")
+}
+
+func TestSubmitReview_WithFileComment_CreatesPendingReviewWithLineCommentsOnly(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	base := srv.URL + "/"
+	client, err := github.NewClient(github.WithURLs(&base, nil))
+	require.NoError(t, err)
+	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}}
+	app.pendingComments = []model.DraftCommentDTO{
+		{Path: "a.go", Line: 3, Side: "RIGHT", Body: "line"},
+		{Path: "a.go", Side: "RIGHT", Body: "file"},
+	}
+
+	_, err = app.SubmitReview(model.ReviewSubmitRequest{Verdict: "APPROVE", Body: "lgtm"})
+	require.Error(t, err)
+	assert.NotContains(t, got, "event", "the review must stay pending until file comments join it")
+	assert.Len(t, got["comments"], 1)
+	assert.Len(t, app.pendingComments, 2, "a failed submit keeps the drafts")
+}
+
+func TestSubmitReview_DeletingPendingReviewFails_KeepsItForRetry(t *testing.T) {
+	var posted bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		posted = posted || r.Method == http.MethodPost
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer srv.Close()
+	base := srv.URL + "/"
+	client, err := github.NewClient(github.WithURLs(&base, nil))
+	require.NoError(t, err)
+	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}, pendingReviewID: 5}
+	app.pendingComments = []model.DraftCommentDTO{{Path: "a.go", Side: "RIGHT", Body: "file"}}
+
+	_, err = app.SubmitReview(model.ReviewSubmitRequest{Verdict: "COMMENT"})
+	require.ErrorContains(t, err, "github: delete pending review")
+	assert.Equal(t, int64(5), app.pendingReviewID)
+	assert.False(t, posted, "no new review while the old pending one may still exist")
 }
 
 func TestAddDraftComment_HeadMovedAfterFirstDraft_KeepsOriginalCommit(t *testing.T) {

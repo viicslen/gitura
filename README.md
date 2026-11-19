@@ -42,7 +42,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Viewed files** — tick files as viewed (synced with GitHub), jump to the next one, and hide viewed or test files from the list
 - **Diff view options** — show or hide inline comments and toggle line wrapping; Vue and Svelte files are highlighted per template, script and style block
 - **GitHub-flavoured comments** — alerts, tables, `<picture>` images, and task lists you can tick straight from the app
-- **Review in the diff** — click or drag line numbers (Shift+click extends) to comment on either side; threads, pending drafts, replies and resolve/unresolve sit inline under their lines
+- **Review in the diff** — click or drag line numbers (Shift+click extends) to comment on either side, or use the file header's comment button to comment on the whole file; threads, pending drafts, replies and resolve/unresolve sit inline under their lines
 - **Batch reviews** — draft comments, then submit them together as comment, approval, or changes requested (approve and request changes are off on your own PRs)
 - **Reply, resolve, unresolve** — posted straight to GitHub with optimistic UI updates
 - **Commit suggestions** — accept a GitHub suggestion block and commit it to the PR branch

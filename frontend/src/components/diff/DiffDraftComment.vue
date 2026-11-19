@@ -23,7 +23,8 @@ const [DefineHeader, ReuseHeader] = createReusableTemplate()
       <div class="flex items-center gap-2 text-xs">
         <Badge variant="outline" class="border-amber-500/60 text-[0.625rem] text-amber-700 dark:text-amber-300">Pending</Badge>
         <span class="text-muted-foreground">
-          {{ draft.side === 'LEFT' ? 'Old' : 'New' }} line{{ draft.start_line ? `s ${draft.start_line}–${draft.line}` : ` ${draft.line}` }} · submitted with your review
+          <template v-if="draft.line">{{ draft.side === 'LEFT' ? 'Old' : 'New' }} line{{ draft.start_line ? `s ${draft.start_line}–${draft.line}` : ` ${draft.line}` }}</template>
+          <template v-else>Whole file</template> · submitted with your review
         </span>
       </div>
     </DefineHeader>

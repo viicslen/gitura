@@ -2,11 +2,13 @@ package app
 
 import (
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/google/go-github/v93/github"
 
+	"gitura/internal/ghapi"
 	"gitura/internal/logger"
 	"gitura/internal/model"
 )
@@ -75,30 +77,16 @@ func (a *App) restorePendingReview() (model.PendingReviewDTO, error) {
 		return model.PendingReviewDTO{HasPending: false}, nil
 	}
 
-	a.pendingReviewID = reviewID
-	a.pendingHeadSHA = reviewCommit
-
-	// Fetch the comments for this review to populate the local cache.
-	rawComments, _, err := a.ghClient.PullRequests.ListReviewComments(
-		a.ctx, a.prOwner, a.prRepo, a.prNumber, reviewID, nil,
+	drafts, err := ghapi.FetchPendingReviewDrafts(
+		a.ctx, ghapi.NewHTTPClient(a.authToken), a.prOwner, a.prRepo, a.prNumber, reviewID,
 	)
 	if err != nil {
-		// Non-fatal: we have the review ID; comment list will just be empty.
-		logger.L.Warn("SyncPendingReview: failed to fetch review comments", "err", err)
-		a.pendingComments = nil
-	} else {
-		a.pendingComments = make([]model.DraftCommentDTO, 0, len(rawComments))
-		for _, c := range rawComments {
-			a.pendingComments = append(a.pendingComments, model.DraftCommentDTO{
-				Path:      c.GetPath(),
-				Body:      c.GetBody(),
-				Line:      c.GetLine(),
-				Side:      c.GetSide(),
-				StartLine: c.GetStartLine(),
-				StartSide: c.GetStartSide(),
-			})
-		}
+		// Adopting the review without its comments would let the next submit delete them.
+		return model.PendingReviewDTO{}, err
 	}
+	a.pendingReviewID = reviewID
+	a.pendingHeadSHA = reviewCommit
+	a.pendingComments = drafts
 
 	dtos := make([]model.DraftCommentDTO, len(a.pendingComments))
 	copy(dtos, a.pendingComments)
@@ -198,7 +186,10 @@ func (a *App) PostImmediateComment(comment model.DraftCommentDTO) (model.ReviewC
 		Line:     &comment.Line,
 		Side:     &comment.Side,
 	}
-	if comment.StartLine > 0 {
+	if comment.Line == 0 {
+		subject := "file"
+		prComment.Line, prComment.Side, prComment.SubjectType = nil, nil, &subject
+	} else if comment.StartLine > 0 {
 		prComment.StartLine = &comment.StartLine
 		prComment.StartSide = &comment.StartSide
 	}
@@ -235,33 +226,36 @@ func (a *App) SubmitReview(req model.ReviewSubmitRequest) (model.ReviewSubmitRes
 		return model.ReviewSubmitResult{}, fmt.Errorf("notfound: no PR loaded; call LoadPR first")
 	}
 
-	// If we synced an existing GitHub pending review, delete it first.
-	// We recreate it as a submitted review with all local comments below.
-	if a.pendingReviewID != 0 {
-		_, _, delErr := a.ghClient.PullRequests.DeletePendingReview(
-			a.ctx, a.prOwner, a.prRepo, a.prNumber, a.pendingReviewID,
-		)
-		if delErr != nil {
-			logger.L.Warn("SubmitReview: failed to delete old pending review (continuing)", "review_id", a.pendingReviewID, "err", delErr)
-		}
-		a.pendingReviewID = 0
+	// A synced or half-built pending review is recreated below from the local comments;
+	// GitHub allows one pending review per user, so it has to go first.
+	if err := a.dropPendingReview(); err != nil {
+		return model.ReviewSubmitResult{}, err
 	}
 
-	draftComments := make([]*github.DraftReviewComment, len(a.pendingComments))
-	for i, c := range a.pendingComments {
-		draftComments[i] = draftCommentToGitHub(c)
+	var lineComments []*github.DraftReviewComment
+	var fileComments []model.DraftCommentDTO
+	for _, c := range a.pendingComments {
+		if c.Line == 0 {
+			fileComments = append(fileComments, c)
+		} else {
+			lineComments = append(lineComments, draftCommentToGitHub(c))
+		}
 	}
 
 	commitSHA := a.reviewCommitSHA()
-	review, _, err := a.ghClient.PullRequests.CreateReview(
-		a.ctx, a.prOwner, a.prRepo, a.prNumber,
-		&github.PullRequestReviewRequest{
-			CommitID: &commitSHA,
-			Body:     &req.Body,
-			Event:    &req.Verdict,
-			Comments: draftComments,
-		},
-	)
+	request := &github.PullRequestReviewRequest{
+		CommitID: &commitSHA,
+		Body:     &req.Body,
+		Event:    &req.Verdict,
+		Comments: lineComments,
+	}
+	var review *github.PullRequestReview
+	var err error
+	if len(fileComments) == 0 {
+		review, _, err = a.ghClient.PullRequests.CreateReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, request)
+	} else {
+		review, err = a.submitReviewWithFileComments(request, fileComments)
+	}
 	if err != nil {
 		return model.ReviewSubmitResult{}, fmt.Errorf("github: submit review: %w", err)
 	}
@@ -273,6 +267,46 @@ func (a *App) SubmitReview(req model.ReviewSubmitRequest) (model.ReviewSubmitRes
 		ReviewID: review.GetID(),
 		HTMLURL:  review.GetHTMLURL(),
 	}, nil
+}
+
+// dropPendingReview deletes the pending review on GitHub, if any; one already gone counts as deleted.
+func (a *App) dropPendingReview() error {
+	if a.pendingReviewID == 0 {
+		return nil
+	}
+	_, resp, err := a.ghClient.PullRequests.DeletePendingReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, a.pendingReviewID)
+	if err != nil && (resp == nil || resp.StatusCode != http.StatusNotFound) {
+		return fmt.Errorf("github: delete pending review: %w", err)
+	}
+	a.pendingReviewID = 0
+	return nil
+}
+
+// submitReviewWithFileComments submits req plus file-level comments, which the REST review
+// endpoint cannot take: they join the review over GraphQL while it is still pending.
+func (a *App) submitReviewWithFileComments(req *github.PullRequestReviewRequest, files []model.DraftCommentDTO) (*github.PullRequestReview, error) {
+	event, body := *req.Event, req.Body
+	req.Event, req.Body = nil, nil
+	pending, _, err := a.ghClient.PullRequests.CreateReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, req)
+	if err != nil {
+		return nil, err
+	}
+	// Should a step below fail, a retry deletes this half-built review before starting over.
+	a.pendingReviewID = pending.GetID()
+
+	httpClient := ghapi.NewHTTPClient(a.authToken)
+	for _, c := range files {
+		if err := ghapi.AddFileReviewThread(a.ctx, httpClient, pending.GetNodeID(), c.Path, c.Body); err != nil {
+			return nil, err
+		}
+	}
+	review, _, err := a.ghClient.PullRequests.SubmitReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, pending.GetID(),
+		github.PullRequestSubmitReviewRequest{Body: body, Event: event})
+	if err != nil {
+		return nil, err
+	}
+	a.pendingReviewID = 0
+	return review, nil
 }
 
 // DiscardPendingReview clears the local pending review state and, if a GitHub

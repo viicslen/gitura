@@ -2,7 +2,9 @@ package ghapi
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"gitura/internal/model"
@@ -31,10 +33,14 @@ type graphQLPageInfo struct {
 }
 
 type graphQLThread struct {
-	ID         string                   `json:"id"`
-	IsResolved bool                     `json:"isResolved"`
-	DiffSide   string                   `json:"diffSide"`
-	Comments   graphQLCommentConnection `json:"comments"`
+	ID            string                   `json:"id"`
+	IsResolved    bool                     `json:"isResolved"`
+	DiffSide      string                   `json:"diffSide"`
+	OriginalLine  *int                     `json:"originalLine"`
+	OriginalStart *int                     `json:"originalStartLine"`
+	StartDiffSide string                   `json:"startDiffSide"`
+	SubjectType   string                   `json:"subjectType"`
+	Comments      graphQLCommentConnection `json:"comments"`
 }
 
 type graphQLCommentConnection struct {
@@ -80,6 +86,10 @@ query($owner: String!, $repo: String!, $number: Int!, $after: String) {
           id
           isResolved
           diffSide
+          originalLine
+          originalStartLine
+          startDiffSide
+          subjectType
           comments(first: 100) {
             nodes {
               databaseId
@@ -118,11 +128,91 @@ func FetchReviewThreads(
 	number int,
 	progressFn func(loaded, total int),
 ) ([]model.CommentThreadDTO, error) {
-	var (
-		threads     []model.CommentThreadDTO
-		afterCursor *string
-	)
+	threads := []model.CommentThreadDTO{}
+	err := forEachThreadPage(ctx, httpClient, owner, repo, number, func(nodes []graphQLThread) {
+		for _, node := range nodes {
+			threads = append(threads, mapGraphQLThread(node))
+		}
+		if progressFn != nil {
+			progressFn(len(threads), -1)
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return threads, nil
+}
 
+// FetchPendingReviewDrafts returns the threads that the pending review reviewID starts, as drafts.
+// The REST review-comments endpoint omits line and side on pending comments, so threads are read instead.
+// Errors are prefixed with "github:" on API failures, "auth:" on HTTP 401, and "conflict:" when the
+// review holds comments a draft can't (replies to existing threads), since submitting would drop them.
+func FetchPendingReviewDrafts(
+	ctx context.Context,
+	httpClient *http.Client,
+	owner, repo string,
+	number int,
+	reviewID int64,
+) ([]model.DraftCommentDTO, error) {
+	var drafts []model.DraftCommentDTO
+	unheld := 0
+	err := forEachThreadPage(ctx, httpClient, owner, repo, number, func(nodes []graphQLThread) {
+		for _, node := range nodes {
+			d, ok := pendingDraft(node, reviewID)
+			if !ok {
+				unheld++
+			} else if d != nil {
+				drafts = append(drafts, *d)
+			}
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	if unheld > 0 {
+		return nil, fmt.Errorf("conflict: your pending review on GitHub has replies gitura can't edit; submit or discard it on GitHub")
+	}
+	return drafts, nil
+}
+
+// pendingDraft returns the draft for a thread that reviewID starts, or nil for a thread it doesn't.
+// ok is false when the review has a comment in the thread that a draft can't hold.
+func pendingDraft(node graphQLThread, reviewID int64) (*model.DraftCommentDTO, bool) {
+	inReview := func(c graphQLComment) bool { return c.Review != nil && c.Review.DatabaseID == reviewID }
+	if len(node.Comments.Nodes) == 0 {
+		return nil, true
+	}
+	if slices.ContainsFunc(node.Comments.Nodes[1:], inReview) {
+		return nil, false
+	}
+	root := node.Comments.Nodes[0]
+	if !inReview(root) {
+		return nil, true
+	}
+	d := &model.DraftCommentDTO{Path: root.Path, Body: root.Body, Side: node.DiffSide}
+	// GitHub reports line 1 on a file thread.
+	if node.SubjectType == "FILE" {
+		return d, true
+	}
+	if node.OriginalLine == nil {
+		return nil, false
+	}
+	d.Line = *node.OriginalLine
+	if node.OriginalStart != nil {
+		d.StartLine, d.StartSide = *node.OriginalStart, node.StartDiffSide
+	}
+	return d, true
+}
+
+// forEachThreadPage passes each page of the PR's review threads to fn, 50 threads at a time.
+func forEachThreadPage(
+	ctx context.Context,
+	httpClient *http.Client,
+	owner, repo string,
+	number int,
+	fn func([]graphQLThread),
+) error {
+	var afterCursor *string
 	for {
 		vars := map[string]any{
 			"owner":  owner,
@@ -136,30 +226,16 @@ func FetchReviewThreads(
 
 		var data graphQLReviewData
 		if err := runGraphQL(ctx, httpClient, reviewThreadsQueryBase, vars, &data); err != nil {
-			return nil, err
+			return err
 		}
-
-		nodes := data.Repository.PullRequest.ReviewThreads.Nodes
-		for _, node := range nodes {
-			thread := mapGraphQLThread(node)
-			threads = append(threads, thread)
-		}
-
-		if progressFn != nil {
-			progressFn(len(threads), -1)
-		}
+		fn(data.Repository.PullRequest.ReviewThreads.Nodes)
 
 		pageInfo := data.Repository.PullRequest.ReviewThreads.PageInfo
 		if !pageInfo.HasNextPage {
-			break
+			return nil
 		}
 		afterCursor = &pageInfo.EndCursor
 	}
-
-	if threads == nil {
-		threads = []model.CommentThreadDTO{}
-	}
-	return threads, nil
 }
 
 // mapGraphQLThread converts a GraphQL thread node to a CommentThreadDTO.
@@ -180,6 +256,10 @@ func mapGraphQLThread(node graphQLThread) model.CommentThreadDTO {
 	} else if root.OriginalLine != nil {
 		line = *root.OriginalLine
 		outdated = true
+	}
+
+	if node.SubjectType == "FILE" {
+		line, outdated = 0, false
 	}
 
 	side := node.DiffSide
