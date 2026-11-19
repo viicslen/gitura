@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 
-const run = vi.fn(async () => [])
+const run = vi.fn()
 vi.mock('@/bindings/gitura/internal/app/app', () => ({
-  RunCommands: (...a: unknown[]) => run(...(a as [])),
+  RunCommands: (...a: unknown[]) => run(...a),
   SetToggles: vi.fn(async () => {}),
 }))
 
@@ -32,7 +32,8 @@ async function runIt(w: ReturnType<typeof mountDraft>['w']) {
 describe('DiffDraftComment', () => {
   beforeEach(() => {
     commands.value = [{ name: 'fix', command: 'echo' } as model.CommandDTO]
-    run.mockClear()
+    run.mockReset()
+    run.mockImplementation(async (_names: string[], input: string) => [{ input }])
   })
 
   it('runs the pending comment and keeps it by default', async () => {
@@ -49,5 +50,22 @@ describe('DiffDraftComment', () => {
     const { w, actions } = mountDraft()
     await runIt(w)
     expect(actions.remove).toHaveBeenCalledWith(draft)
+  })
+
+  it('keeps it when no run started', async () => {
+    await setToggle('remove_draft_after_run', true)
+    run.mockImplementation(async () => [])
+    const { w, actions } = mountDraft()
+    await runIt(w)
+    expect(actions.ran).not.toHaveBeenCalled()
+    expect(actions.remove).not.toHaveBeenCalled()
+  })
+
+  it('keeps it when it was edited while the run started', async () => {
+    await setToggle('remove_draft_after_run', true)
+    run.mockImplementation(async () => [{ input: 'an older text' }])
+    const { w, actions } = mountDraft()
+    await runIt(w)
+    expect(actions.remove).not.toHaveBeenCalled()
   })
 })

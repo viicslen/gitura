@@ -39,7 +39,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'ran'): void
+  (e: 'ran', runs: model.RunResult[]): void
 }>()
 
 const running = ref(false)
@@ -58,11 +58,12 @@ async function runCommand(cmd: model.CommandDTO): Promise<void> {
   running.value = true
   burst.value++
   try {
-    await RunCommands([cmd.name], props.input, {
+    const runs = await RunCommands([cmd.name], props.input, {
       thread_root_id: props.threadRootId ?? 0,
       comment_id: props.commentId ?? 0,
     })
-    emit('ran')
+    // An unknown command name (deleted elsewhere) starts nothing.
+    if (runs?.length) emit('ran', runs)
   } finally {
     running.value = false
   }

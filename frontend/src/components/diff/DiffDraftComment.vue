@@ -25,9 +25,10 @@ const [DefineHeader, ReuseHeader] = createReusableTemplate()
 const cmds = computed(() => commands.value ?? [])
 const { toggles } = useToggles()
 
-async function handleRan(): Promise<void> {
+async function handleRan(runs: model.RunResult[]): Promise<void> {
   actions!.ran()
-  if (!toggles.value.remove_draft_after_run) return
+  // An edit landing while the run started is kept: only the text that was run is removed.
+  if (!toggles.value.remove_draft_after_run || runs[0].input !== props.draft.body) return
   try {
     await actions!.remove(props.draft)
   } catch (err) {
