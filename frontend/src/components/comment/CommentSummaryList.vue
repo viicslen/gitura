@@ -12,7 +12,6 @@ const props = defineProps<{
   currentIndex: number
   showResolved: boolean
   commands: model.CommandDTO[]
-  defaultCommandName: string
   /** PR-wide review numbers, so labels match the Overview and don't shift with filters. */
   reviewNumbers?: model.PROverviewDTO['review_numbers']
   /** The thread being resolved right now: its row leaves with a celebration instead of a fade. */

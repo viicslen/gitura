@@ -27,7 +27,7 @@ import { useAuth } from '@/composables/useAuth'
 import type { PRRef } from '@/types/pr'
 import type * as model from '@/bindings/gitura/internal/model'
 import { useToggles } from '@/composables/useToggles'
-import { commands as sharedCommands, defaultCommandName, loadCommands } from '@/composables/useCommands'
+import { commands as sharedCommands, loadCommands } from '@/composables/useCommands'
 import { GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, GetPRTimeline, MergePR, ClosePR } from '@/bindings/gitura/internal/app/app'
 import { toast } from 'vue-sonner'
 import { useReviewTabs, type ReviewTab } from '@/composables/useReviewTabs'
@@ -424,7 +424,6 @@ watch(
                     :current-index="currentIndex"
                     :show-resolved="showResolved"
                     :commands="commands"
-                    :default-command-name="defaultCommandName"
                     :resolving-id="resolvingId"
                     @select="handleSelect"
                     @show-all="toggleShowResolved()"
@@ -456,7 +455,6 @@ watch(
                   :is-at-end="isAtEnd && queue.length > 0"
                   :all-resolved="threads.length > 0 && unresolvedCount === 0"
                   :commands="commands"
-                  :default-command-name="defaultCommandName"
                   class="flex-1 overflow-hidden"
                   @resolve="handleResolve"
                   @unresolve="handleUnresolve"

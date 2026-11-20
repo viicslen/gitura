@@ -79,16 +79,14 @@ func (a *App) RemoveCommand(name string) ([]model.CommandDTO, error) {
 	updated := make([]model.CommandDTO, 0, len(a.commands)-1)
 	updated = append(updated, a.commands[:idx]...)
 	updated = append(updated, a.commands[idx+1:]...)
-	// Clear the default if the removed command was the default.
-	if a.defaultCommandName == name {
-		a.defaultCommandName = ""
-	}
 	cfg := a.config()
 	cfg.Commands = updated
+	cfg.DefaultCommands = renameDefaults(a.defaultCommands, name, "")
 	if err := settings.Save(cfg); err != nil {
 		return nil, fmt.Errorf("settings: save: %w", err)
 	}
 	a.commands = updated
+	a.defaultCommands = cfg.DefaultCommands
 	logger.L.Info("RemoveCommand", "name", name)
 	result := make([]model.CommandDTO, len(a.commands))
 	copy(result, a.commands)
@@ -96,7 +94,7 @@ func (a *App) RemoveCommand(name string) ([]model.CommandDTO, error) {
 }
 
 // UpdateCommand replaces the command named name with cmd, which may rename it.
-// A renamed default command stays the default.
+// A renamed default command stays the default for its kinds.
 // Error prefixes: "validation:" — missing name or command, name taken by another
 // command; "not_found:" — unknown name; "settings:" — load or save failure.
 func (a *App) UpdateCommand(name string, cmd model.CommandDTO) ([]model.CommandDTO, error) {
@@ -118,14 +116,12 @@ func (a *App) UpdateCommand(name string, cmd model.CommandDTO) ([]model.CommandD
 	cfg := a.config()
 	cfg.Commands = slices.Clone(a.commands)
 	cfg.Commands[idx] = cmd
-	if a.defaultCommandName == name {
-		cfg.DefaultCommandName = cmd.Name
-	}
+	cfg.DefaultCommands = renameDefaults(a.defaultCommands, name, cmd.Name)
 	if err := settings.Save(cfg); err != nil {
 		return nil, fmt.Errorf("settings: save: %w", err)
 	}
 	a.commands = cfg.Commands
-	a.defaultCommandName = cfg.DefaultCommandName
+	a.defaultCommands = cfg.DefaultCommands
 	logger.L.Info("UpdateCommand", "name", name, "new_name", cmd.Name)
 	return slices.Clone(a.commands), nil
 }
@@ -161,42 +157,61 @@ func (a *App) SetKeybindings(bindings map[string]string) error {
 	return nil
 }
 
-// GetDefaultCommandName returns the name of the user's default command, or an
-// empty string if none is set.
+// GetDefaultCommands returns the default command name for each run target kind
+// that has one; "all" is the fallback for the others.
 //
 // Error prefix: "settings:" — load failure.
-func (a *App) GetDefaultCommandName() (string, error) {
+func (a *App) GetDefaultCommands() (map[string]string, error) {
 	if err := a.loadConfig(); err != nil {
-		return "", fmt.Errorf("settings: load: %w", err)
+		return nil, fmt.Errorf("settings: load: %w", err)
 	}
-	return a.defaultCommandName, nil
+	return maps.Clone(a.defaultCommands), nil
 }
 
-// SetDefaultCommandName persists the given command name as the default. Pass an
-// empty string to clear the default.
+// SetDefaultCommand persists name as the default command for kind. Pass an
+// empty name to clear it, so kind falls back to "all".
 //
-// Error prefix: "validation:" — unknown command name; "settings:" — save failure.
-func (a *App) SetDefaultCommandName(name string) error {
+// Error prefix: "validation:" — empty kind or unknown command name; "settings:" — load or save failure.
+func (a *App) SetDefaultCommand(kind, name string) error {
+	if kind == "" {
+		return fmt.Errorf("validation: kind required")
+	}
 	if err := a.loadConfig(); err != nil {
 		return fmt.Errorf("settings: load: %w", err)
 	}
-	if name != "" {
-		found := false
-		for _, c := range a.commands {
-			if c.Name == name {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("validation: unknown command name %q", name)
-		}
+	if name != "" && !slices.ContainsFunc(a.commands, func(c model.CommandDTO) bool { return c.Name == name }) {
+		return fmt.Errorf("validation: unknown command name %q", name)
 	}
-	a.defaultCommandName = name
-	if err := settings.Save(a.config()); err != nil {
-		return err
+	defaults := maps.Clone(a.defaultCommands)
+	if defaults == nil {
+		defaults = map[string]string{}
 	}
+	if name == "" {
+		delete(defaults, kind)
+	} else {
+		defaults[kind] = name
+	}
+	cfg := a.config()
+	cfg.DefaultCommands = defaults
+	if err := settings.Save(cfg); err != nil {
+		return fmt.Errorf("settings: save: %w", err)
+	}
+	a.defaultCommands = defaults
 	return nil
+}
+
+// renameDefaults returns defaults with every kind set to from pointed at to, or dropped when to is empty.
+func renameDefaults(defaults map[string]string, from, to string) map[string]string {
+	out := make(map[string]string, len(defaults))
+	for kind, name := range defaults {
+		switch {
+		case name != from:
+			out[kind] = name
+		case to != "":
+			out[kind] = to
+		}
+	}
+	return out
 }
 
 // GetAppearance returns the persisted font and text-size choices. Empty fields

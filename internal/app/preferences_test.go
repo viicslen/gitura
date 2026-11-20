@@ -21,9 +21,9 @@ func TestSetAppearance_OtherSettingsAndRestart_BothPersist(t *testing.T) {
 	isolateConfig(t)
 
 	others := settings.Config{
-		IgnoredCommenters:  []model.IgnoredCommenterDTO{{Login: "renovate"}},
-		Commands:           []model.CommandDTO{{Name: "agent", Command: "opencode run"}},
-		DefaultCommandName: "agent",
+		IgnoredCommenters: []model.IgnoredCommenterDTO{{Login: "renovate"}},
+		Commands:          []model.CommandDTO{{Name: "agent", Command: "opencode run"}},
+		DefaultCommands:   map[string]string{"all": "agent"},
 	}
 	if err := settings.Save(others); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -49,7 +49,7 @@ func TestSetAppearance_OtherSettingsAndRestart_BothPersist(t *testing.T) {
 		t.Fatalf("appearance on disk: got %+v want %+v", cfg.Appearance, want)
 	}
 	wantIgnored := []model.IgnoredCommenterDTO{{Login: "renovate"}, {Login: "bot"}}
-	if !reflect.DeepEqual(cfg.IgnoredCommenters, wantIgnored) || !reflect.DeepEqual(cfg.Commands, others.Commands) || cfg.DefaultCommandName != "agent" || !reflect.DeepEqual(cfg.Toggles, map[string]bool{"wrap_lines": false}) {
+	if !reflect.DeepEqual(cfg.IgnoredCommenters, wantIgnored) || !reflect.DeepEqual(cfg.Commands, others.Commands) || !reflect.DeepEqual(cfg.DefaultCommands, others.DefaultCommands) || !reflect.DeepEqual(cfg.Toggles, map[string]bool{"wrap_lines": false}) {
 		t.Fatalf("other settings not preserved: %+v", cfg)
 	}
 
@@ -88,8 +88,8 @@ func TestSetAppearance_AfterSetKeybindings_KeepsBoth(t *testing.T) {
 func TestUpdateCommand_RenameDefault_PersistsAndKeepsDefault(t *testing.T) {
 	isolateConfig(t)
 	seed := settings.Config{
-		Commands:           []model.CommandDTO{{Name: "fix", Command: "t3 thread start . x"}, {Name: "other", Command: "echo"}},
-		DefaultCommandName: "fix",
+		Commands:        []model.CommandDTO{{Name: "fix", Command: "t3 thread start . x"}, {Name: "other", Command: "echo"}},
+		DefaultCommands: map[string]string{"all": "fix", "pr": "other", "thread": "fix"},
 	}
 	if err := settings.Save(seed); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -109,7 +109,33 @@ func TestUpdateCommand_RenameDefault_PersistsAndKeepsDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load settings: %v", err)
 	}
-	if !reflect.DeepEqual(got, want) || !reflect.DeepEqual(cfg.Commands, want) || cfg.DefaultCommandName != "Fix with T3" {
+	if !reflect.DeepEqual(got, want) || !reflect.DeepEqual(cfg.Commands, want) || !reflect.DeepEqual(cfg.DefaultCommands, map[string]string{"all": "Fix with T3", "pr": "other", "thread": "Fix with T3"}) {
 		t.Fatalf("got %+v, on disk %+v", got, cfg)
+	}
+}
+
+func TestSetDefaultCommand_PerKindThenRemove_ClearsOnlyRemovedKinds(t *testing.T) {
+	isolateConfig(t)
+	if err := settings.Save(settings.Config{Commands: []model.CommandDTO{{Name: "fix", Command: "a"}, {Name: "eval", Command: "b"}}}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	a := New("")
+	if err := a.SetDefaultCommand("pr", "missing"); err == nil {
+		t.Fatal("unknown command: want error")
+	}
+	for kind, name := range map[string]string{"all": "fix", "pr": "eval", "draft": "eval"} {
+		if err := a.SetDefaultCommand(kind, name); err != nil {
+			t.Fatalf("set %s: %v", kind, err)
+		}
+	}
+	if err := a.SetDefaultCommand("draft", ""); err != nil {
+		t.Fatalf("clear draft: %v", err)
+	}
+	if _, err := a.RemoveCommand("eval"); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	got, err := New("").GetDefaultCommands()
+	if err != nil || !reflect.DeepEqual(got, map[string]string{"all": "fix"}) {
+		t.Fatalf("defaults after restart: %+v, %v", got, err)
 	}
 }

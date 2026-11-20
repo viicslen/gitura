@@ -9,8 +9,7 @@ import {
   AddCommand,
   UpdateCommand,
   RemoveCommand,
-  GetDefaultCommandName,
-  SetDefaultCommandName,
+  SetDefaultCommand,
   GetProjectDirs,
   SetProjectDirs,
   OpenFolderPicker,
@@ -22,7 +21,7 @@ import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import CommandComposer from '@/components/run/CommandComposer.vue'
-import { Trash2, UserX, Terminal, Plus, Star, Pencil, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
+import { Trash2, UserX, Terminal, Plus, Pencil, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
 import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles, type ToggleId } from '@/composables/useToggles'
 import {
   useAppearance,
@@ -33,7 +32,7 @@ import {
   type AppearanceKey,
 } from '@/composables/useAppearance'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { commands, defaultCommandName } from '@/composables/useCommands'
+import { RUN_KINDS, commands, defaultCommands, loadDefaultCommands, type RunKind } from '@/composables/useCommands'
 import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
 import { reducedMotion } from '@/components/motion/wow'
 import { createReusableTemplate } from '@vueuse/core'
@@ -66,10 +65,6 @@ const row = 'flex items-center gap-4 px-4 py-3'
 
 const fade = { enterActiveClass: 'animate-in fade-in-0', leaveActiveClass: 'animate-out fade-out-0 animation-duration-fast' }
 const alarm = { enterActiveClass: 'wow-shake', leaveActiveClass: fade.leaveActiveClass }
-const pop = {
-  enterActiveClass: 'wow-pop',
-  leaveActiveClass: 'animate-out fade-out-0 zoom-out-75 animation-duration-faster',
-}
 // List rows open and close their own height, so the card and the rows below glide with them.
 const collapse = 'transition-[grid-template-rows,opacity]'
 // Under the add row; capped so a row added to a long list springs in as its slot finishes opening, not later.
@@ -133,11 +128,7 @@ onMounted(async () => {
   } catch (e: unknown) {
     loadCmdError.value = errorMessage(e)
   }
-  try {
-    defaultCommandName.value = await GetDefaultCommandName()
-  } catch {
-    // non-fatal
-  }
+  await loadDefaultCommands()
   try {
     projectDirs.value = await GetProjectDirs()
   } catch (e: unknown) {
@@ -246,10 +237,21 @@ function closeComposer(): void {
   addCmdError.value = ''
 }
 
-async function handleSetDefault(name: string): Promise<void> {
+// Command names are trimmed, so no command can be called this.
+const INHERIT = ' '
+const DEFAULT_ROWS = [
+  { id: 'all', label: 'All targets', hint: 'Used by every target below that has no command of its own.' },
+  ...RUN_KINDS,
+] as const
+const allDefaultName = computed(() => defaultCommands.value.all || commands.value?.[0]?.name || '')
+
+async function handleSetDefault(kind: 'all' | RunKind, name: string): Promise<void> {
   try {
-    await SetDefaultCommandName(name)
-    defaultCommandName.value = name
+    await SetDefaultCommand(kind, name)
+    const next = { ...defaultCommands.value, [kind]: name }
+    if (!name) delete next[kind]
+    defaultCommands.value = next
+    burst(`default:${kind}`)
   } catch {
     // ignore
   }
@@ -260,7 +262,7 @@ async function saveCommand(cmd: model.CommandDTO): Promise<void> {
   const session = composerSession
   try {
     commands.value = editing ? await UpdateCommand(editing.name, cmd) : await AddCommand(cmd)
-    if (editing && defaultCommandName.value === editing.name) defaultCommandName.value = cmd.name.trim()
+    if (editing) void loadDefaultCommands()
     if (session === composerSession) closeComposer()
   } catch (e: unknown) {
     if (session !== composerSession) return
@@ -273,10 +275,7 @@ async function handleRemoveCommand(name: string) {
   try {
     commands.value = await RemoveCommand(name)
     if (editingCmd.value?.name === name) closeComposer()
-    // If the removed command was the default, clear local state
-    if (defaultCommandName.value === name) {
-      defaultCommandName.value = ''
-    }
+    void loadDefaultCommands()
   } catch {
     // ignore
   }
@@ -499,16 +498,7 @@ async function handleRemoveCommand(name: string) {
                 <div class="min-h-0 overflow-hidden">
                   <div :class="[row, 'group wow-rise py-2.5 transition-colors', editingCmd?.name === cmd.name && 'bg-accent/40']" :style="{ '--i': rowDelay(i) }">
                     <div class="min-w-0 flex-1">
-                      <div class="flex items-center gap-1.5">
-                        <p class="text-sm font-medium">{{ cmd.name }}</p>
-                        <Transition v-bind="pop">
-                          <Star
-                            v-if="cmd.name === defaultCommandName"
-                            class="h-3 w-3 fill-current text-yellow-500"
-                            aria-label="Default command"
-                          />
-                        </Transition>
-                      </div>
+                      <p class="text-sm font-medium">{{ cmd.name }}</p>
                       <p class="truncate font-mono text-xs text-muted-foreground">{{ cmd.command }}</p>
                     </div>
                     <Button
@@ -520,18 +510,6 @@ async function handleRemoveCommand(name: string) {
                       @click="openComposer(cmd)"
                     >
                       <Pencil class="h-3.5 w-3.5" aria-hidden="true" />
-                    </Button>
-                    <!-- Stays mounted and hidden on the default command, so it fades out under the pointer and the row keeps its layout. -->
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="h-6 w-6 shrink-0 text-muted-foreground opacity-0 transition-[opacity,visibility] hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
-                      :class="cmd.name === defaultCommandName && 'invisible opacity-0!'"
-                      :aria-label="`Set ${cmd.name} as default command`"
-                      title="Set as default"
-                      @click="handleSetDefault(cmd.name)"
-                    >
-                      <Star class="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -550,6 +528,36 @@ async function handleRemoveCommand(name: string) {
           <Transition v-bind="alarm">
             <p v-if="addCmdError" class="text-xs text-destructive" role="alert">{{ addCmdError }}</p>
           </Transition>
+          <section v-if="commands?.length" class="space-y-2 pt-2" aria-labelledby="default-commands-label">
+            <div>
+              <h3 id="default-commands-label" class="text-sm font-medium">Default per target</h3>
+              <p class="text-xs text-muted-foreground">The command a run button fires for what it sends. Others are in its menu.</p>
+            </div>
+            <ul :class="card">
+              <li v-for="(k, i) in DEFAULT_ROWS" :key="k.id" :class="[row, 'wow-rise py-2.5']" :style="{ '--i': i }">
+                <div class="min-w-0 flex-1">
+                  <p :id="`default-${k.id}-label`" class="text-sm font-medium">{{ k.label }}</p>
+                  <p class="text-xs text-muted-foreground">{{ k.hint }}</p>
+                </div>
+                <span class="relative inline-flex shrink-0 rounded-md">
+                  <Select
+                    :model-value="defaultCommands[k.id] || INHERIT"
+                    @update:model-value="handleSetDefault(k.id, $event === INHERIT ? '' : String($event))"
+                  >
+                    <SelectTrigger :aria-labelledby="`default-${k.id}-label`" class="h-8 w-52">
+                      <!-- Muted when inherited, which SelectValue cannot show: it renders only the item's text. -->
+                      <span class="truncate" :class="!defaultCommands[k.id] && 'text-muted-foreground'">{{ defaultCommands[k.id] || allDefaultName }}</span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem v-if="k.id !== 'all'" :value="INHERIT">Same as all targets</SelectItem>
+                      <SelectItem v-for="c in commands" :key="c.name" :value="c.name">{{ c.name }}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span v-if="bursts[`default:${k.id}`]" :key="bursts[`default:${k.id}`]" :class="ring" aria-hidden="true" />
+                </span>
+              </li>
+            </ul>
+          </section>
           <ReuseToggles section="commands" />
         </TabsContent>
 

@@ -74,9 +74,8 @@ type App struct {
 	// Lazily loaded alongside ignoredCommenters via loadConfig.
 	commands []model.CommandDTO
 
-	// defaultCommandName is the command name to use as the primary action.
-	// Empty string means no default is set.
-	defaultCommandName string
+	// defaultCommands maps run target kinds to command names; see settings.Config.DefaultCommands.
+	defaultCommands map[string]string
 
 	appearance model.AppearanceDTO
 	// keybindings maps shortcut action ids to keys; see settings.Config.Keybindings.
@@ -167,7 +166,7 @@ func (a *App) loadConfig() error {
 	}
 	a.ignoredCommenters = cfg.IgnoredCommenters
 	a.commands = cfg.Commands
-	a.defaultCommandName = cfg.DefaultCommandName
+	a.defaultCommands = cfg.DefaultCommands
 	a.appearance = cfg.Appearance
 	a.keybindings = cfg.Keybindings
 	a.toggles = cfg.Toggles
@@ -182,13 +181,13 @@ func (a *App) loadConfig() error {
 // config returns the in-memory settings, for saving with one field changed.
 func (a *App) config() settings.Config {
 	return settings.Config{
-		IgnoredCommenters:  a.ignoredCommenters,
-		Commands:           a.commands,
-		DefaultCommandName: a.defaultCommandName,
-		Appearance:         a.appearance,
-		Keybindings:        a.keybindings,
-		Toggles:            a.toggles,
-		ProjectDirs:        a.projectDirs,
+		IgnoredCommenters: a.ignoredCommenters,
+		Commands:          a.commands,
+		DefaultCommands:   a.defaultCommands,
+		Appearance:        a.appearance,
+		Keybindings:       a.keybindings,
+		Toggles:           a.toggles,
+		ProjectDirs:       a.projectDirs,
 	}
 }
 

@@ -23,10 +23,10 @@ const (
 type Config struct {
 	IgnoredCommenters []model.IgnoredCommenterDTO `toml:"ignored_commenters"`
 	Commands          []model.CommandDTO          `toml:"commands"`
-	// DefaultCommandName is the command name to use as the primary action
-	// in split-run buttons. Empty string means no default is set.
-	DefaultCommandName string              `toml:"default_command_name"`
-	Appearance         model.AppearanceDTO `toml:"appearance"`
+	// DefaultCommands maps a run target kind (e.g. "pr", "thread") to the command name
+	// split-run buttons fire for it; "all" is the fallback for kinds missing here.
+	DefaultCommands map[string]string   `toml:"default_commands"`
+	Appearance      model.AppearanceDTO `toml:"appearance"`
 	// Keybindings maps a shortcut action id (e.g. "nextFile") to a KeyboardEvent.key value.
 	// Actions missing here use the frontend's defaults.
 	Keybindings map[string]string `toml:"keybindings"`
@@ -84,6 +84,7 @@ type legacyCommand struct {
 type decodedConfig struct {
 	IgnoredCommenters  []model.IgnoredCommenterDTO `toml:"ignored_commenters"`
 	Commands           []legacyCommand             `toml:"commands"`
+	DefaultCommands    map[string]string           `toml:"default_commands"`
 	DefaultCommandName string                      `toml:"default_command_name"`
 	DefaultCommandID   string                      `toml:"default_command_id"`
 	Appearance         model.AppearanceDTO         `toml:"appearance"`
@@ -116,13 +117,13 @@ func decodeConfig(data []byte, path string) (decodedConfig, error) {
 
 func buildConfig(raw decodedConfig) Config {
 	cfg := Config{
-		IgnoredCommenters:  raw.IgnoredCommenters,
-		Commands:           make([]model.CommandDTO, 0, len(raw.Commands)),
-		DefaultCommandName: raw.DefaultCommandName,
-		Appearance:         raw.Appearance,
-		Keybindings:        raw.Keybindings,
-		Toggles:            raw.Toggles,
-		ProjectDirs:        raw.ProjectDirs,
+		IgnoredCommenters: raw.IgnoredCommenters,
+		Commands:          make([]model.CommandDTO, 0, len(raw.Commands)),
+		DefaultCommands:   raw.DefaultCommands,
+		Appearance:        raw.Appearance,
+		Keybindings:       raw.Keybindings,
+		Toggles:           raw.Toggles,
+		ProjectDirs:       raw.ProjectDirs,
 	}
 	for _, c := range raw.Commands {
 		cfg.Commands = append(cfg.Commands, model.CommandDTO{
@@ -131,19 +132,27 @@ func buildConfig(raw decodedConfig) Config {
 		})
 	}
 
-	resolveLegacyDefaultCommandName(&cfg, raw)
+	resolveLegacyDefaultCommand(&cfg, raw)
 
 	return cfg
 }
 
-func resolveLegacyDefaultCommandName(cfg *Config, raw decodedConfig) {
-	if cfg.DefaultCommandName == "" && raw.DefaultCommandID != "" {
+// resolveLegacyDefaultCommand turns the single default of older files into the "all" default.
+func resolveLegacyDefaultCommand(cfg *Config, raw decodedConfig) {
+	if cfg.DefaultCommands != nil {
+		return
+	}
+	name := raw.DefaultCommandName
+	if name == "" && raw.DefaultCommandID != "" {
 		for _, c := range raw.Commands {
 			if c.ID == raw.DefaultCommandID {
-				cfg.DefaultCommandName = c.Name
+				name = c.Name
 				break
 			}
 		}
+	}
+	if name != "" {
+		cfg.DefaultCommands = map[string]string{"all": name}
 	}
 }
 

@@ -20,7 +20,6 @@ import { RunCommands } from '@/bindings/gitura/internal/app/app'
 const props = defineProps<{
   content: string
   commands: model.CommandDTO[]
-  defaultCommandName: string
   threadRootId?: number
   commentId?: number
   toggleTask?: TaskToggle
@@ -40,12 +39,6 @@ const taskOffsets = computed(() => {
     if (seg.type === 'text') seen += countTaskListItems(seg.content)
     return offset
   })
-})
-
-/** Returns the primary command (default or first). */
-const primaryCommand = computed((): model.CommandDTO | null => {
-  if (props.commands.length === 0) return null
-  return props.commands.find((c) => c.name === props.defaultCommandName) ?? props.commands[0]
 })
 
 /**
@@ -72,7 +65,6 @@ const runCodeCallback = computed(() =>
         v-if="seg.type === 'text'"
         :content="seg.content"
         :run-commands="commands.length > 0 ? commands : undefined"
-        :default-command-name="defaultCommandName"
         :on-run-code="runCodeCallback"
         :thread-root-id="threadRootId"
         :comment-id="commentId"
@@ -86,7 +78,6 @@ const runCodeCallback = computed(() =>
         :content="seg.content"
         :is-run="seg.isRun"
         :commands="commands"
-        :default-command-name="defaultCommandName"
         :thread-root-id="threadRootId"
         :comment-id="commentId"
         @ran="emit('ran')"

@@ -17,7 +17,7 @@ import CountUp from '@/components/motion/CountUp.vue'
 import DrawnCheck from '@/components/comment/DrawnCheck.vue'
 import PRTimelinePanel from '@/components/pr/PRTimelinePanel.vue'
 import SplitRunButton from '@/components/run/SplitRunButton.vue'
-import { commands, defaultCommandName } from '@/composables/useCommands'
+import { commands } from '@/composables/useCommands'
 import { prInput, reviewInput } from '@/lib/runInput'
 
 const props = defineProps<{
@@ -192,7 +192,7 @@ async function copyBranch(name: string): Promise<void> {
                   </ul>
                   <SplitRunButton
                     :commands="cmds"
-                    :default-command-name="defaultCommandName"
+                    kind="pr"
                     :input="prInput(overview, threads)"
                     label="Run PR"
                     @ran="emit('ran')"
@@ -275,7 +275,7 @@ async function copyBranch(name: string): Promise<void> {
                             </div>
                           </div>
                           <div v-if="cmds.length" :class="hoverRunClass">
-                            <SplitRunButton :commands="cmds" :default-command-name="defaultCommandName" :input="comment.body" @ran="emit('ran')" />
+                            <SplitRunButton :commands="cmds" kind="comment" :input="comment.body" @ran="emit('ran')" />
                           </div>
                         </template>
                         <div :class="surfaceClass">
@@ -364,7 +364,7 @@ async function copyBranch(name: string): Promise<void> {
                           <div v-if="cmds.length" class="self-start" :class="hoverRunClass">
                             <SplitRunButton
                               :commands="cmds"
-                              :default-command-name="defaultCommandName"
+                              kind="review"
                               :input="reviewInput(review, threads)"
                               label="Run review"
                               @ran="emit('ran')"

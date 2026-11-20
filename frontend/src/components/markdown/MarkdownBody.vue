@@ -5,6 +5,7 @@ import hljs from 'highlight.js/lib/common'
 import { renderGitHubMarkdown } from '@/lib/markdown'
 import { onTaskChange, type TaskToggle } from '@/lib/taskList'
 import { glideDetails, keepDetailsOpen, settleDetails } from './detailsGlide'
+import { defaultCommandFor } from '@/composables/useCommands'
 
 interface RunCommandEntry {
   name: string
@@ -15,7 +16,6 @@ const props = defineProps<{
   content: string
   /** When provided, run split-buttons are injected on each code block */
   runCommands?: RunCommandEntry[]
-  defaultCommandName?: string
   onRunCode?: (commandName: string, text: string, threadRootId: number, commentId: number) => void
   /** Thread root ID to associate runs with */
   threadRootId?: number
@@ -73,7 +73,7 @@ async function attachCopyButtons(): Promise<void> {
   if (!container) return
 
   const commands = props.runCommands ?? []
-  const primaryCmd = commands.find((c) => c.name === props.defaultCommandName) ?? commands[0] ?? null
+  const primaryCmd = commands.find((c) => c.name === defaultCommandFor('code')) ?? commands[0] ?? null
 
   container.querySelectorAll<HTMLElement>('pre').forEach((pre) => {
     // Skip if already wrapped.

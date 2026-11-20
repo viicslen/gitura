@@ -6,7 +6,7 @@ import { createReusableTemplate } from '@vueuse/core'
 import MarkdownBody from '@/components/markdown/MarkdownBody.vue'
 import EditableComment from '@/components/comment/EditableComment.vue'
 import SplitRunButton from '@/components/run/SplitRunButton.vue'
-import { commands, defaultCommandName } from '@/composables/useCommands'
+import { commands } from '@/composables/useCommands'
 import { useToggles } from '@/composables/useToggles'
 import { errorMessage } from '@/lib/utils'
 import type * as model from '@/bindings/gitura/internal/model'
@@ -69,7 +69,7 @@ async function handleRan(runs: model.RunResult[]): Promise<void> {
           v-if="cmds.length > 0"
           class="opacity-0 transition-opacity duration-faster group-hover/edit:opacity-100 group-hover/edit:duration-0 focus-within:opacity-100 focus-within:duration-0 has-[[data-state=open]]:opacity-100"
         >
-          <SplitRunButton :commands="cmds" :default-command-name="defaultCommandName" :input="draft.body" @start="holdDraft" @ran="handleRan" />
+          <SplitRunButton :commands="cmds" kind="draft" :input="draft.body" @start="holdDraft" @ran="handleRan" />
         </div>
       </template>
       <MarkdownBody :content="draft.body" />

@@ -168,13 +168,15 @@ export function GetCommentThreads(includeResolved: boolean): $CancellablePromise
 }
 
 /**
- * GetDefaultCommandName returns the name of the user's default command, or an
- * empty string if none is set.
+ * GetDefaultCommands returns the default command name for each run target kind
+ * that has one; "all" is the fallback for the others.
  * 
  * Error prefix: "settings:" — load failure.
  */
-export function GetDefaultCommandName(): $CancellablePromise<string> {
-    return $Call.ByID(490964011);
+export function GetDefaultCommands(): $CancellablePromise<{ [_ in string]?: string }> {
+    return $Call.ByID(4154647745).then(($result: any) => {
+        return $$createType10($result);
+    });
 }
 
 /**
@@ -184,7 +186,7 @@ export function GetDefaultCommandName(): $CancellablePromise<string> {
  */
 export function GetFileDiff(path: string): $CancellablePromise<model$0.ParsedDiffDTO> {
     return $Call.ByID(1861487559, path).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType11($result);
     });
 }
 
@@ -195,7 +197,7 @@ export function GetFileDiff(path: string): $CancellablePromise<model$0.ParsedDif
  */
 export function GetIgnoredCommenters(): $CancellablePromise<model$0.IgnoredCommenterDTO[]> {
     return $Call.ByID(3422132091).then(($result: any) => {
-        return $$createType12($result);
+        return $$createType13($result);
     });
 }
 
@@ -206,7 +208,7 @@ export function GetIgnoredCommenters(): $CancellablePromise<model$0.IgnoredComme
  */
 export function GetKeybindings(): $CancellablePromise<{ [_ in string]?: string }> {
     return $Call.ByID(120108699).then(($result: any) => {
-        return $$createType13($result);
+        return $$createType10($result);
     });
 }
 
@@ -469,13 +471,13 @@ export function SetAppearance(appearance: model$0.AppearanceDTO): $CancellablePr
 }
 
 /**
- * SetDefaultCommandName persists the given command name as the default. Pass an
- * empty string to clear the default.
+ * SetDefaultCommand persists name as the default command for kind. Pass an
+ * empty name to clear it, so kind falls back to "all".
  * 
- * Error prefix: "validation:" — unknown command name; "settings:" — save failure.
+ * Error prefix: "validation:" — empty kind or unknown command name; "settings:" — load or save failure.
  */
-export function SetDefaultCommandName(name: string): $CancellablePromise<void> {
-    return $Call.ByID(2353250655, name);
+export function SetDefaultCommand(kind: string, name: string): $CancellablePromise<void> {
+    return $Call.ByID(404353796, kind, name);
 }
 
 /**
@@ -614,7 +616,7 @@ export function UpdateBodyIfUnchanged(kind: string, id: number, expected: string
 
 /**
  * UpdateCommand replaces the command named name with cmd, which may rename it.
- * A renamed default command stays the default.
+ * A renamed default command stays the default for its kinds.
  * Error prefixes: "validation:" — missing name or command, name taken by another
  * command; "not_found:" — unknown name; "settings:" — load or save failure.
  */
@@ -645,10 +647,10 @@ const $$createType6 = model$0.CommandVariableDTO.createFrom;
 const $$createType7 = $Create.Array($$createType6);
 const $$createType8 = model$0.CommentThreadDTO.createFrom;
 const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = model$0.ParsedDiffDTO.createFrom;
-const $$createType11 = model$0.IgnoredCommenterDTO.createFrom;
-const $$createType12 = $Create.Array($$createType11);
-const $$createType13 = $Create.Map($Create.Any, $Create.Any);
+const $$createType10 = $Create.Map($Create.Any, $Create.Any);
+const $$createType11 = model$0.ParsedDiffDTO.createFrom;
+const $$createType12 = model$0.IgnoredCommenterDTO.createFrom;
+const $$createType13 = $Create.Array($$createType12);
 const $$createType14 = model$0.PRFileDTO.createFrom;
 const $$createType15 = $Create.Array($$createType14);
 const $$createType16 = model$0.PROverviewDTO.createFrom;
