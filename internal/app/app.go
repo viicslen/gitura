@@ -173,7 +173,7 @@ func (a *App) conf() *settings.Config {
 // Callers hold configMu.
 func (a *App) applyConfig(cfg settings.Config) {
 	old := a.cfg.Load()
-	if old == nil || slices.Equal(old.ProjectDirs, cfg.ProjectDirs) {
+	if old != nil && slices.Equal(old.ProjectDirs, cfg.ProjectDirs) {
 		a.cfg.Store(&cfg)
 		return
 	}
