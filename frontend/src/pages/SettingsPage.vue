@@ -117,9 +117,17 @@ async function saveToggle(id: ToggleId, value: boolean): Promise<void> {
 const commenters = ref<model.IgnoredCommenterDTO[] | null>(null)
 const loadError = ref('')
 
+const composingCommenter = ref(false)
 const newLogin = ref('')
 const addError = ref('')
 const adding = ref(false)
+const vFocus = { mounted: (el: HTMLElement) => el.focus() }
+
+function closeCommenterInput(): void {
+  composingCommenter.value = false
+  newLogin.value = ''
+  addError.value = ''
+}
 
 onMounted(async () => {
   void loadSystemFonts()
@@ -180,8 +188,7 @@ async function handleAdd() {
   try {
     await AddIgnoredCommenter(login)
     commenters.value = await GetIgnoredCommenters()
-    newLogin.value = ''
-    addError.value = ''
+    closeCommenterInput()
   } catch (e: unknown) {
     const msg = errorMessage(e)
     addError.value = msg.replace('validation:', '').trim() || 'Failed to add commenter.'
@@ -281,6 +288,14 @@ async function handleRemoveCommand(name: string) {
     // ignore
   }
 }
+
+// Each section's create/reset action sits in the header; hidden ones stay mounted so they crossfade in one cell.
+const headerActions = computed(() => [
+  { section: 'commenters', label: 'Add commenter', icon: Plus, run: () => (composingCommenter.value = true), hidden: composingCommenter.value },
+  { section: 'commands', label: 'New command', icon: Plus, run: () => openComposer(null), hidden: composingCmd.value && !editingCmd.value },
+  { section: 'projects', label: 'Add folder', icon: Plus, run: handleAddProjectDir, hidden: false },
+  { section: 'keybindings', label: 'Restore defaults', icon: RotateCcw, run: handleResetBindings, hidden: false },
+])
 </script>
 
 <template>
@@ -307,27 +322,18 @@ async function handleRemoveCommand(name: string) {
             <span :key="section" class="col-start-1 row-start-1 justify-self-start">{{ SECTIONS.find((s) => s.value === section)?.label }}</span>
           </Transition>
         </span>
-        <!-- Both section actions share one cell, so they crossfade in place. -->
         <span class="ml-auto grid justify-items-end *:col-start-1 *:row-start-1">
           <Button
+            v-for="a in headerActions"
+            :key="a.section"
             variant="ghost"
             size="sm"
             class="h-7 text-xs transition-[opacity,visibility]"
-            :class="section !== 'keybindings' && 'invisible opacity-0'"
-            @click="handleResetBindings"
+            :class="(section !== a.section || a.hidden) && 'invisible opacity-0'"
+            @click="a.run"
           >
-            <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
-            Restore defaults
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-7 text-xs transition-[opacity,visibility]"
-            :class="(section !== 'commands' || (composingCmd && !editingCmd)) && 'invisible opacity-0'"
-            @click="openComposer(null)"
-          >
-            <Plus class="h-3.5 w-3.5" aria-hidden="true" />
-            New command
+            <component :is="a.icon" class="h-3.5 w-3.5" aria-hidden="true" />
+            {{ a.label }}
           </Button>
         </span>
       </header>
@@ -406,33 +412,35 @@ async function handleRemoveCommand(name: string) {
             Comments from these GitHub usernames are hidden in the review view.
           </p>
           <div :class="box">
-            <div :class="[row, 'wow-rise']">
-              <Input
-                v-model="newLogin"
-                placeholder="GitHub username"
-                class="h-8 flex-1 text-sm"
-                aria-label="GitHub username to ignore"
-                @keydown.enter="handleAdd"
-              />
-              <Button
-                size="sm"
-                :disabled="!newLogin.trim()"
-                aria-label="Add ignored commenter"
-                @click="handleAdd"
-              >
-                <Plus class="h-3.5 w-3.5" aria-hidden="true" />
-                Add
-              </Button>
-            </div>
-            <TransitionGroup tag="ul" v-bind="rows" aria-label="Ignored commenters list">
+            <Transition v-bind="rows">
+              <div v-if="composingCommenter" class="grid">
+                <div class="min-h-0 overflow-hidden">
+                  <div :class="[row, 'border-b border-border']">
+                    <Input
+                      v-focus
+                      v-model="newLogin"
+                      placeholder="GitHub username"
+                      class="h-8 flex-1 text-sm"
+                      aria-label="GitHub username to ignore"
+                      @keydown.enter="handleAdd"
+                    />
+                    <Button variant="ghost" size="sm" :disabled="adding" @click="closeCommenterInput">Cancel</Button>
+                    <Button size="sm" :disabled="!newLogin.trim()" aria-label="Add ignored commenter" @click="handleAdd">
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+            <TransitionGroup tag="ul" v-bind="rows" class="divide-y divide-border" aria-label="Ignored commenters list">
               <li v-if="loadError" key="error" class="grid" role="alert">
                 <div class="min-h-0 overflow-hidden">
-                  <p class="border-t border-border px-4 py-3 text-xs text-destructive">{{ loadError }}</p>
+                  <p class="px-4 py-3 text-xs text-destructive">{{ loadError }}</p>
                 </div>
               </li>
               <li v-else-if="commenters?.length === 0" key="empty" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div class="flex flex-col items-center gap-2 border-t border-border py-6 text-muted-foreground">
+                  <div class="flex flex-col items-center gap-2 py-6 text-muted-foreground">
                     <UserX class="h-8 w-8 opacity-40" aria-hidden="true" />
                     <p class="text-sm">No ignored commenters.</p>
                   </div>
@@ -440,7 +448,7 @@ async function handleRemoveCommand(name: string) {
               </li>
               <li v-for="(item, i) in loadError ? [] : commenters ?? []" :key="`item:${item.login}`" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div :class="[row, 'group wow-rise border-t border-border py-2']" :style="{ '--i': rowDelay(i) }">
+                  <div :class="[row, 'group wow-rise py-2']" :style="{ '--i': rowDelay(i) }">
                     <span class="flex-1 font-mono text-sm">{{ item.login }}</span>
                     <Button
                       variant="ghost"
@@ -559,17 +567,10 @@ async function handleRemoveCommand(name: string) {
             folders, preferring a worktree on the PR's branch.
           </p>
           <div :class="box">
-            <div :class="[row, 'wow-rise']">
-              <span class="flex-1 text-sm text-muted-foreground">Add a folder where you keep repositories.</span>
-              <Button size="sm" aria-label="Add project folder" @click="handleAddProjectDir">
-                <Plus class="h-3.5 w-3.5" aria-hidden="true" />
-                Add folder
-              </Button>
-            </div>
-            <TransitionGroup tag="ul" v-bind="rows" aria-label="Project folders list">
+            <TransitionGroup tag="ul" v-bind="rows" class="divide-y divide-border" aria-label="Project folders list">
               <li v-if="projectDirs?.length === 0" key="empty" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div class="flex flex-col items-center gap-2 border-t border-border py-6 text-muted-foreground">
+                  <div class="flex flex-col items-center gap-2 py-6 text-muted-foreground">
                     <FolderGit2 class="h-8 w-8 opacity-40" aria-hidden="true" />
                     <p class="text-sm">No project folders.</p>
                   </div>
@@ -577,7 +578,7 @@ async function handleRemoveCommand(name: string) {
               </li>
               <li v-for="(dir, i) in projectDirs ?? []" :key="`dir:${dir}`" class="grid">
                 <div class="min-h-0 overflow-hidden">
-                  <div :class="[row, 'group wow-rise border-t border-border py-2']" :style="{ '--i': rowDelay(i) }">
+                  <div :class="[row, 'group wow-rise py-2']" :style="{ '--i': rowDelay(i) }">
                     <span class="min-w-0 flex-1 truncate font-mono text-sm">{{ dir }}</span>
                     <Button
                       variant="ghost"
