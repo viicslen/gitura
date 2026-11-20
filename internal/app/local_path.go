@@ -86,7 +86,7 @@ func (a *App) repoClone(owner, repo string) string {
 	key := strings.ToLower(owner + "/" + repo)
 	a.repoIndexMu.Lock()
 	defer a.repoIndexMu.Unlock()
-	// Read under repoIndexMu: applyConfig clears the index under it after swapping in new folders.
+	// Read under repoIndexMu: applyConfig swaps in new folders and clears the index under it.
 	projectDirs := a.conf().ProjectDirs
 	if len(projectDirs) == 0 {
 		return ""

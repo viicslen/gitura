@@ -168,14 +168,19 @@ func (a *App) conf() *settings.Config {
 	return &settings.Config{}
 }
 
-// applyConfig caches cfg, dropping the repo index when the project folders changed.
+// applyConfig caches cfg. When the project folders change, it swaps the snapshot and drops the
+// repo index together under repoIndexMu, so a lookup never pairs the new folders with the old index.
+// Callers hold configMu.
 func (a *App) applyConfig(cfg settings.Config) {
-	old := a.cfg.Swap(&cfg)
-	if old != nil && !slices.Equal(old.ProjectDirs, cfg.ProjectDirs) {
-		a.repoIndexMu.Lock()
-		a.repoIndex, a.repoIndexAt = nil, time.Time{}
-		a.repoIndexMu.Unlock()
+	old := a.cfg.Load()
+	if old == nil || slices.Equal(old.ProjectDirs, cfg.ProjectDirs) {
+		a.cfg.Store(&cfg)
+		return
 	}
+	a.repoIndexMu.Lock()
+	defer a.repoIndexMu.Unlock()
+	a.cfg.Store(&cfg)
+	a.repoIndex, a.repoIndexAt = nil, time.Time{}
 }
 
 // updateConfig applies fn to the settings on disk, not the in-memory copy, so a change another
