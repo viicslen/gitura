@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.11.0](https://github.com/viicslen/gitura/compare/v1.10.0...v1.11.0) (2026-11-20)
+
+
+### Features
+
+* **run:** pick a default command for each kind of thing you run ([bcfbcf2](https://github.com/viicslen/gitura/commit/bcfbcf2092bd1c590c133c9b42591248f3d25af9))
+* **run:** pick a default command per target, and stop gitura windows erasing each other's settings ([#94](https://github.com/viicslen/gitura/issues/94)) ([4f97f9f](https://github.com/viicslen/gitura/commit/4f97f9fa5466a8bc6d7393a36fc67c75db2d968f))
+
+
+### Bug Fixes
+
+* **settings:** close two windows where a stale config could win ([32c0814](https://github.com/viicslen/gitura/commit/32c0814d36deb32758a8bd1efe3c1e7354247e45))
+* **settings:** drop the repo index when the first cached config arrives ([bfa57fa](https://github.com/viicslen/gitura/commit/bfa57fab084e7393a017d0515e0d249c4fbac60a))
+* **settings:** keep changes made in another gitura window ([be034fa](https://github.com/viicslen/gitura/commit/be034faf0661d7db31275ac05ef210a01f23b239))
+* **settings:** read cached settings without racing their saves ([2edaed8](https://github.com/viicslen/gitura/commit/2edaed8faa7c5f19856446461d997e8fe7af3d9a))
+* **settings:** stop overlapping saves from breaking settings.toml ([e1155c0](https://github.com/viicslen/gitura/commit/e1155c02c4bdfd1883a8650ce6301856d8ccbd43))
+* **settings:** swap in new project folders and drop the repo index together ([af3aa5f](https://github.com/viicslen/gitura/commit/af3aa5fb2bbf8b99bf869b0f1d7e37a2d9ed8a91))
+* **settings:** tighten the per-target rows and drop defaults naming no command ([d0a5313](https://github.com/viicslen/gitura/commit/d0a5313a1c602638f6c21edc80c55e6a6cf7fbe5))
+
 ## [1.10.0](https://github.com/viicslen/gitura/compare/v1.9.0...v1.10.0) (2026-11-19)
 
 
