@@ -66,6 +66,9 @@ type App struct {
 	// pendingHeadSHA is the commit the drafts' line numbers refer to; the PR head can move before submit.
 	pendingHeadSHA string
 
+	// configMu orders setters' read-change-save and the refresh of the fields below.
+	configMu sync.Mutex
+
 	// ignoredCommenters is the persisted list of commenters to filter from review threads.
 	// Lazily loaded on first use via loadConfig.
 	ignoredCommenters []model.IgnoredCommenterDTO
@@ -164,13 +167,7 @@ func (a *App) loadConfig() error {
 		a.commands = []model.CommandDTO{}
 		return err
 	}
-	a.ignoredCommenters = cfg.IgnoredCommenters
-	a.commands = cfg.Commands
-	a.defaultCommands = cfg.DefaultCommands
-	a.appearance = cfg.Appearance
-	a.keybindings = cfg.Keybindings
-	a.toggles = cfg.Toggles
-	a.projectDirs = cfg.ProjectDirs
+	a.applyConfig(cfg)
 	logger.L.Debug("config loaded",
 		"ignored_commenters", len(a.ignoredCommenters),
 		"commands", len(a.commands),
@@ -178,17 +175,29 @@ func (a *App) loadConfig() error {
 	return nil
 }
 
-// config returns the in-memory settings, for saving with one field changed.
-func (a *App) config() settings.Config {
-	return settings.Config{
-		IgnoredCommenters: a.ignoredCommenters,
-		Commands:          a.commands,
-		DefaultCommands:   a.defaultCommands,
-		Appearance:        a.appearance,
-		Keybindings:       a.keybindings,
-		Toggles:           a.toggles,
-		ProjectDirs:       a.projectDirs,
+// applyConfig replaces the in-memory settings with cfg.
+func (a *App) applyConfig(cfg settings.Config) {
+	a.ignoredCommenters = cfg.IgnoredCommenters
+	a.commands = cfg.Commands
+	a.defaultCommands = cfg.DefaultCommands
+	a.appearance = cfg.Appearance
+	a.keybindings = cfg.Keybindings
+	a.toggles = cfg.Toggles
+	a.projectDirs = cfg.ProjectDirs
+}
+
+// updateConfig applies fn to the settings on disk, not the in-memory copy, so a change another
+// window saved meanwhile is kept, then refreshes the in-memory copy from the result.
+// Errors from fn come back as is; others are prefixed "settings:".
+func (a *App) updateConfig(fn func(*settings.Config) error) error {
+	a.configMu.Lock()
+	defer a.configMu.Unlock()
+	cfg, err := settings.Update(fn)
+	if err != nil {
+		return err
 	}
+	a.applyConfig(cfg)
+	return nil
 }
 
 // initGHClient sets up the authenticated GitHub client from a token.

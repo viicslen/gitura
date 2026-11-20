@@ -131,15 +131,13 @@ func (a *App) GetProjectDirs() ([]string, error) {
 //
 // Error prefix: "settings:" — load or save failure.
 func (a *App) SetProjectDirs(dirs []string) error {
-	if err := a.loadConfig(); err != nil {
-		return fmt.Errorf("settings: load: %w", err)
+	err := a.updateConfig(func(cfg *settings.Config) error {
+		cfg.ProjectDirs = append([]string{}, dirs...)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	cfg := a.config()
-	cfg.ProjectDirs = dirs
-	if err := settings.Save(cfg); err != nil {
-		return fmt.Errorf("settings: save: %w", err)
-	}
-	a.projectDirs = append([]string{}, dirs...)
 	a.repoIndexMu.Lock()
 	a.repoIndex, a.repoIndexAt = nil, time.Time{}
 	a.repoIndexMu.Unlock()

@@ -139,3 +139,29 @@ func TestSetDefaultCommand_PerKindThenRemove_ClearsOnlyRemovedKinds(t *testing.T
 		t.Fatalf("defaults after restart: %+v, %v", got, err)
 	}
 }
+
+func TestSetDefaultCommand_TwoWindows_KeepsBothChanges(t *testing.T) {
+	isolateConfig(t)
+	if err := settings.Save(settings.Config{Commands: []model.CommandDTO{{Name: "fix", Command: "a"}, {Name: "eval", Command: "b"}}}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	first, second := New(""), New("")
+	if _, err := first.GetCommands(); err != nil {
+		t.Fatalf("load first: %v", err)
+	}
+	if _, err := second.GetCommands(); err != nil {
+		t.Fatalf("load second: %v", err)
+	}
+
+	if err := first.SetDefaultCommand("pr", "fix"); err != nil {
+		t.Fatalf("first window: %v", err)
+	}
+	if err := second.SetDefaultCommand("thread", "eval"); err != nil {
+		t.Fatalf("second window: %v", err)
+	}
+
+	cfg, err := settings.Load()
+	if err != nil || !reflect.DeepEqual(cfg.DefaultCommands, map[string]string{"pr": "fix", "thread": "eval"}) {
+		t.Fatalf("on disk: %+v, %v", cfg.DefaultCommands, err)
+	}
+}

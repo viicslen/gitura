@@ -19,6 +19,7 @@ import (
 const (
 	appDir   = "gitura"
 	fileName = "settings.toml"
+	lockName = "settings.lock"
 )
 
 // Config holds all user-editable settings for gitura.
@@ -177,21 +178,68 @@ func ensureSlices(cfg *Config) {
 	}
 }
 
-// saveMu serialises Save: every call writes the same temp file before renaming it.
-var saveMu sync.Mutex
+// mu, with the lock file, lets one writer at a time read, change and write settings.toml:
+// mu within this process, the lock file across gitura windows.
+var mu sync.Mutex
 
-// Save atomically writes the config to disk.
+// Save atomically writes the config to disk, replacing what is there.
 // The gitura config directory is created if absent.
 func Save(cfg Config) error {
-	saveMu.Lock()
-	defer saveMu.Unlock()
-	dir, err := ConfigDir()
+	unlock, err := lock()
 	if err != nil {
 		return err
 	}
+	defer unlock()
+	return write(cfg)
+}
 
+// Update rereads the config from disk, applies fn and saves the result, so a change made in
+// another window since this one loaded is kept. An error from fn is returned as is and nothing
+// is saved; other errors are prefixed "settings:".
+func Update(fn func(*Config) error) (Config, error) {
+	unlock, err := lock()
+	if err != nil {
+		return Config{}, err
+	}
+	defer unlock()
+	cfg, err := Load()
+	if err != nil {
+		return Config{}, err
+	}
+	if err := fn(&cfg); err != nil {
+		return Config{}, err
+	}
+	if err := write(cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+func lock() (func(), error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("settings: create config dir %s: %w", dir, err)
+		return nil, fmt.Errorf("settings: create config dir %s: %w", dir, err)
+	}
+	mu.Lock()
+	unlockFile, err := lockFile(filepath.Join(dir, lockName))
+	if err != nil {
+		mu.Unlock()
+		return nil, fmt.Errorf("settings: lock: %w", err)
+	}
+	return func() {
+		unlockFile()
+		mu.Unlock()
+	}, nil
+}
+
+// write saves cfg through a temp file and a rename; the caller holds the lock.
+func write(cfg Config) error {
+	dir, err := ConfigDir()
+	if err != nil {
+		return err
 	}
 
 	if cfg.IgnoredCommenters == nil {
