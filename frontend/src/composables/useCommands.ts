@@ -4,13 +4,13 @@ import type * as model from '@/bindings/gitura/internal/model'
 
 /** What a run button sends; each kind can have its own default command. */
 export const RUN_KINDS = [
-  { id: 'pr', label: 'Pull request', hint: 'The whole PR: description, comments, reviews and threads.' },
-  { id: 'review', label: 'Review', hint: 'A review and the inline threads it opened.' },
-  { id: 'thread', label: 'Thread', hint: 'Every comment in an inline thread.' },
-  { id: 'comment', label: 'Comment', hint: 'A general comment or the first comment of a thread.' },
-  { id: 'reply', label: 'Reply', hint: 'A reply in a thread.' },
-  { id: 'draft', label: 'Pending comment', hint: 'A comment in your review or one you are writing.' },
-  { id: 'code', label: 'Code block', hint: 'A code block inside a comment.' },
+  { id: 'pr', label: 'Pull request', hint: 'Everything on the PR' },
+  { id: 'review', label: 'Review', hint: 'A review and the threads it opened' },
+  { id: 'thread', label: 'Thread', hint: 'Every comment in it' },
+  { id: 'comment', label: 'Comment', hint: "General, or a thread's first" },
+  { id: 'reply', label: 'Reply', hint: '' },
+  { id: 'draft', label: 'Pending comment', hint: 'In your review or being written' },
+  { id: 'code', label: 'Code block', hint: '' },
 ] as const
 export type RunKind = (typeof RUN_KINDS)[number]['id']
 

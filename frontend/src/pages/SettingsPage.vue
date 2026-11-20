@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { errorMessage } from '@/lib/utils'
 import { computed, reactive, ref, onMounted, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import {
   GetIgnoredCommenters,
   AddIgnoredCommenter,
@@ -19,9 +20,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import Reveal from '@/components/motion/Reveal.vue'
 import { Switch } from '@/components/ui/switch'
 import CommandComposer from '@/components/run/CommandComposer.vue'
-import { Trash2, UserX, Terminal, Plus, Pencil, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
+import { Trash2, UserX, Terminal, Plus, Pencil, ChevronRight, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
 import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles, type ToggleId } from '@/composables/useToggles'
 import {
   useAppearance,
@@ -137,6 +139,7 @@ onMounted(async () => {
     loadCmdError.value = errorMessage(e)
   }
   await loadDefaultCommands()
+  perKindOpen.value = overrideCount.value > 0
   try {
     projectDirs.value = await GetProjectDirs()
   } catch (e: unknown) {
@@ -246,11 +249,10 @@ function closeComposer(): void {
 
 // Command names are trimmed, so no command can be called this.
 const INHERIT = ' '
-const DEFAULT_ROWS = [
-  { id: 'all', label: 'All targets', hint: 'Used by every target below that has no command of its own.' },
-  ...RUN_KINDS,
-] as const
 const allDefaultName = computed(() => defaultCommands.value.all || commands.value?.[0]?.name || '')
+const overrideCount = computed(() => RUN_KINDS.filter((k) => defaultCommands.value[k.id]).length)
+const perKindOpen = ref(false)
+const [DefineDefaultRow, ReuseDefaultRow] = createReusableTemplate<{ kind: 'all' | RunKind; label: string; hint: string }>()
 
 async function handleSetDefault(kind: 'all' | RunKind, name: string): Promise<void> {
   try {
@@ -259,8 +261,8 @@ async function handleSetDefault(kind: 'all' | RunKind, name: string): Promise<vo
     if (!name) delete next[kind]
     defaultCommands.value = next
     burst(`default:${kind}`)
-  } catch {
-    // ignore
+  } catch (e: unknown) {
+    toast.error('Could not save the default command: ' + errorMessage(e))
   }
 }
 
@@ -536,36 +538,54 @@ const headerActions = computed(() => [
           <Transition v-bind="alarm">
             <p v-if="addCmdError" class="text-xs text-destructive" role="alert">{{ addCmdError }}</p>
           </Transition>
-          <section v-if="commands?.length" class="space-y-2 pt-2" aria-labelledby="default-commands-label">
-            <div>
-              <h3 id="default-commands-label" class="text-sm font-medium">Default per target</h3>
-              <p class="text-xs text-muted-foreground">The command a run button fires for what it sends. Others are in its menu.</p>
+          <DefineDefaultRow v-slot="{ kind, label, hint }">
+            <div :class="[row, 'py-2', kind === 'all' && 'py-3']">
+              <p class="min-w-0 flex-1 text-sm" :class="kind === 'all' ? 'flex flex-col' : 'truncate'">
+                <span :id="`default-${kind}-label`" class="font-medium">{{ label }}</span>
+                <span v-if="hint" class="text-xs text-muted-foreground" :class="kind !== 'all' && 'ml-2'">{{ hint }}</span>
+              </p>
+              <span class="relative inline-flex shrink-0 rounded-md">
+                <Select
+                  :model-value="defaultCommands[kind] || (kind === 'all' ? allDefaultName : INHERIT)"
+                  @update:model-value="handleSetDefault(kind, $event === INHERIT ? '' : String($event))"
+                >
+                  <SelectTrigger :aria-labelledby="`default-${kind}-label default-${kind}-value`" class="h-8 w-52">
+                    <!-- Custom content: the item text would show "Same as all targets" instead of the command it resolves to. -->
+                    <SelectValue :id="`default-${kind}-value`" :class="!defaultCommands[kind] && kind !== 'all' && 'text-muted-foreground'">
+                      {{ defaultCommands[kind] || allDefaultName }}
+                      <span v-if="!defaultCommands[kind] && kind !== 'all'" class="sr-only">(same as all targets)</span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-if="kind !== 'all'" :value="INHERIT">Same as all targets</SelectItem>
+                    <SelectItem v-for="c in commands" :key="c.name" :value="c.name">{{ c.name }}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span v-if="bursts[`default:${kind}`]" :key="bursts[`default:${kind}`]" :class="ring" aria-hidden="true" />
+              </span>
             </div>
-            <ul :class="card">
-              <li v-for="(k, i) in DEFAULT_ROWS" :key="k.id" :class="[row, 'wow-rise py-2.5']" :style="{ '--i': i }">
-                <div class="min-w-0 flex-1">
-                  <p :id="`default-${k.id}-label`" class="text-sm font-medium">{{ k.label }}</p>
-                  <p class="text-xs text-muted-foreground">{{ k.hint }}</p>
+          </DefineDefaultRow>
+          <div v-if="commands?.length" :class="[card, 'wow-rise']">
+            <ReuseDefaultRow kind="all" label="Default command" hint="Fires unless a target below has its own" />
+            <div>
+              <button
+                type="button"
+                :class="[row, 'w-full py-2 text-left text-sm transition-colors hover:bg-accent/40']"
+                :aria-expanded="perKindOpen"
+                aria-controls="per-target-defaults"
+                @click="perKindOpen = !perKindOpen"
+              >
+                <ChevronRight class="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-fast" :class="perKindOpen && 'rotate-90'" aria-hidden="true" />
+                <span class="flex-1 font-medium">Customize per target</span>
+                <span v-if="overrideCount" class="text-xs text-muted-foreground">{{ overrideCount }} set</span>
+              </button>
+              <Reveal id="per-target-defaults" :open="perKindOpen" axis="y">
+                <div class="divide-y divide-border border-t border-border">
+                  <ReuseDefaultRow v-for="k in RUN_KINDS" :key="k.id" :kind="k.id" :label="k.label" :hint="k.hint" />
                 </div>
-                <span class="relative inline-flex shrink-0 rounded-md">
-                  <Select
-                    :model-value="defaultCommands[k.id] || INHERIT"
-                    @update:model-value="handleSetDefault(k.id, $event === INHERIT ? '' : String($event))"
-                  >
-                    <SelectTrigger :aria-labelledby="`default-${k.id}-label`" class="h-8 w-52">
-                      <!-- Muted when inherited, which SelectValue cannot show: it renders only the item's text. -->
-                      <span class="truncate" :class="!defaultCommands[k.id] && 'text-muted-foreground'">{{ defaultCommands[k.id] || allDefaultName }}</span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem v-if="k.id !== 'all'" :value="INHERIT">Same as all targets</SelectItem>
-                      <SelectItem v-for="c in commands" :key="c.name" :value="c.name">{{ c.name }}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span v-if="bursts[`default:${k.id}`]" :key="bursts[`default:${k.id}`]" :class="ring" aria-hidden="true" />
-                </span>
-              </li>
-            </ul>
-          </section>
+              </Reveal>
+            </div>
+          </div>
           <ReuseToggles section="commands" />
         </TabsContent>
 
