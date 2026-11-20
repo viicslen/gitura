@@ -574,7 +574,7 @@ const headerActions = computed(() => [
             <div>
               <button
                 type="button"
-                :class="cn(row, 'w-full py-2 text-left text-sm transition-colors hover:bg-accent/40', !perKindOpen && 'rounded-b-[inherit]')"
+                :class="cn(row, 'w-full py-2 text-left text-sm transition-colors hover:bg-accent/40', !perKindOpen && 'rounded-b-lg')"
                 :aria-expanded="perKindOpen"
                 aria-controls="per-target-defaults"
                 @click="perKindOpen = !perKindOpen"

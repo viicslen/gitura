@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"github.com/BurntSushi/toml"
 
@@ -176,9 +177,14 @@ func ensureSlices(cfg *Config) {
 	}
 }
 
+// saveMu serialises Save: every call writes the same temp file before renaming it.
+var saveMu sync.Mutex
+
 // Save atomically writes the config to disk.
 // The gitura config directory is created if absent.
 func Save(cfg Config) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
 	dir, err := ConfigDir()
 	if err != nil {
 		return err

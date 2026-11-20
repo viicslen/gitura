@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -126,6 +128,23 @@ func TestLoad_DefaultNamingNoCommand_IsDropped(t *testing.T) {
 	got, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"all": "fix"}, got.DefaultCommands)
+}
+
+func TestSave_Concurrent_LeavesReadableFile(t *testing.T) {
+	overrideConfigDir(t, t.TempDir())
+	var wg sync.WaitGroup
+	for i := range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			assert.NoError(t, Save(Config{Toggles: map[string]bool{fmt.Sprint(i): true}}))
+		}()
+	}
+	wg.Wait()
+
+	got, err := Load()
+	require.NoError(t, err)
+	assert.Len(t, got.Toggles, 1)
 }
 
 // TestLoad_MalformedTOML_ReturnsError verifies that a file with invalid TOML
