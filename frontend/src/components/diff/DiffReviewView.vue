@@ -30,7 +30,8 @@ import type { UnsentComments } from '@/lib/diffLayout'
 import { toast } from 'vue-sonner'
 import { useLocalStorage, useWindowSize } from '@vueuse/core'
 import { toggleRef } from '@/composables/useToggles'
-import { GetCommands, GetDefaultCommandName, RunCommands } from '@/bindings/gitura/internal/app/app'
+import { GetCommands, RunCommands } from '@/bindings/gitura/internal/app/app'
+import { defaultCommandFor, loadDefaultCommands } from '@/composables/useCommands'
 import { Clipboard } from '@wailsio/runtime'
 import { formatLocalReview } from '@/lib/localReview'
 import { isTestFile } from '@/lib/testFiles'
@@ -339,7 +340,8 @@ async function openLocalPanel(): Promise<void> {
   openSubmitPanel()
   try {
     commands.value = await GetCommands()
-    const fallback = await GetDefaultCommandName()
+    await loadDefaultCommands()
+    const fallback = defaultCommandFor('review')
     if (!commands.value.some((c) => c.name === commandName.value)) {
       commandName.value = commands.value.some((c) => c.name === fallback) ? fallback : commands.value[0]?.name ?? ''
     }

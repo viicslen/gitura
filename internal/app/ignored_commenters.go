@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"gitura/internal/logger"
@@ -16,9 +17,7 @@ func (a *App) GetIgnoredCommenters() ([]model.IgnoredCommenterDTO, error) {
 	if err := a.loadConfig(); err != nil {
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
-	result := make([]model.IgnoredCommenterDTO, len(a.ignoredCommenters))
-	copy(result, a.ignoredCommenters)
-	return result, nil
+	return slices.Clone(a.conf().IgnoredCommenters), nil
 }
 
 // AddIgnoredCommenter adds a GitHub login to the ignored-commenters list.
@@ -29,21 +28,14 @@ func (a *App) AddIgnoredCommenter(login string) error {
 	if login == "" {
 		return fmt.Errorf("validation: login required")
 	}
-	if err := a.loadConfig(); err != nil {
-		return fmt.Errorf("settings: load: %w", err)
-	}
-	for _, ic := range a.ignoredCommenters {
-		if ic.Login == login {
-			return nil // already present — no-op
+	_, err := a.updateConfig(func(cfg *settings.Config) error {
+		if !slices.ContainsFunc(cfg.IgnoredCommenters, func(ic model.IgnoredCommenterDTO) bool { return ic.Login == login }) {
+			cfg.IgnoredCommenters = append(cfg.IgnoredCommenters, model.IgnoredCommenterDTO{Login: login})
 		}
-	}
-	a.ignoredCommenters = append(a.ignoredCommenters, model.IgnoredCommenterDTO{
-		Login: login,
+		return nil
 	})
-	if err := settings.Save(a.config()); err != nil {
-		// Roll back in-memory change.
-		a.ignoredCommenters = a.ignoredCommenters[:len(a.ignoredCommenters)-1]
-		return fmt.Errorf("settings: save: %w", err)
+	if err != nil {
+		return err
 	}
 	logger.L.Info("AddIgnoredCommenter", "login", login)
 	return nil
@@ -53,28 +45,13 @@ func (a *App) AddIgnoredCommenter(login string) error {
 // Silently no-ops if the login is not present.
 // Error prefix: "settings:" — save failure.
 func (a *App) RemoveIgnoredCommenter(login string) error {
-	if err := a.loadConfig(); err != nil {
-		return fmt.Errorf("settings: load: %w", err)
+	_, err := a.updateConfig(func(cfg *settings.Config) error {
+		cfg.IgnoredCommenters = slices.DeleteFunc(cfg.IgnoredCommenters, func(ic model.IgnoredCommenterDTO) bool { return ic.Login == login })
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	idx := -1
-	for i, ic := range a.ignoredCommenters {
-		if ic.Login == login {
-			idx = i
-			break
-		}
-	}
-	if idx == -1 {
-		return nil // not present — no-op
-	}
-	updated := make([]model.IgnoredCommenterDTO, 0, len(a.ignoredCommenters)-1)
-	updated = append(updated, a.ignoredCommenters[:idx]...)
-	updated = append(updated, a.ignoredCommenters[idx+1:]...)
-	cfg := a.config()
-	cfg.IgnoredCommenters = updated
-	if err := settings.Save(cfg); err != nil {
-		return fmt.Errorf("settings: save: %w", err)
-	}
-	a.ignoredCommenters = updated
 	logger.L.Info("RemoveIgnoredCommenter", "login", login)
 	return nil
 }

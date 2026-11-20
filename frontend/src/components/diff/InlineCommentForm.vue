@@ -4,7 +4,7 @@ import type { ComputedRef } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import SplitRunButton from '@/components/run/SplitRunButton.vue'
-import { commands, defaultCommandName } from '@/composables/useCommands'
+import { commands } from '@/composables/useCommands'
 import { useToggles } from '@/composables/useToggles'
 import type { DraftActions } from './DiffDraftComment.vue'
 
@@ -86,7 +86,7 @@ function handleKeydown(event: KeyboardEvent): void {
         <SplitRunButton
           v-if="cmds.length > 0"
           :commands="cmds"
-          :default-command-name="defaultCommandName"
+          kind="draft"
           :input="body.trim()"
           :disabled="!body.trim() || busy"
           label="Run"

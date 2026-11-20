@@ -43,8 +43,9 @@ func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunC
 	vars := a.runVars(runCtx)
 
 	// Build a lookup map for fast name -> command resolution.
-	cmdMap := make(map[string]model.CommandDTO, len(a.commands))
-	for _, c := range a.commands {
+	commands := a.conf().Commands
+	cmdMap := make(map[string]model.CommandDTO, len(commands))
+	for _, c := range commands {
 		cmdMap[c.Name] = c
 	}
 

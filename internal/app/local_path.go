@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -79,20 +80,25 @@ func (a *App) repoClone(owner, repo string) string {
 			return p
 		}
 	}
-	if err := a.loadConfig(); err != nil || len(a.projectDirs) == 0 {
+	if err := a.loadConfig(); err != nil {
 		return ""
 	}
 	key := strings.ToLower(owner + "/" + repo)
 	a.repoIndexMu.Lock()
 	defer a.repoIndexMu.Unlock()
+	// Read under repoIndexMu: applyConfig swaps in new folders and clears the index under it.
+	projectDirs := a.conf().ProjectDirs
+	if len(projectDirs) == 0 {
+		return ""
+	}
 	if p := a.repoIndex[key]; p != "" && isDir(p) {
 		return p
 	}
 	if time.Since(a.repoIndexAt) < rescanInterval {
 		return ""
 	}
-	dirs := make([]string, len(a.projectDirs))
-	for i, d := range a.projectDirs {
+	dirs := make([]string, len(projectDirs))
+	for i, d := range projectDirs {
 		dirs[i] = expandHome(d)
 	}
 	a.repoIndex = gitlocal.FindRepos(dirs)
@@ -124,26 +130,18 @@ func (a *App) GetProjectDirs() ([]string, error) {
 	if err := a.loadConfig(); err != nil {
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
-	return append([]string{}, a.projectDirs...), nil
+	return slices.Clone(a.conf().ProjectDirs), nil
 }
 
 // SetProjectDirs replaces the folders searched for a PR's local clone.
 //
 // Error prefix: "settings:" — load or save failure.
 func (a *App) SetProjectDirs(dirs []string) error {
-	if err := a.loadConfig(); err != nil {
-		return fmt.Errorf("settings: load: %w", err)
-	}
-	cfg := a.config()
-	cfg.ProjectDirs = dirs
-	if err := settings.Save(cfg); err != nil {
-		return fmt.Errorf("settings: save: %w", err)
-	}
-	a.projectDirs = append([]string{}, dirs...)
-	a.repoIndexMu.Lock()
-	a.repoIndex, a.repoIndexAt = nil, time.Time{}
-	a.repoIndexMu.Unlock()
-	return nil
+	_, err := a.updateConfig(func(cfg *settings.Config) error {
+		cfg.ProjectDirs = slices.Clone(dirs)
+		return nil
+	})
+	return err
 }
 
 // SetPRLocalPath persists a local filesystem path for a PR.

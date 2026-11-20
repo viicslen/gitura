@@ -39,7 +39,6 @@ describe('MarkdownBody', () => {
           { name: 'cmd-a', command: 'cmd-a {{instructions}}' },
           { name: 'cmd-b', command: 'cmd-b {{instructions}}' },
         ],
-        defaultCommandName: 'cmd-a',
       },
     })
 

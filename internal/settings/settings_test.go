@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,6 +96,55 @@ func TestSave_DirAbsent_CreatesDir(t *testing.T) {
 func overrideConfigDir(t *testing.T, base string) {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", base)
+}
+
+func TestLoad_LegacyDefaultCommand_BecomesAllDefault(t *testing.T) {
+	for name, file := range map[string]string{
+		"by name": "default_command_name = \"fix\"\n[[commands]]\nname = \"fix\"\ncommand = \"a\"\n",
+		"by id":   "default_command_id = \"c1\"\n[[commands]]\nid = \"c1\"\nname = \"fix\"\ncommand = \"a\"\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			tmp := t.TempDir()
+			overrideConfigDir(t, tmp)
+			dir := filepath.Join(tmp, "gitura")
+			require.NoError(t, os.MkdirAll(dir, 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "settings.toml"), []byte(file), 0o600))
+
+			got, err := Load()
+			require.NoError(t, err)
+			assert.Equal(t, map[string]string{"all": "fix"}, got.DefaultCommands)
+		})
+	}
+}
+
+func TestLoad_DefaultNamingNoCommand_IsDropped(t *testing.T) {
+	tmp := t.TempDir()
+	overrideConfigDir(t, tmp)
+	require.NoError(t, Save(Config{
+		Commands:        []model.CommandDTO{{Name: "fix", Command: "a"}},
+		DefaultCommands: map[string]string{"all": "fix", "pr": "renamed-by-hand"},
+	}))
+
+	got, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"all": "fix"}, got.DefaultCommands)
+}
+
+func TestSave_Concurrent_LeavesReadableFile(t *testing.T) {
+	overrideConfigDir(t, t.TempDir())
+	var wg sync.WaitGroup
+	for i := range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			assert.NoError(t, Save(Config{Toggles: map[string]bool{fmt.Sprint(i): true}}))
+		}()
+	}
+	wg.Wait()
+
+	got, err := Load()
+	require.NoError(t, err)
+	assert.Len(t, got.Toggles, 1)
 }
 
 // TestLoad_MalformedTOML_ReturnsError verifies that a file with invalid TOML

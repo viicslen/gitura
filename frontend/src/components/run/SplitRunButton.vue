@@ -5,7 +5,7 @@
  * Left part: runs the default command (or the only command) immediately.
  * Right part (chevron): opens a dropdown listing all commands to pick from.
  *
- * If no defaultCommandName is set, falls back to the first command in the list.
+ * The default is the one set for its kind, else the one for all kinds, else the first command.
  */
 import { computed, ref } from 'vue'
 import { Play, ChevronDown, Loader2 } from '@lucide/vue'
@@ -20,12 +20,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { RunCommands } from '@/bindings/gitura/internal/app/app'
 import type * as model from '@/bindings/gitura/internal/model'
+import { defaultCommandFor, type RunKind } from '@/composables/useCommands'
 
 const props = defineProps<{
   /** All configured commands */
   commands: model.CommandDTO[]
-  /** Name of the user's designated default command */
-  defaultCommandName: string
+  /** What the input is; picks the default command */
+  kind: RunKind
   /** The text to pass as input to the command */
   input: string
   /** Label for the primary button */
@@ -52,7 +53,7 @@ const burst = ref(0)
 /** The command that fires when clicking the primary button. */
 const primaryCommand = computed((): model.CommandDTO | null => {
   if (props.commands.length === 0) return null
-  const def = props.commands.find((c) => c.name === props.defaultCommandName)
+  const def = props.commands.find((c) => c.name === defaultCommandFor(props.kind))
   return def ?? props.commands[0]
 })
 

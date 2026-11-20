@@ -14,7 +14,7 @@ import { markdownPreview } from '@/lib/markdown'
 import GlideList from '@/components/motion/GlideList.vue'
 import Reveal from '@/components/motion/Reveal.vue'
 import SplitRunButton from '@/components/run/SplitRunButton.vue'
-import { commands, defaultCommandName } from '@/composables/useCommands'
+import { commands } from '@/composables/useCommands'
 import { threadInput } from '@/lib/runInput'
 
 const props = defineProps<{
@@ -112,7 +112,7 @@ function toggleResolved(): void {
                   >
                     <SplitRunButton
                       :commands="cmds"
-                      :default-command-name="defaultCommandName"
+                      :kind="comment.id === root?.id ? 'comment' : 'reply'"
                       :input="comment.body"
                       :thread-root-id="thread.root_id"
                       :comment-id="comment.id"
@@ -144,7 +144,7 @@ function toggleResolved(): void {
             <SplitRunButton
               v-if="cmds.length > 0"
               :commands="cmds"
-              :default-command-name="defaultCommandName"
+              kind="thread"
               :input="threadInput(thread)"
               :thread-root-id="thread.root_id"
               :comment-id="root?.id"

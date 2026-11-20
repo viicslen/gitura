@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { errorMessage } from '@/lib/utils'
+import { cn, errorMessage } from '@/lib/utils'
 import { computed, reactive, ref, onMounted, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import {
   GetIgnoredCommenters,
   AddIgnoredCommenter,
@@ -9,8 +10,7 @@ import {
   AddCommand,
   UpdateCommand,
   RemoveCommand,
-  GetDefaultCommandName,
-  SetDefaultCommandName,
+  SetDefaultCommand,
   GetProjectDirs,
   SetProjectDirs,
   OpenFolderPicker,
@@ -20,9 +20,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import Reveal from '@/components/motion/Reveal.vue'
 import { Switch } from '@/components/ui/switch'
 import CommandComposer from '@/components/run/CommandComposer.vue'
-import { Trash2, UserX, Terminal, Plus, Star, Pencil, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
+import { Trash2, UserX, Terminal, Plus, Pencil, ChevronDown, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
 import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles, type ToggleId } from '@/composables/useToggles'
 import {
   useAppearance,
@@ -33,7 +34,7 @@ import {
   type AppearanceKey,
 } from '@/composables/useAppearance'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { commands, defaultCommandName } from '@/composables/useCommands'
+import { RUN_KINDS, commands, defaultCommands, loadDefaultCommands, type RunKind } from '@/composables/useCommands'
 import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
 import { reducedMotion } from '@/components/motion/wow'
 import { createReusableTemplate } from '@vueuse/core'
@@ -66,10 +67,6 @@ const row = 'flex items-center gap-4 px-4 py-3'
 
 const fade = { enterActiveClass: 'animate-in fade-in-0', leaveActiveClass: 'animate-out fade-out-0 animation-duration-fast' }
 const alarm = { enterActiveClass: 'wow-shake', leaveActiveClass: fade.leaveActiveClass }
-const pop = {
-  enterActiveClass: 'wow-pop',
-  leaveActiveClass: 'animate-out fade-out-0 zoom-out-75 animation-duration-faster',
-}
 // List rows open and close their own height, so the card and the rows below glide with them.
 const collapse = 'transition-[grid-template-rows,opacity]'
 // Under the add row; capped so a row added to a long list springs in as its slot finishes opening, not later.
@@ -141,11 +138,8 @@ onMounted(async () => {
   } catch (e: unknown) {
     loadCmdError.value = errorMessage(e)
   }
-  try {
-    defaultCommandName.value = await GetDefaultCommandName()
-  } catch {
-    // non-fatal
-  }
+  await loadDefaultCommands()
+  perKindOpen.value = overrideCount.value > 0
   try {
     projectDirs.value = await GetProjectDirs()
   } catch (e: unknown) {
@@ -253,12 +247,22 @@ function closeComposer(): void {
   addCmdError.value = ''
 }
 
-async function handleSetDefault(name: string): Promise<void> {
+// Command names are trimmed, so no command can be called this.
+const INHERIT = ' '
+const allDefaultName = computed(() => defaultCommands.value.all || commands.value?.[0]?.name || '')
+const overrideCount = computed(() => RUN_KINDS.filter((k) => defaultCommands.value[k.id]).length)
+const perKindOpen = ref(false)
+const [DefineDefaultRow, ReuseDefaultRow] = createReusableTemplate<{ kind: 'all' | RunKind; label: string; hint: string }>()
+
+async function handleSetDefault(kind: 'all' | RunKind, name: string): Promise<void> {
   try {
-    await SetDefaultCommandName(name)
-    defaultCommandName.value = name
-  } catch {
-    // ignore
+    await SetDefaultCommand(kind, name)
+    const next = { ...defaultCommands.value, [kind]: name }
+    if (!name) delete next[kind]
+    defaultCommands.value = next
+    burst(`default:${kind}`)
+  } catch (e: unknown) {
+    toast.error('Could not save the default command: ' + errorMessage(e))
   }
 }
 
@@ -267,7 +271,7 @@ async function saveCommand(cmd: model.CommandDTO): Promise<void> {
   const session = composerSession
   try {
     commands.value = editing ? await UpdateCommand(editing.name, cmd) : await AddCommand(cmd)
-    if (editing && defaultCommandName.value === editing.name) defaultCommandName.value = cmd.name.trim()
+    if (editing) void loadDefaultCommands()
     if (session === composerSession) closeComposer()
   } catch (e: unknown) {
     if (session !== composerSession) return
@@ -280,10 +284,7 @@ async function handleRemoveCommand(name: string) {
   try {
     commands.value = await RemoveCommand(name)
     if (editingCmd.value?.name === name) closeComposer()
-    // If the removed command was the default, clear local state
-    if (defaultCommandName.value === name) {
-      defaultCommandName.value = ''
-    }
+    void loadDefaultCommands()
   } catch {
     // ignore
   }
@@ -507,16 +508,7 @@ const headerActions = computed(() => [
                 <div class="min-h-0 overflow-hidden">
                   <div :class="[row, 'group wow-rise py-2.5 transition-colors', editingCmd?.name === cmd.name && 'bg-accent/40']" :style="{ '--i': rowDelay(i) }">
                     <div class="min-w-0 flex-1">
-                      <div class="flex items-center gap-1.5">
-                        <p class="text-sm font-medium">{{ cmd.name }}</p>
-                        <Transition v-bind="pop">
-                          <Star
-                            v-if="cmd.name === defaultCommandName"
-                            class="h-3 w-3 fill-current text-yellow-500"
-                            aria-label="Default command"
-                          />
-                        </Transition>
-                      </div>
+                      <p class="text-sm font-medium">{{ cmd.name }}</p>
                       <p class="truncate font-mono text-xs text-muted-foreground">{{ cmd.command }}</p>
                     </div>
                     <Button
@@ -528,18 +520,6 @@ const headerActions = computed(() => [
                       @click="openComposer(cmd)"
                     >
                       <Pencil class="h-3.5 w-3.5" aria-hidden="true" />
-                    </Button>
-                    <!-- Stays mounted and hidden on the default command, so it fades out under the pointer and the row keeps its layout. -->
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="h-6 w-6 shrink-0 text-muted-foreground opacity-0 transition-[opacity,visibility] hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
-                      :class="cmd.name === defaultCommandName && 'invisible opacity-0!'"
-                      :aria-label="`Set ${cmd.name} as default command`"
-                      title="Set as default"
-                      @click="handleSetDefault(cmd.name)"
-                    >
-                      <Star class="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -558,6 +538,58 @@ const headerActions = computed(() => [
           <Transition v-bind="alarm">
             <p v-if="addCmdError" class="text-xs text-destructive" role="alert">{{ addCmdError }}</p>
           </Transition>
+          <DefineDefaultRow v-slot="{ kind, label, hint }">
+            <div :class="cn(row, kind !== 'all' && 'py-2')">
+              <p class="min-w-0 flex-1 text-sm" :class="kind === 'all' ? 'flex flex-col' : 'truncate'">
+                <span :id="`default-${kind}-label`" class="font-medium">{{ label }}</span>
+                <span v-if="hint" :id="`default-${kind}-hint`" class="text-xs text-muted-foreground" :class="kind !== 'all' && 'ml-2'">{{ hint }}</span>
+              </p>
+              <span class="relative inline-flex shrink-0 rounded-md">
+                <Select
+                  :model-value="defaultCommands[kind] || (kind === 'all' ? allDefaultName : INHERIT)"
+                  @update:model-value="handleSetDefault(kind, $event === INHERIT ? '' : String($event))"
+                >
+                  <SelectTrigger
+                    :aria-labelledby="`default-${kind}-label default-${kind}-value`"
+                    :aria-describedby="hint ? `default-${kind}-hint` : undefined"
+                    class="h-8 w-52"
+                  >
+                    <!-- Custom content: the item text would show "Same as all targets" instead of the command it resolves to. -->
+                    <SelectValue :id="`default-${kind}-value`" :class="!defaultCommands[kind] && kind !== 'all' && 'text-muted-foreground'">
+                      {{ defaultCommands[kind] || allDefaultName }}
+                      <span v-if="!defaultCommands[kind] && kind !== 'all'" class="sr-only">(same as all targets)</span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-if="kind !== 'all'" :value="INHERIT">Same as all targets</SelectItem>
+                    <SelectItem v-for="c in commands" :key="c.name" :value="c.name">{{ c.name }}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span v-if="bursts[`default:${kind}`]" :key="bursts[`default:${kind}`]" :class="ring" aria-hidden="true" />
+              </span>
+            </div>
+          </DefineDefaultRow>
+          <div v-if="commands?.length" :class="[card, 'wow-rise']">
+            <ReuseDefaultRow kind="all" label="Default command" hint="Fires unless a target below has its own" />
+            <div>
+              <button
+                type="button"
+                :class="cn(row, 'w-full py-2 text-left text-sm transition-colors hover:bg-accent/40', !perKindOpen && 'rounded-b-lg')"
+                :aria-expanded="perKindOpen"
+                aria-controls="per-target-defaults"
+                @click="perKindOpen = !perKindOpen"
+              >
+                <span class="flex-1 font-medium">Customize per target</span>
+                <span v-if="overrideCount" class="text-xs text-muted-foreground">{{ overrideCount }} set</span>
+                <ChevronDown class="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-fast" :class="perKindOpen && 'rotate-180'" aria-hidden="true" />
+              </button>
+              <Reveal id="per-target-defaults" :open="perKindOpen" axis="y">
+                <div class="divide-y divide-border border-t border-border">
+                  <ReuseDefaultRow v-for="k in RUN_KINDS" :key="k.id" :kind="k.id" :label="k.label" :hint="k.hint" />
+                </div>
+              </Reveal>
+            </div>
+          </div>
           <ReuseToggles section="commands" />
         </TabsContent>
 

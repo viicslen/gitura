@@ -19,9 +19,7 @@ func (a *App) GetCommands() ([]model.CommandDTO, error) {
 	if err := a.loadConfig(); err != nil {
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
-	result := make([]model.CommandDTO, len(a.commands))
-	copy(result, a.commands)
-	return result, nil
+	return slices.Clone(a.conf().Commands), nil
 }
 
 // AddCommand adds a new command configuration.
@@ -36,67 +34,37 @@ func (a *App) AddCommand(cmd model.CommandDTO) ([]model.CommandDTO, error) {
 	if cmd.Command == "" {
 		return nil, fmt.Errorf("validation: command required")
 	}
-	if err := a.loadConfig(); err != nil {
-		return nil, fmt.Errorf("settings: load: %w", err)
-	}
-	for _, existing := range a.commands {
-		if existing.Name == cmd.Name {
-			result := make([]model.CommandDTO, len(a.commands))
-			copy(result, a.commands)
-			return result, nil // already present — no-op
+	cfg, err := a.updateConfig(func(cfg *settings.Config) error {
+		if !slices.ContainsFunc(cfg.Commands, func(c model.CommandDTO) bool { return c.Name == cmd.Name }) {
+			cfg.Commands = append(cfg.Commands, cmd)
 		}
-	}
-	a.commands = append(a.commands, cmd)
-	if err := settings.Save(a.config()); err != nil {
-		a.commands = a.commands[:len(a.commands)-1]
-		return nil, fmt.Errorf("settings: save: %w", err)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	logger.L.Info("AddCommand", "name", cmd.Name)
-	result := make([]model.CommandDTO, len(a.commands))
-	copy(result, a.commands)
-	return result, nil
+	return slices.Clone(cfg.Commands), nil
 }
 
 // RemoveCommand removes the command with the given name.
 // Silently no-ops if the name is not found.
 // Error prefix: "settings:" — save failure.
 func (a *App) RemoveCommand(name string) ([]model.CommandDTO, error) {
-	if err := a.loadConfig(); err != nil {
-		return nil, fmt.Errorf("settings: load: %w", err)
+	cfg, err := a.updateConfig(func(cfg *settings.Config) error {
+		cfg.Commands = slices.DeleteFunc(cfg.Commands, func(c model.CommandDTO) bool { return c.Name == name })
+		cfg.DefaultCommands = renameDefaults(cfg.DefaultCommands, name, "")
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	idx := -1
-	for i, cmd := range a.commands {
-		if cmd.Name == name {
-			idx = i
-			break
-		}
-	}
-	if idx == -1 {
-		result := make([]model.CommandDTO, len(a.commands))
-		copy(result, a.commands)
-		return result, nil
-	}
-	updated := make([]model.CommandDTO, 0, len(a.commands)-1)
-	updated = append(updated, a.commands[:idx]...)
-	updated = append(updated, a.commands[idx+1:]...)
-	// Clear the default if the removed command was the default.
-	if a.defaultCommandName == name {
-		a.defaultCommandName = ""
-	}
-	cfg := a.config()
-	cfg.Commands = updated
-	if err := settings.Save(cfg); err != nil {
-		return nil, fmt.Errorf("settings: save: %w", err)
-	}
-	a.commands = updated
 	logger.L.Info("RemoveCommand", "name", name)
-	result := make([]model.CommandDTO, len(a.commands))
-	copy(result, a.commands)
-	return result, nil
+	return slices.Clone(cfg.Commands), nil
 }
 
 // UpdateCommand replaces the command named name with cmd, which may rename it.
-// A renamed default command stays the default.
+// A renamed default command stays the default for its kinds.
 // Error prefixes: "validation:" — missing name or command, name taken by another
 // command; "not_found:" — unknown name; "settings:" — load or save failure.
 func (a *App) UpdateCommand(name string, cmd model.CommandDTO) ([]model.CommandDTO, error) {
@@ -105,29 +73,23 @@ func (a *App) UpdateCommand(name string, cmd model.CommandDTO) ([]model.CommandD
 	if cmd.Name == "" || cmd.Command == "" {
 		return nil, fmt.Errorf("validation: name and command required")
 	}
-	if err := a.loadConfig(); err != nil {
-		return nil, fmt.Errorf("settings: load: %w", err)
+	cfg, err := a.updateConfig(func(cfg *settings.Config) error {
+		idx := slices.IndexFunc(cfg.Commands, func(c model.CommandDTO) bool { return c.Name == name })
+		if idx == -1 {
+			return fmt.Errorf("not_found: command %q", name)
+		}
+		if cmd.Name != name && slices.ContainsFunc(cfg.Commands, func(c model.CommandDTO) bool { return c.Name == cmd.Name }) {
+			return fmt.Errorf("validation: a command named %q already exists", cmd.Name)
+		}
+		cfg.Commands[idx] = cmd
+		cfg.DefaultCommands = renameDefaults(cfg.DefaultCommands, name, cmd.Name)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	idx := slices.IndexFunc(a.commands, func(c model.CommandDTO) bool { return c.Name == name })
-	if idx == -1 {
-		return nil, fmt.Errorf("not_found: command %q", name)
-	}
-	if cmd.Name != name && slices.ContainsFunc(a.commands, func(c model.CommandDTO) bool { return c.Name == cmd.Name }) {
-		return nil, fmt.Errorf("validation: a command named %q already exists", cmd.Name)
-	}
-	cfg := a.config()
-	cfg.Commands = slices.Clone(a.commands)
-	cfg.Commands[idx] = cmd
-	if a.defaultCommandName == name {
-		cfg.DefaultCommandName = cmd.Name
-	}
-	if err := settings.Save(cfg); err != nil {
-		return nil, fmt.Errorf("settings: save: %w", err)
-	}
-	a.commands = cfg.Commands
-	a.defaultCommandName = cfg.DefaultCommandName
 	logger.L.Info("UpdateCommand", "name", name, "new_name", cmd.Name)
-	return slices.Clone(a.commands), nil
+	return slices.Clone(cfg.Commands), nil
 }
 
 // GetCommandVariables lists the PR and comment placeholders a command can use.
@@ -142,61 +104,68 @@ func (a *App) GetKeybindings() (map[string]string, error) {
 	if err := a.loadConfig(); err != nil {
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
-	return maps.Clone(a.keybindings), nil
+	return maps.Clone(a.conf().Keybindings), nil
 }
 
 // SetKeybindings replaces the user's shortcut overrides.
 //
 // Error prefix: "settings:" — load or save failure.
 func (a *App) SetKeybindings(bindings map[string]string) error {
-	if err := a.loadConfig(); err != nil {
-		return fmt.Errorf("settings: load: %w", err)
-	}
-	cfg := a.config()
-	cfg.Keybindings = bindings
-	if err := settings.Save(cfg); err != nil {
-		return fmt.Errorf("settings: save: %w", err)
-	}
-	a.keybindings = maps.Clone(bindings)
-	return nil
+	_, err := a.updateConfig(func(cfg *settings.Config) error {
+		cfg.Keybindings = maps.Clone(bindings)
+		return nil
+	})
+	return err
 }
 
-// GetDefaultCommandName returns the name of the user's default command, or an
-// empty string if none is set.
+// GetDefaultCommands returns the default command name for each run target kind
+// that has one; "all" is the fallback for the others.
 //
 // Error prefix: "settings:" — load failure.
-func (a *App) GetDefaultCommandName() (string, error) {
+func (a *App) GetDefaultCommands() (map[string]string, error) {
 	if err := a.loadConfig(); err != nil {
-		return "", fmt.Errorf("settings: load: %w", err)
+		return nil, fmt.Errorf("settings: load: %w", err)
 	}
-	return a.defaultCommandName, nil
+	return maps.Clone(a.conf().DefaultCommands), nil
 }
 
-// SetDefaultCommandName persists the given command name as the default. Pass an
-// empty string to clear the default.
+// SetDefaultCommand persists name as the default command for kind. Pass an
+// empty name to clear it, so kind falls back to "all".
 //
-// Error prefix: "validation:" — unknown command name; "settings:" — save failure.
-func (a *App) SetDefaultCommandName(name string) error {
-	if err := a.loadConfig(); err != nil {
-		return fmt.Errorf("settings: load: %w", err)
+// Error prefix: "validation:" — empty kind or unknown command name; "settings:" — load or save failure.
+func (a *App) SetDefaultCommand(kind, name string) error {
+	if kind == "" {
+		return fmt.Errorf("validation: kind required")
 	}
-	if name != "" {
-		found := false
-		for _, c := range a.commands {
-			if c.Name == name {
-				found = true
-				break
-			}
-		}
-		if !found {
+	_, err := a.updateConfig(func(cfg *settings.Config) error {
+		if name != "" && !slices.ContainsFunc(cfg.Commands, func(c model.CommandDTO) bool { return c.Name == name }) {
 			return fmt.Errorf("validation: unknown command name %q", name)
 		}
+		if cfg.DefaultCommands == nil {
+			cfg.DefaultCommands = map[string]string{}
+		}
+		if name == "" {
+			delete(cfg.DefaultCommands, kind)
+		} else {
+			cfg.DefaultCommands[kind] = name
+		}
+		return nil
+	})
+	return err
+}
+
+// renameDefaults returns defaults with every kind set to from pointed at to, or dropped when to is empty.
+func renameDefaults(defaults map[string]string, from, to string) map[string]string {
+	out := make(map[string]string, len(defaults))
+	for kind, name := range defaults {
+		switch {
+		case name != from:
+			out[kind] = name
+		case to != "":
+			out[kind] = to
+		}
 	}
-	a.defaultCommandName = name
-	if err := settings.Save(a.config()); err != nil {
-		return err
-	}
-	return nil
+	return out
 }
 
 // GetAppearance returns the persisted font and text-size choices. Empty fields
@@ -207,23 +176,18 @@ func (a *App) GetAppearance() (model.AppearanceDTO, error) {
 	if err := a.loadConfig(); err != nil {
 		return model.AppearanceDTO{}, fmt.Errorf("settings: load: %w", err)
 	}
-	return a.appearance, nil
+	return a.conf().Appearance, nil
 }
 
 // SetAppearance persists the font and text-size choices.
 //
 // Error prefix: "settings:" — load or save failure.
 func (a *App) SetAppearance(appearance model.AppearanceDTO) error {
-	if err := a.loadConfig(); err != nil {
-		return fmt.Errorf("settings: load: %w", err)
-	}
-	cfg := a.config()
-	cfg.Appearance = appearance
-	if err := settings.Save(cfg); err != nil {
-		return fmt.Errorf("settings: save: %w", err)
-	}
-	a.appearance = appearance
-	return nil
+	_, err := a.updateConfig(func(cfg *settings.Config) error {
+		cfg.Appearance = appearance
+		return nil
+	})
+	return err
 }
 
 // ListSystemFonts returns the font families installed on the system.
@@ -240,21 +204,16 @@ func (a *App) GetToggles() (map[string]bool, error) {
 	if err := a.loadConfig(); err != nil {
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
-	return maps.Clone(a.toggles), nil
+	return maps.Clone(a.conf().Toggles), nil
 }
 
 // SetToggles replaces the user's on/off preferences.
 //
 // Error prefix: "settings:" — load or save failure.
 func (a *App) SetToggles(toggles map[string]bool) error {
-	if err := a.loadConfig(); err != nil {
-		return fmt.Errorf("settings: load: %w", err)
-	}
-	cfg := a.config()
-	cfg.Toggles = toggles
-	if err := settings.Save(cfg); err != nil {
-		return fmt.Errorf("settings: save: %w", err)
-	}
-	a.toggles = maps.Clone(toggles)
-	return nil
+	_, err := a.updateConfig(func(cfg *settings.Config) error {
+		cfg.Toggles = maps.Clone(toggles)
+		return nil
+	})
+	return err
 }

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 
 	"github.com/BurntSushi/toml"
 
@@ -17,16 +19,17 @@ import (
 const (
 	appDir   = "gitura"
 	fileName = "settings.toml"
+	lockName = "settings.lock"
 )
 
 // Config holds all user-editable settings for gitura.
 type Config struct {
 	IgnoredCommenters []model.IgnoredCommenterDTO `toml:"ignored_commenters"`
 	Commands          []model.CommandDTO          `toml:"commands"`
-	// DefaultCommandName is the command name to use as the primary action
-	// in split-run buttons. Empty string means no default is set.
-	DefaultCommandName string              `toml:"default_command_name"`
-	Appearance         model.AppearanceDTO `toml:"appearance"`
+	// DefaultCommands maps a run target kind (e.g. "pr", "thread") to the command name
+	// split-run buttons fire for it; "all" is the fallback for kinds missing here.
+	DefaultCommands map[string]string   `toml:"default_commands"`
+	Appearance      model.AppearanceDTO `toml:"appearance"`
 	// Keybindings maps a shortcut action id (e.g. "nextFile") to a KeyboardEvent.key value.
 	// Actions missing here use the frontend's defaults.
 	Keybindings map[string]string `toml:"keybindings"`
@@ -84,6 +87,7 @@ type legacyCommand struct {
 type decodedConfig struct {
 	IgnoredCommenters  []model.IgnoredCommenterDTO `toml:"ignored_commenters"`
 	Commands           []legacyCommand             `toml:"commands"`
+	DefaultCommands    map[string]string           `toml:"default_commands"`
 	DefaultCommandName string                      `toml:"default_command_name"`
 	DefaultCommandID   string                      `toml:"default_command_id"`
 	Appearance         model.AppearanceDTO         `toml:"appearance"`
@@ -116,13 +120,13 @@ func decodeConfig(data []byte, path string) (decodedConfig, error) {
 
 func buildConfig(raw decodedConfig) Config {
 	cfg := Config{
-		IgnoredCommenters:  raw.IgnoredCommenters,
-		Commands:           make([]model.CommandDTO, 0, len(raw.Commands)),
-		DefaultCommandName: raw.DefaultCommandName,
-		Appearance:         raw.Appearance,
-		Keybindings:        raw.Keybindings,
-		Toggles:            raw.Toggles,
-		ProjectDirs:        raw.ProjectDirs,
+		IgnoredCommenters: raw.IgnoredCommenters,
+		Commands:          make([]model.CommandDTO, 0, len(raw.Commands)),
+		DefaultCommands:   raw.DefaultCommands,
+		Appearance:        raw.Appearance,
+		Keybindings:       raw.Keybindings,
+		Toggles:           raw.Toggles,
+		ProjectDirs:       raw.ProjectDirs,
 	}
 	for _, c := range raw.Commands {
 		cfg.Commands = append(cfg.Commands, model.CommandDTO{
@@ -131,19 +135,37 @@ func buildConfig(raw decodedConfig) Config {
 		})
 	}
 
-	resolveLegacyDefaultCommandName(&cfg, raw)
+	resolveLegacyDefaultCommand(&cfg, raw)
+	dropUnknownDefaults(&cfg)
 
 	return cfg
 }
 
-func resolveLegacyDefaultCommandName(cfg *Config, raw decodedConfig) {
-	if cfg.DefaultCommandName == "" && raw.DefaultCommandID != "" {
+// dropUnknownDefaults removes defaults naming no command (e.g. renamed by hand), so the picker and the run buttons agree.
+func dropUnknownDefaults(cfg *Config) {
+	for kind, name := range cfg.DefaultCommands {
+		if !slices.ContainsFunc(cfg.Commands, func(c model.CommandDTO) bool { return c.Name == name }) {
+			delete(cfg.DefaultCommands, kind)
+		}
+	}
+}
+
+// resolveLegacyDefaultCommand turns the single default of older files into the "all" default.
+func resolveLegacyDefaultCommand(cfg *Config, raw decodedConfig) {
+	if cfg.DefaultCommands != nil {
+		return
+	}
+	name := raw.DefaultCommandName
+	if name == "" && raw.DefaultCommandID != "" {
 		for _, c := range raw.Commands {
 			if c.ID == raw.DefaultCommandID {
-				cfg.DefaultCommandName = c.Name
+				name = c.Name
 				break
 			}
 		}
+	}
+	if name != "" {
+		cfg.DefaultCommands = map[string]string{"all": name}
 	}
 }
 
@@ -156,16 +178,68 @@ func ensureSlices(cfg *Config) {
 	}
 }
 
-// Save atomically writes the config to disk.
+// mu, with the lock file, lets one writer at a time read, change and write settings.toml:
+// mu within this process, the lock file across gitura windows.
+var mu sync.Mutex
+
+// Save atomically writes the config to disk, replacing what is there.
 // The gitura config directory is created if absent.
 func Save(cfg Config) error {
-	dir, err := ConfigDir()
+	unlock, err := lock()
 	if err != nil {
 		return err
 	}
+	defer unlock()
+	return write(cfg)
+}
 
+// Update rereads the config from disk, applies fn and saves the result, so a change made in
+// another window since this one loaded is kept. An error from fn is returned as is and nothing
+// is saved; other errors are prefixed "settings:".
+func Update(fn func(*Config) error) (Config, error) {
+	unlock, err := lock()
+	if err != nil {
+		return Config{}, err
+	}
+	defer unlock()
+	cfg, err := Load()
+	if err != nil {
+		return Config{}, err
+	}
+	if err := fn(&cfg); err != nil {
+		return Config{}, err
+	}
+	if err := write(cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+func lock() (func(), error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("settings: create config dir %s: %w", dir, err)
+		return nil, fmt.Errorf("settings: create config dir %s: %w", dir, err)
+	}
+	mu.Lock()
+	unlockFile, err := lockFile(filepath.Join(dir, lockName))
+	if err != nil {
+		mu.Unlock()
+		return nil, fmt.Errorf("settings: lock: %w", err)
+	}
+	return func() {
+		unlockFile()
+		mu.Unlock()
+	}, nil
+}
+
+// write saves cfg through a temp file and a rename; the caller holds the lock.
+func write(cfg Config) error {
+	dir, err := ConfigDir()
+	if err != nil {
+		return err
 	}
 
 	if cfg.IgnoredCommenters == nil {

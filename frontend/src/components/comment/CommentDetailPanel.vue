@@ -26,7 +26,6 @@ const props = defineProps<{
   /** No thread is open because every one is resolved. */
   allResolved?: boolean
   commands: model.CommandDTO[]
-  defaultCommandName: string
 }>()
 
 const emit = defineEmits<{
@@ -157,7 +156,6 @@ function replyAvatarKey(replyId: number): string {
                 <CommentBody
                   :content="rootComment.body"
                   :commands="commands"
-                  :default-command-name="defaultCommandName"
                   :thread-root-id="thread.root_id"
                   :comment-id="rootComment.id"
                   :toggle-task="taskToggler('review_comment', rootComment.id, rootComment)"
@@ -170,7 +168,7 @@ function replyAvatarKey(replyId: number): string {
                 >
                   <SplitRunButton
                     :commands="commands"
-                    :default-command-name="defaultCommandName"
+                    kind="comment"
                     :input="rootComment.body"
                     :thread-root-id="thread.root_id"
                     :comment-id="rootComment.id"
@@ -250,7 +248,7 @@ function replyAvatarKey(replyId: number): string {
                 <SplitRunButton
                   v-if="commands.length > 0 && rootComment"
                   :commands="commands"
-                  :default-command-name="defaultCommandName"
+                  kind="comment"
                   :input="rootComment.body"
                   :thread-root-id="thread.root_id"
                   :comment-id="rootComment.id"
