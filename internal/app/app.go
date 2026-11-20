@@ -148,10 +148,11 @@ func (a *App) loadConfig() error {
 	}
 	cfg, err := settings.Load()
 	if err != nil {
-		a.cfg.Store(&settings.Config{IgnoredCommenters: []model.IgnoredCommenterDTO{}, Commands: []model.CommandDTO{}})
+		a.cfg.CompareAndSwap(nil, &settings.Config{IgnoredCommenters: []model.IgnoredCommenterDTO{}, Commands: []model.CommandDTO{}})
 		return err
 	}
-	a.applyConfig(cfg)
+	// CompareAndSwap: a setter that saved while this read ran has already cached the newer config.
+	a.cfg.CompareAndSwap(nil, &cfg)
 	logger.L.Debug("config loaded",
 		"ignored_commenters", len(cfg.IgnoredCommenters),
 		"commands", len(cfg.Commands),
