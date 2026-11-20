@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -66,27 +67,11 @@ type App struct {
 	// pendingHeadSHA is the commit the drafts' line numbers refer to; the PR head can move before submit.
 	pendingHeadSHA string
 
-	// configMu orders setters' read-change-save and the refresh of the fields below.
+	// configMu orders setters' read-change-save on settings.toml.
 	configMu sync.Mutex
-
-	// ignoredCommenters is the persisted list of commenters to filter from review threads.
-	// Lazily loaded on first use via loadConfig.
-	ignoredCommenters []model.IgnoredCommenterDTO
-
-	// commands is the persisted list of named CLI commands.
-	// Lazily loaded alongside ignoredCommenters via loadConfig.
-	commands []model.CommandDTO
-
-	// defaultCommands maps run target kinds to command names; see settings.Config.DefaultCommands.
-	defaultCommands map[string]string
-
-	appearance model.AppearanceDTO
-	// keybindings maps shortcut action ids to keys; see settings.Config.Keybindings.
-	keybindings map[string]string
-	// toggles maps on/off preference ids to values; see settings.Config.Toggles.
-	toggles map[string]bool
-	// projectDirs are searched for a PR's clone; see settings.Config.ProjectDirs.
-	projectDirs []string
+	// cfg is the cached settings.toml, nil until loadConfig. A snapshot is swapped whole and never
+	// changed, so readers need no lock; read it once through conf() per use.
+	cfg atomic.Pointer[settings.Config]
 
 	// repoIndex caches gitlocal.FindRepos over projectDirs; repoIndexAt is when it was built.
 	repoIndexMu sync.Mutex
@@ -158,46 +143,52 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 // loadConfig loads the full settings config from disk if not yet loaded.
 // It is safe to call multiple times; subsequent calls are no-ops.
 func (a *App) loadConfig() error {
-	if a.ignoredCommenters != nil {
+	if a.cfg.Load() != nil {
 		return nil
 	}
 	cfg, err := settings.Load()
 	if err != nil {
-		a.ignoredCommenters = []model.IgnoredCommenterDTO{}
-		a.commands = []model.CommandDTO{}
+		a.cfg.Store(&settings.Config{IgnoredCommenters: []model.IgnoredCommenterDTO{}, Commands: []model.CommandDTO{}})
 		return err
 	}
 	a.applyConfig(cfg)
 	logger.L.Debug("config loaded",
-		"ignored_commenters", len(a.ignoredCommenters),
-		"commands", len(a.commands),
+		"ignored_commenters", len(cfg.IgnoredCommenters),
+		"commands", len(cfg.Commands),
 	)
 	return nil
 }
 
-// applyConfig replaces the in-memory settings with cfg.
+// conf returns the cached settings snapshot, empty before loadConfig. Callers must not change it.
+func (a *App) conf() *settings.Config {
+	if c := a.cfg.Load(); c != nil {
+		return c
+	}
+	return &settings.Config{}
+}
+
+// applyConfig caches cfg, dropping the repo index when the project folders changed.
 func (a *App) applyConfig(cfg settings.Config) {
-	a.ignoredCommenters = cfg.IgnoredCommenters
-	a.commands = cfg.Commands
-	a.defaultCommands = cfg.DefaultCommands
-	a.appearance = cfg.Appearance
-	a.keybindings = cfg.Keybindings
-	a.toggles = cfg.Toggles
-	a.projectDirs = cfg.ProjectDirs
+	old := a.cfg.Swap(&cfg)
+	if old != nil && !slices.Equal(old.ProjectDirs, cfg.ProjectDirs) {
+		a.repoIndexMu.Lock()
+		a.repoIndex, a.repoIndexAt = nil, time.Time{}
+		a.repoIndexMu.Unlock()
+	}
 }
 
 // updateConfig applies fn to the settings on disk, not the in-memory copy, so a change another
 // window saved meanwhile is kept, then refreshes the in-memory copy from the result.
 // Errors from fn come back as is; others are prefixed "settings:".
-func (a *App) updateConfig(fn func(*settings.Config) error) error {
+func (a *App) updateConfig(fn func(*settings.Config) error) (settings.Config, error) {
 	a.configMu.Lock()
 	defer a.configMu.Unlock()
 	cfg, err := settings.Update(fn)
 	if err != nil {
-		return err
+		return settings.Config{}, err
 	}
 	a.applyConfig(cfg)
-	return nil
+	return cfg, nil
 }
 
 // initGHClient sets up the authenticated GitHub client from a token.

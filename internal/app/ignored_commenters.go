@@ -17,9 +17,7 @@ func (a *App) GetIgnoredCommenters() ([]model.IgnoredCommenterDTO, error) {
 	if err := a.loadConfig(); err != nil {
 		return nil, fmt.Errorf("settings: load: %w", err)
 	}
-	result := make([]model.IgnoredCommenterDTO, len(a.ignoredCommenters))
-	copy(result, a.ignoredCommenters)
-	return result, nil
+	return slices.Clone(a.conf().IgnoredCommenters), nil
 }
 
 // AddIgnoredCommenter adds a GitHub login to the ignored-commenters list.
@@ -30,7 +28,7 @@ func (a *App) AddIgnoredCommenter(login string) error {
 	if login == "" {
 		return fmt.Errorf("validation: login required")
 	}
-	err := a.updateConfig(func(cfg *settings.Config) error {
+	_, err := a.updateConfig(func(cfg *settings.Config) error {
 		if !slices.ContainsFunc(cfg.IgnoredCommenters, func(ic model.IgnoredCommenterDTO) bool { return ic.Login == login }) {
 			cfg.IgnoredCommenters = append(cfg.IgnoredCommenters, model.IgnoredCommenterDTO{Login: login})
 		}
@@ -47,7 +45,7 @@ func (a *App) AddIgnoredCommenter(login string) error {
 // Silently no-ops if the login is not present.
 // Error prefix: "settings:" — save failure.
 func (a *App) RemoveIgnoredCommenter(login string) error {
-	err := a.updateConfig(func(cfg *settings.Config) error {
+	_, err := a.updateConfig(func(cfg *settings.Config) error {
 		cfg.IgnoredCommenters = slices.DeleteFunc(cfg.IgnoredCommenters, func(ic model.IgnoredCommenterDTO) bool { return ic.Login == login })
 		return nil
 	})

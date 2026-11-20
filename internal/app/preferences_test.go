@@ -165,3 +165,46 @@ func TestSetDefaultCommand_TwoWindows_KeepsBothChanges(t *testing.T) {
 		t.Fatalf("on disk: %+v, %v", cfg.DefaultCommands, err)
 	}
 }
+
+func TestSettings_ReadsDuringSaves_DoNotRace(t *testing.T) {
+	isolateConfig(t)
+	a := New("")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 20 {
+			if err := a.SetToggles(map[string]bool{"wrap_lines": i%2 == 0}); err != nil {
+				t.Errorf("set toggles: %v", err)
+				return
+			}
+		}
+	}()
+	for range 200 {
+		if _, err := a.GetDefaultCommands(); err != nil {
+			t.Fatalf("get defaults: %v", err)
+		}
+		if _, err := a.GetCommands(); err != nil {
+			t.Fatalf("get commands: %v", err)
+		}
+	}
+	<-done
+}
+
+func TestApplyConfig_ProjectDirsChangedElsewhere_DropsRepoIndex(t *testing.T) {
+	isolateConfig(t)
+	first, second := New(""), New("")
+	if _, err := first.GetProjectDirs(); err != nil {
+		t.Fatalf("load first: %v", err)
+	}
+	first.repoIndex = map[string]string{"o/r": "/old/clone"}
+
+	if err := second.SetProjectDirs([]string{"/new"}); err != nil {
+		t.Fatalf("second window: %v", err)
+	}
+	if err := first.SetToggles(map[string]bool{"wrap_lines": true}); err != nil {
+		t.Fatalf("first window: %v", err)
+	}
+	if first.repoIndex != nil {
+		t.Fatalf("repo index kept after project folders changed: %v", first.repoIndex)
+	}
+}

@@ -46,8 +46,9 @@ func (a *App) LoadPR(owner, repo string, number int) (model.PullRequestSummary, 
 	}
 
 	// Build ignored-login set for O(1) lookup.
-	ignoredSet := make(map[string]struct{}, len(a.ignoredCommenters))
-	for _, ic := range a.ignoredCommenters {
+	ignored := a.conf().IgnoredCommenters
+	ignoredSet := make(map[string]struct{}, len(ignored))
+	for _, ic := range ignored {
 		ignoredSet[ic.Login] = struct{}{}
 	}
 

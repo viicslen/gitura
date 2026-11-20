@@ -55,8 +55,9 @@ func (a *App) ReloadReviewActivity() ([]model.CommentThreadDTO, error) {
 	if !a.isLoadedPR(owner, repo, number) {
 		return nil, fmt.Errorf("notfound: pull request changed during reload")
 	}
-	ignoredSet := make(map[string]struct{}, len(a.ignoredCommenters))
-	for _, ic := range a.ignoredCommenters {
+	ignored := a.conf().IgnoredCommenters
+	ignoredSet := make(map[string]struct{}, len(ignored))
+	for _, ic := range ignored {
 		ignoredSet[ic.Login] = struct{}{}
 	}
 	a.threads = filterIgnoredThreads(threads, ignoredSet)
