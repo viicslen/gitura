@@ -115,6 +115,19 @@ func TestLoad_LegacyDefaultCommand_BecomesAllDefault(t *testing.T) {
 	}
 }
 
+func TestLoad_DefaultNamingNoCommand_IsDropped(t *testing.T) {
+	tmp := t.TempDir()
+	overrideConfigDir(t, tmp)
+	require.NoError(t, Save(Config{
+		Commands:        []model.CommandDTO{{Name: "fix", Command: "a"}},
+		DefaultCommands: map[string]string{"all": "fix", "pr": "renamed-by-hand"},
+	}))
+
+	got, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"all": "fix"}, got.DefaultCommands)
+}
+
 // TestLoad_MalformedTOML_ReturnsError verifies that a file with invalid TOML
 // returns a parse error.
 func TestLoad_MalformedTOML_ReturnsError(t *testing.T) {

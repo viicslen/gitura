@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { errorMessage } from '@/lib/utils'
+import { cn, errorMessage } from '@/lib/utils'
 import { computed, reactive, ref, onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import {
@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import Reveal from '@/components/motion/Reveal.vue'
 import { Switch } from '@/components/ui/switch'
 import CommandComposer from '@/components/run/CommandComposer.vue'
-import { Trash2, UserX, Terminal, Plus, Pencil, ChevronRight, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
+import { Trash2, UserX, Terminal, Plus, Pencil, ChevronDown, Palette, Keyboard, RotateCcw, GitMerge, FileDiff, List, FolderGit2 } from '@lucide/vue'
 import { TOGGLES, TOGGLE_SECTIONS, setToggle, toggleLock, useToggles, type ToggleId } from '@/composables/useToggles'
 import {
   useAppearance,
@@ -539,17 +539,21 @@ const headerActions = computed(() => [
             <p v-if="addCmdError" class="text-xs text-destructive" role="alert">{{ addCmdError }}</p>
           </Transition>
           <DefineDefaultRow v-slot="{ kind, label, hint }">
-            <div :class="[row, 'py-2', kind === 'all' && 'py-3']">
+            <div :class="cn(row, kind !== 'all' && 'py-2')">
               <p class="min-w-0 flex-1 text-sm" :class="kind === 'all' ? 'flex flex-col' : 'truncate'">
                 <span :id="`default-${kind}-label`" class="font-medium">{{ label }}</span>
-                <span v-if="hint" class="text-xs text-muted-foreground" :class="kind !== 'all' && 'ml-2'">{{ hint }}</span>
+                <span v-if="hint" :id="`default-${kind}-hint`" class="text-xs text-muted-foreground" :class="kind !== 'all' && 'ml-2'">{{ hint }}</span>
               </p>
               <span class="relative inline-flex shrink-0 rounded-md">
                 <Select
                   :model-value="defaultCommands[kind] || (kind === 'all' ? allDefaultName : INHERIT)"
                   @update:model-value="handleSetDefault(kind, $event === INHERIT ? '' : String($event))"
                 >
-                  <SelectTrigger :aria-labelledby="`default-${kind}-label default-${kind}-value`" class="h-8 w-52">
+                  <SelectTrigger
+                    :aria-labelledby="`default-${kind}-label default-${kind}-value`"
+                    :aria-describedby="hint ? `default-${kind}-hint` : undefined"
+                    class="h-8 w-52"
+                  >
                     <!-- Custom content: the item text would show "Same as all targets" instead of the command it resolves to. -->
                     <SelectValue :id="`default-${kind}-value`" :class="!defaultCommands[kind] && kind !== 'all' && 'text-muted-foreground'">
                       {{ defaultCommands[kind] || allDefaultName }}
@@ -570,14 +574,14 @@ const headerActions = computed(() => [
             <div>
               <button
                 type="button"
-                :class="[row, 'w-full py-2 text-left text-sm transition-colors hover:bg-accent/40']"
+                :class="cn(row, 'w-full py-2 text-left text-sm transition-colors hover:bg-accent/40', !perKindOpen && 'rounded-b-[inherit]')"
                 :aria-expanded="perKindOpen"
                 aria-controls="per-target-defaults"
                 @click="perKindOpen = !perKindOpen"
               >
-                <ChevronRight class="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-fast" :class="perKindOpen && 'rotate-90'" aria-hidden="true" />
                 <span class="flex-1 font-medium">Customize per target</span>
                 <span v-if="overrideCount" class="text-xs text-muted-foreground">{{ overrideCount }} set</span>
+                <ChevronDown class="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-fast" :class="perKindOpen && 'rotate-180'" aria-hidden="true" />
               </button>
               <Reveal id="per-target-defaults" :open="perKindOpen" axis="y">
                 <div class="divide-y divide-border border-t border-border">

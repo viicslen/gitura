@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/BurntSushi/toml"
 
@@ -133,8 +134,18 @@ func buildConfig(raw decodedConfig) Config {
 	}
 
 	resolveLegacyDefaultCommand(&cfg, raw)
+	dropUnknownDefaults(&cfg)
 
 	return cfg
+}
+
+// dropUnknownDefaults removes defaults naming no command (e.g. renamed by hand), so the picker and the run buttons agree.
+func dropUnknownDefaults(cfg *Config) {
+	for kind, name := range cfg.DefaultCommands {
+		if !slices.ContainsFunc(cfg.Commands, func(c model.CommandDTO) bool { return c.Name == name }) {
+			delete(cfg.DefaultCommands, kind)
+		}
+	}
 }
 
 // resolveLegacyDefaultCommand turns the single default of older files into the "all" default.
