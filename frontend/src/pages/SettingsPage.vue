@@ -424,7 +424,7 @@ const headerActions = computed(() => [
                       aria-label="GitHub username to ignore"
                       @keydown.enter="handleAdd"
                     />
-                    <Button variant="ghost" size="sm" @click="closeCommenterInput">Cancel</Button>
+                    <Button variant="ghost" size="sm" :disabled="adding" @click="closeCommenterInput">Cancel</Button>
                     <Button size="sm" :disabled="!newLogin.trim()" aria-label="Add ignored commenter" @click="handleAdd">
                       Add
                     </Button>
