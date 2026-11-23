@@ -213,10 +213,14 @@ const SHORTCUT_GROUPS = [
 const firstStep = ref('')
 let stepTimer: ReturnType<typeof setTimeout> | undefined
 
+// Counts recordings, so a save that answers after this one ended (or was restarted) leaves the current one alone.
+let session = 0
+
 function stopRecording(): void {
   clearTimeout(stepTimer)
   firstStep.value = ''
   recording.value = null
+  session++
 }
 
 function startRecording(action: KeybindingAction): void {
@@ -225,9 +229,8 @@ function startRecording(action: KeybindingAction): void {
   bindError.value = ''
 }
 
-function finishRecording(action: KeybindingAction, error: string | null): void {
-  // A save that answers after another shortcut started recording leaves that recording alone.
-  if (recording.value !== action) return
+function finishRecording(action: KeybindingAction, error: string | null, started: number): void {
+  if (started !== session) return
   bindError.value = error ?? ''
   if (error) return
   stopRecording()
@@ -238,13 +241,14 @@ async function onRecordKeydown(event: KeyboardEvent, action: KeybindingAction): 
   if (recording.value !== action || ['Shift', 'Control', 'Alt', 'Meta', 'Tab'].includes(event.key)) return
   event.preventDefault()
   event.stopPropagation()
+  const started = session
   // Escape is the leave key's default, so there it binds; elsewhere it cancels.
   if (event.key === 'Escape' && kindOf(action) !== 'leave') {
     bindError.value = ''
     return stopRecording()
   }
-  if (event.key === 'Backspace') return finishRecording(action, await setBinding(action, ''))
-  if (kindOf(action) !== 'sequence') return finishRecording(action, await bindKey(action, event))
+  if (event.key === 'Backspace') return finishRecording(action, await setBinding(action, ''), started)
+  if (kindOf(action) !== 'sequence') return finishRecording(action, await bindKey(action, event), started)
   const step = keyFor(action, event)
   if (typeof step !== 'string') {
     bindError.value = step.error
@@ -254,12 +258,12 @@ async function onRecordKeydown(event: KeyboardEvent, action: KeybindingAction): 
   if (firstStep.value) {
     const first = firstStep.value
     firstStep.value = ''
-    return finishRecording(action, await setBinding(action, `${first} ${step}`))
+    return finishRecording(action, await setBinding(action, `${first} ${step}`), started)
   }
   firstStep.value = step
   stepTimer = setTimeout(async () => {
     firstStep.value = ''
-    finishRecording(action, await setBinding(action, step))
+    finishRecording(action, await setBinding(action, step), started)
   }, SEQUENCE_WAIT)
 }
 
