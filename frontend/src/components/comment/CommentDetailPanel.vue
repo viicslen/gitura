@@ -12,7 +12,11 @@ import SplitRunButton from '@/components/run/SplitRunButton.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { CheckCircle, Circle } from '@lucide/vue'
+import { CheckCircle, Circle, FileCode, History } from '@lucide/vue'
+import SwapBox from '@/components/motion/SwapBox.vue'
+import { GetFileAtHead } from '@/bindings/gitura/internal/app/app'
+import { currentCode, type CurrentCode } from '@/lib/currentCode'
+import { errorMessage } from '@/lib/utils'
 import { langFromPath } from '@/lib/highlight'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
 import { taskToggler } from '@/lib/taskList'
@@ -70,6 +74,25 @@ function handleReplySent(comment: model.ReviewCommentDTO): void {
   emit('reply-sent', comment)
 }
 
+// Sticks across threads, so stepping through outdated threads keeps showing the code as it is now.
+const showCurrent = ref(false)
+const canShowCurrent = computed(() => !!props.thread?.outdated && !!props.thread.line && !!rootComment.value?.diff_hunk)
+// Keyed on the thread object, which a PR refresh replaces, so a new head commit is fetched again.
+const current = ref<{ thread: model.CommentThreadDTO; code?: CurrentCode; error?: string } | null>(null)
+watch([() => props.thread, () => showCurrent.value && canShowCurrent.value], async ([thread, wanted]) => {
+  const hunk = rootComment.value?.diff_hunk
+  if (!wanted || !thread || !hunk || current.value?.thread === thread) return
+  let next: NonNullable<typeof current.value>
+  try {
+    next = { thread, code: currentCode(await GetFileAtHead(thread.path), hunk, thread.line) }
+  } catch (err) {
+    const msg = errorMessage(err)
+    next = { thread, error: msg.startsWith('notfound:') ? 'This file is no longer in the pull request.' : `Could not load the file: ${msg}` }
+  }
+  if (props.thread === thread) current.value = next
+}, { immediate: true })
+const shownCurrent = computed(() => (current.value?.thread === props.thread ? current.value : null))
+
 function handleSuggestionCommitted(result: model.SuggestionCommitResult): void {
   emit('suggestion-committed', result)
 }
@@ -126,6 +149,17 @@ function replyAvatarKey(replyId: number): string {
                 <Badge variant="secondary" class="text-xs opacity-70"><DrawnCheck /> Resolved</Badge>
               </span>
             </Transition>
+            <Button
+              v-if="canShowCurrent"
+              variant="ghost"
+              size="sm"
+              class="ml-auto h-6 shrink-0 gap-1.5 px-2 text-xs"
+              :aria-pressed="showCurrent"
+              @click="showCurrent = !showCurrent"
+            >
+              <component :is="showCurrent ? History : FileCode" class="h-3.5 w-3.5" />
+              {{ showCurrent ? 'Show original diff' : 'Show current code' }}
+            </Button>
           </div>
 
           <div v-if="rootComment" class="mt-4 space-y-2">
@@ -179,12 +213,29 @@ function replyAvatarKey(replyId: number): string {
               </div>
             </EditableComment>
 
-            <CommentDiffHunk
-              v-if="rootComment.diff_hunk"
-              :diff-hunk="rootComment.diff_hunk"
-              :marked-line="thread.line || undefined"
-              :language="langFromPath(thread.path)"
-            />
+            <SwapBox v-if="rootComment.diff_hunk">
+              <div v-if="showCurrent && canShowCurrent" :key="shownCurrent ? 'current' : 'loading'">
+                <p v-if="!shownCurrent" class="px-1 py-2 text-xs text-muted-foreground">Loading the current code…</p>
+                <p v-else-if="shownCurrent.error" class="px-1 py-2 text-xs text-destructive">{{ shownCurrent.error }}</p>
+                <template v-else-if="shownCurrent.code">
+                  <p v-if="!shownCurrent.code.markedLine" class="px-1 pb-1 text-xs text-muted-foreground">
+                    The commented line is no longer in the file; showing the code around where it was.
+                  </p>
+                  <CommentDiffHunk
+                    :diff-hunk="shownCurrent.code.hunk"
+                    :marked-line="shownCurrent.code.markedLine"
+                    :language="langFromPath(thread.path)"
+                  />
+                </template>
+              </div>
+              <CommentDiffHunk
+                v-else
+                key="original"
+                :diff-hunk="rootComment.diff_hunk"
+                :marked-line="thread.line || undefined"
+                :language="langFromPath(thread.path)"
+              />
+            </SwapBox>
 
             <SuggestionBlock
               v-if="rootComment.is_suggestion"

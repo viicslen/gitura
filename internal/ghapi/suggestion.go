@@ -44,7 +44,7 @@ func CommitSuggestion(
 		return model.SuggestionCommitResult{}, fmt.Errorf("github:parse diff hunk: %w", err)
 	}
 
-	rawContent, sha, err := fetchFileContent(ctx, client, owner, repo, filePath, headBranch)
+	rawContent, sha, err := FetchFileContent(ctx, client, owner, repo, filePath, headBranch)
 	if err != nil {
 		return model.SuggestionCommitResult{}, err
 	}
@@ -76,10 +76,10 @@ func CommitSuggestion(
 	}, nil
 }
 
-// fetchFileContent retrieves the decoded text content and SHA of a file from
+// FetchFileContent retrieves the decoded text content and SHA of a file from
 // a GitHub repository at the given ref.
 // Returns "notfound:" if the file does not exist, "github:" for other errors.
-func fetchFileContent(ctx context.Context, client *github.Client, owner, repo, filePath, ref string) (content, sha string, err error) {
+func FetchFileContent(ctx context.Context, client *github.Client, owner, repo, filePath, ref string) (content, sha string, err error) {
 	fileContent, _, resp, err := client.Repositories.GetContents(ctx, owner, repo, filePath,
 		&github.RepositoryContentGetOptions{Ref: ref})
 	if err != nil {

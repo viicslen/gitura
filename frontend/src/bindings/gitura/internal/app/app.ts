@@ -180,6 +180,14 @@ export function GetDefaultCommands(): $CancellablePromise<{ [_ in string]?: stri
 }
 
 /**
+ * GetFileAtHead returns the text of a file at the loaded PR's head commit.
+ * Error prefix: "notfound:" if no PR is loaded or the file is not at the head commit.
+ */
+export function GetFileAtHead(path: string): $CancellablePromise<string> {
+    return $Call.ByID(526019203, path);
+}
+
+/**
  * GetFileDiff fetches and parses the diff for a single file in the loaded PR.
  * Binary files return ParsedDiffDTO{IsBinary: true} with no hunks, no error.
  * Error prefix: "notfound:" if no PR is loaded or the file is not in the diff.
