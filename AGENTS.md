@@ -71,6 +71,10 @@ Go: Follow idiomatic Go conventions enforced by `gofmt`, `golint`, `go vet`.
 Frontend: TypeScript strict mode. shadcn-vue components are the single source of
 UI primitives — no ad-hoc inline styles.
 
+Vim keys (`composables/useVimKeys.ts`): mark each new page region `data-vim-pane`
+so Ctrl+H / Ctrl+L can reach it, and mark the focusable rows of a list that has
+no arrow-key handling of its own `data-vim-item` so `j` / `k` step through them.
+
 Motion: durations and easing come from the tokens in `frontend/src/style.css`
 (`duration-faster|fast|base|slow|slower`; `ease-out` is the default). Time
 `animate-in` / `animate-out` with `animation-duration-*`, since a bare

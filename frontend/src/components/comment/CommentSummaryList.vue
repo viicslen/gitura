@@ -67,7 +67,9 @@ function select(index: number): void {
   emit('select', index)
 }
 
+/** Selects and focuses the thread at `target`; Infinity is the last one. */
 function move(target: number): void {
+  if (target === Infinity) target = visibleThreads.value.length - 1
   if (target < 0 || target >= visibleThreads.value.length) return
   emit('select', target)
   document.getElementById(`thread-item-${target}`)?.focus()

@@ -3,6 +3,7 @@
     <!-- ── Filter sidebar ───────────────────────────────────────────────── -->
     <!-- The last group (Clear all) stays out of the cascade: a rise starts below its place, which would make the sidebar scrollable. -->
     <aside
+      data-vim-pane
       class="w-64 shrink-0 space-y-6 sticky top-0 self-start max-h-screen overflow-y-auto overflow-x-hidden"
       :class="arriving && '*:not-last:wow-rise'"
       aria-label="PR filters"
@@ -215,7 +216,7 @@
     </aside>
 
     <!-- ── PR list ──────────────────────────────────────────────────────── -->
-    <main class="flex-1 min-w-0" aria-label="Pull request list">
+    <main data-vim-pane class="flex-1 min-w-0" aria-label="Pull request list">
       <!-- Toolbar: count + refresh -->
       <div class="flex items-center justify-between mb-4">
         <p class="text-sm text-muted-foreground" aria-live="polite">
@@ -392,6 +393,7 @@
                   class="pointer-events-none absolute inset-x-1 inset-y-0.5 rounded-md bg-wow-1/5 opacity-0 shadow-lg shadow-wow-1/25 ring-1 ring-wow-1/40 scale-[0.97] transition-[opacity,scale] duration-fast group-hover/row:scale-100 group-hover/row:opacity-100 group-hover/row:duration-slower group-hover/row:ease-spring group-active/row:scale-[0.98]"
                 />
                 <button
+                  data-vim-item
                   class="relative w-full text-left flex items-start gap-3 py-3 pr-4 pl-[calc(1rem+var(--indent)*1.75rem)] transition-[scale,translate,padding] duration-fast hover:translate-x-[calc(var(--px,0)*1rem)] hover:scale-[1.012] hover:duration-slower hover:ease-spring active:scale-[0.985] active:duration-faster focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring cursor-pointer"
                   :style="{ '--indent': Math.min(Math.max(depth - 1, 0), 5) }"
                   @click="openPR(pr)"

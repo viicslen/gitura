@@ -127,6 +127,9 @@ import { canMorph, morph, morphing } from '@/components/shell/morph'
 import PRSearchDialog from '@/components/shell/PRSearchDialog.vue'
 import { myOpenPRs } from '@/lib/prQuery'
 import { chordOf, keyLabel, useKeybindings } from '@/composables/useKeybindings'
+import { useVimKeys } from '@/composables/useVimKeys'
+import { useReviewTabs, type ReviewTab } from '@/composables/useReviewTabs'
+import { useToggles } from '@/composables/useToggles'
 
 const { authState, refreshAuthState, logout } = useAuth()
 const currentPage = ref<'prList' | 'review' | 'local'>('prList')
@@ -239,6 +242,25 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
   if (event.defaultPrevented || !railLayout.value || focused.value !== false || chordOf(event) !== keybindings.value.quickOpen) return
   event.preventDefault()
   searchOpen.value = true
+})
+
+const { reviewTab } = useReviewTabs()
+const { toggles } = useToggles()
+const REVIEW_TABS: ReviewTab[] = ['overview', 'conversation', 'files']
+useVimKeys({
+  search: () => {
+    if (railLayout.value && focused.value === false) searchOpen.value = true
+  },
+  back: () => {
+    if (currentPage.value !== 'prList') goHome()
+  },
+  tab: (step) => {
+    if (currentPage.value !== 'review') return
+    const i = REVIEW_TABS.indexOf(reviewTab.value)
+    reviewTab.value = REVIEW_TABS[(i + step + REVIEW_TABS.length) % REVIEW_TABS.length] ?? reviewTab.value
+  },
+  bindings: () => keybindings.value,
+  enabled: () => toggles.value.vim_keys,
 })
 
 function handleOpenReview(item: PRRef) {

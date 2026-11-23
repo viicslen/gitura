@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { GetKeybindings, SetKeybindings } from '@/bindings/gitura/internal/app/app'
-import { bindKey, useKeybindings } from './useKeybindings'
+import { DEFAULT_KEYBINDINGS, bindKey, keyLabel, setBinding, useKeybindings } from './useKeybindings'
 
 vi.mock('@/bindings/gitura/internal/app/app', () => ({
   GetKeybindings: vi.fn(async () => ({ nextFile: 'n', bogus: 'x' })),
@@ -16,7 +16,8 @@ describe('useKeybindings', () => {
     const { bindings } = useKeybindings()
     await flushPromises()
     expect(GetKeybindings).toHaveBeenCalledOnce()
-    expect(bindings.value).toEqual({ prevFile: '[', nextFile: 'n', prevThread: 'ArrowLeft', nextThread: 'ArrowRight', quickOpen: 'Ctrl+K' })
+    expect(bindings.value).toEqual({ ...DEFAULT_KEYBINDINGS, nextFile: 'n' })
+    expect(bindings.value).not.toHaveProperty('bogus')
   })
 
   describe('bindKey', () => {
@@ -41,6 +42,35 @@ describe('useKeybindings', () => {
       expect(await bindKey('quickOpen', key('j'))).toMatch(/Ctrl, Alt or Meta/)
       expect(await bindKey('quickOpen', key('k', { ctrlKey: true, shiftKey: true }))).toBeNull()
       expect(bindings.value.quickOpen).toBe('Ctrl+Shift+K')
+    })
+
+    it('binds vim keys with Shift, as sequences, and rejects ones that clash or overlap', async () => {
+      expect(await bindKey('vimLast', key('E', { shiftKey: true }))).toBeNull()
+      expect(bindings.value.vimLast).toBe('E')
+      expect(await bindKey('vimDown', key('j', { ctrlKey: true }))).toMatch(/without Ctrl/)
+      expect(await bindKey('vimDown', key(' '))).toMatch(/Space/)
+      expect(await setBinding('vimUp', 'j')).toMatch(/Next row/)
+      expect(await setBinding('vimUp', 'g')).toMatch(/overlaps g g, used for First row/)
+      expect(await setBinding('vimBack', 'g t x')).toMatch(/overlaps g t/)
+      expect(await setBinding('vimBack', 'z q')).toBeNull()
+      expect(await bindKey('vimHalfDown', key('k', { ctrlKey: true }))).toMatch(/Open a pull request/)
+      expect(await bindKey('vimLeave', key('x'))).toMatch(/Escape/)
+      expect(await bindKey('vimLeave', key('[', { ctrlKey: true }))).toBeNull()
+      expect(bindings.value.vimLeave).toBe('Ctrl+[')
+    })
+
+    it('unbinds a key, leaving it free for another action', async () => {
+      expect(await setBinding('vimDown', '')).toBeNull()
+      expect(await setBinding('vimUp', '')).toBeNull()
+      expect(bindings.value).toMatchObject({ vimDown: '', vimUp: '' })
+      expect(await setBinding('vimLast', 'j')).toBeNull()
+      expect(keyLabel('')).toBe('')
+    })
+
+    it('labels keys case-sensitively, sequences step by step', () => {
+      expect(keyLabel('g T')).toBe('g T')
+      expect(keyLabel(' ')).toBe('Space')
+      expect(keyLabel('Escape')).toBe('Esc')
     })
 
     it('keeps the old binding when saving fails', async () => {

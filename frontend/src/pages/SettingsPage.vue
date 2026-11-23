@@ -35,7 +35,7 @@ import {
 } from '@/composables/useAppearance'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RUN_KINDS, commands, defaultCommands, loadDefaultCommands, type RunKind } from '@/composables/useCommands'
-import { KEYBINDING_ACTIONS, bindKey, keyLabel, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
+import { KEYBINDING_ACTIONS, SEQUENCE_WAIT, bindKey, keyFor, keyLabel, kindOf, setBinding, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
 import { reducedMotion } from '@/components/motion/wow'
 import { createReusableTemplate } from '@vueuse/core'
 
@@ -99,8 +99,8 @@ const appearanceRows: { key: AppearanceKey; label: string; hint: string }[] = [
 // ── Toggles ────────────────────────────────────────────────────────────────
 const { toggles } = useToggles()
 type ToggleSection = keyof typeof TOGGLE_SECTIONS
-// Commands has its own tab content; its toggles sit under the command list.
-const toggleSections = (Object.keys(TOGGLE_SECTIONS) as ToggleSection[]).filter((s) => s !== 'commands')
+// Commands and Keybindings have their own tab content, with their toggles in it.
+const toggleSections = (Object.keys(TOGGLE_SECTIONS) as ToggleSection[]).filter((s) => s !== 'commands' && s !== 'keybindings')
 const [DefineToggles, ReuseToggles] = createReusableTemplate<{ section: ToggleSection }>()
 
 async function saveToggle(id: ToggleId, value: boolean): Promise<void> {
@@ -205,19 +205,66 @@ const { bindings, reset: resetBindings } = useKeybindings()
 const recording = ref<KeybindingAction | null>(null)
 const bindError = ref('')
 
+const SHORTCUT_GROUPS = [
+  { label: 'Shortcuts', actions: KEYBINDING_ACTIONS.filter((a) => a.view !== 'Vim') },
+  { label: 'Vim keys', actions: KEYBINDING_ACTIONS.filter((a) => a.view === 'Vim') },
+]
+// The first key of a sequence being recorded; the second must follow within SEQUENCE_WAIT or the first is bound alone.
+const firstStep = ref('')
+let stepTimer: ReturnType<typeof setTimeout> | undefined
+
+// Counts recordings, so a save that answers after this one ended (or was restarted) leaves the current one alone.
+let session = 0
+
+function stopRecording(): void {
+  clearTimeout(stepTimer)
+  firstStep.value = ''
+  recording.value = null
+  session++
+}
+
 function startRecording(action: KeybindingAction): void {
+  stopRecording()
   recording.value = action
   bindError.value = ''
+}
+
+function finishRecording(action: KeybindingAction, error: string | null, started: number): void {
+  if (started !== session) return
+  bindError.value = error ?? ''
+  if (error) return
+  stopRecording()
+  burst(action)
 }
 
 async function onRecordKeydown(event: KeyboardEvent, action: KeybindingAction): Promise<void> {
   if (recording.value !== action || ['Shift', 'Control', 'Alt', 'Meta', 'Tab'].includes(event.key)) return
   event.preventDefault()
   event.stopPropagation()
-  bindError.value = event.key === 'Escape' ? '' : (await bindKey(action, event)) ?? ''
-  if (bindError.value) return
-  recording.value = null
-  if (event.key !== 'Escape') burst(action)
+  const started = session
+  // Escape is the leave key's default, so there it binds; elsewhere it cancels.
+  if (event.key === 'Escape' && kindOf(action) !== 'leave') {
+    bindError.value = ''
+    return stopRecording()
+  }
+  if (event.key === 'Backspace') return finishRecording(action, await setBinding(action, ''), started)
+  if (kindOf(action) !== 'sequence') return finishRecording(action, await bindKey(action, event), started)
+  const step = keyFor(action, event)
+  if (typeof step !== 'string') {
+    bindError.value = step.error
+    return
+  }
+  clearTimeout(stepTimer)
+  if (firstStep.value) {
+    const first = firstStep.value
+    firstStep.value = ''
+    return finishRecording(action, await setBinding(action, `${first} ${step}`), started)
+  }
+  firstStep.value = step
+  stepTimer = setTimeout(async () => {
+    firstStep.value = ''
+    finishRecording(action, await setBinding(action, step), started)
+  }, SEQUENCE_WAIT)
 }
 
 async function handleResetBindings(): Promise<void> {
@@ -301,7 +348,7 @@ const headerActions = computed(() => [
 
 <template>
   <Tabs v-model="section" orientation="vertical" class="h-full min-h-0 w-full flex-row gap-0">
-    <TabsList class="isolate h-full w-48 shrink-0 flex-col items-stretch justify-start gap-0.5 overflow-hidden rounded-none border-r border-border bg-muted/30 p-2 *:data-[slot=tabs-indicator]:bg-accent *:data-[slot=tabs-indicator]:shadow-none">
+    <TabsList data-vim-pane class="isolate h-full w-48 shrink-0 flex-col items-stretch justify-start gap-0.5 overflow-hidden rounded-none border-r border-border bg-muted/30 p-2 *:data-[slot=tabs-indicator]:bg-accent *:data-[slot=tabs-indicator]:shadow-none">
       <TabsTrigger
         v-for="(s, i) in SECTIONS"
         :key="s.value"
@@ -341,7 +388,7 @@ const headerActions = computed(() => [
 
       <div class="relative min-h-0 flex-1 overflow-hidden">
       <Transition v-bind="turn">
-      <div :key="section" class="absolute inset-0 overflow-y-auto overflow-x-hidden px-6 py-5">
+      <div :key="section" data-vim-pane class="absolute inset-0 overflow-y-auto overflow-x-hidden px-6 py-5">
         <TabsContent value="appearance">
           <div :class="card">
             <div v-for="(r, i) in appearanceRows" :key="r.key" :class="[row, 'wow-rise']" :style="{ '--i': i }">
@@ -635,12 +682,17 @@ const headerActions = computed(() => [
         </TabsContent>
 
         <TabsContent value="keybindings" class="space-y-3">
-          <p class="text-xs text-muted-foreground">Click a shortcut, then press the new key. Escape cancels.</p>
-          <ul :class="card">
-            <li v-for="(action, i) in KEYBINDING_ACTIONS" :key="action.id" :class="[row, 'wow-rise py-2.5']" :style="{ '--i': i }">
+          <p class="text-xs text-muted-foreground">Click a shortcut, then press the new key. Escape cancels; Backspace removes the shortcut.</p>
+          <template v-for="(group, g) in SHORTCUT_GROUPS" :key="group.label">
+          <div v-if="g > 0" class="space-y-3 pt-3">
+            <ReuseToggles section="keybindings" />
+            <p class="text-xs text-muted-foreground">Most take one key or two in a row, like g g. A shortcut above that uses the same key takes its place.</p>
+          </div>
+          <ul :class="[card, g > 0 && !toggles.vim_keys && 'opacity-50']" :aria-label="group.label">
+            <li v-for="(action, i) in group.actions" :key="action.id" :class="[row, 'wow-rise py-2.5']" :style="{ '--i': Math.min(i, 8) }">
               <div class="min-w-0 flex-1">
                 <p class="text-sm font-medium">{{ action.label }}</p>
-                <p class="text-xs text-muted-foreground">{{ action.view }}</p>
+                <p v-if="action.view !== 'Vim'" class="text-xs text-muted-foreground">{{ action.view }}</p>
               </div>
               <Button
                 variant="outline"
@@ -650,7 +702,7 @@ const headerActions = computed(() => [
                 :aria-label="`Change shortcut for ${action.label}`"
                 @click="startRecording(action.id)"
                 @keydown="onRecordKeydown($event, action.id)"
-                @blur="recording === action.id && (recording = null)"
+                @blur="recording === action.id && stopRecording()"
               >
                 <!-- Both labels share one cell, so the button keeps one width while they crossfade. -->
                 <Transition v-bind="fade">
@@ -658,19 +710,20 @@ const headerActions = computed(() => [
                     :key="bindings[action.id]"
                     class="col-start-1 row-start-1 transition-[opacity,visibility] duration-fast"
                     :class="recording === action.id && 'invisible opacity-0'"
-                  >{{ keyLabel(bindings[action.id]) }}</span>
+                  >{{ keyLabel(bindings[action.id]) || 'None' }}</span>
                 </Transition>
                 <span
                   class="col-start-1 row-start-1 transition-[opacity,visibility] duration-fast"
                   :class="recording !== action.id && 'invisible opacity-0'"
-                >Press a key…</span>
+                >{{ recording === action.id && firstStep ? `${keyLabel(firstStep)} …` : 'Press a key…' }}</span>
                 <span v-if="bursts[action.id]" :key="bursts[action.id]" :class="ring" aria-hidden="true" />
               </Button>
             </li>
           </ul>
           <Transition v-bind="alarm">
-            <p v-if="bindError" class="text-xs text-destructive" role="alert">{{ bindError }}</p>
+            <p v-if="bindError && (recording ? group.actions.some((a) => a.id === recording) : g === 0)" class="text-xs text-destructive" role="alert">{{ bindError }}</p>
           </Transition>
+          </template>
         </TabsContent>
       </div>
       </Transition>
