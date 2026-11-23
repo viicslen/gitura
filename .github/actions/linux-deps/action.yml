@@ -4,12 +4,19 @@ description: GTK4 and WebKitGTK 6.0, which Wails links on Linux. Cached, since t
 runs:
   using: composite
   steps:
-    - name: Drop broken apt sources
+    - name: Refresh apt sources
       shell: bash
-      run: sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
+      run: |
+        sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
+        # Stale lists make the install 404; the action then still saves an empty cache instead of failing.
+        sudo apt-get update
 
     - name: Install cached apt packages
       uses: awalsh128/cache-apt-pkgs-action@v1.6.3
       with:
         packages: libgtk-4-dev libwebkitgtk-6.0-dev
-        version: 1
+        version: 2
+
+    - name: Check packages are installed
+      shell: bash
+      run: pkg-config --exists --print-errors gtk4 webkitgtk-6.0
