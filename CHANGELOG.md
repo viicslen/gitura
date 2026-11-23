@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.13.0](https://github.com/viicslen/gitura/compare/v1.12.0...v1.13.0) (2026-11-23)
+
+
+### Features
+
+* **keys:** jump through changes and comments, mark a file viewed and open the merge menu from the keyboard ([fffd5f6](https://github.com/viicslen/gitura/commit/fffd5f62d390c18a0c54c769be4bb0c5584396a5))
+* **keys:** review a PR without the mouse: jump through changes and comments, mark viewed, open merge ([#100](https://github.com/viicslen/gitura/issues/100)) ([ae5f22b](https://github.com/viicslen/gitura/commit/ae5f22ba80080fbf0ad8908511d91d129877e932))
+
+
+### Bug Fixes
+
+* **diff:** keep the head pane in step when the base pane is scrolled or can't scroll ([e8d8603](https://github.com/viicslen/gitura/commit/e8d8603bde4dfe09ee11a3edcb3b27d4bb0489fa))
+* **keys:** reach every change, go back to a file's last change, keep saved keys over new defaults ([903725a](https://github.com/viicslen/gitura/commit/903725a5843f440a99b5e5d052a46f63c218fb95))
+
 ## [1.12.0](https://github.com/viicslen/gitura/compare/v1.11.0...v1.12.0) (2026-11-23)
 
 
