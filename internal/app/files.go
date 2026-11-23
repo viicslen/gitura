@@ -99,6 +99,19 @@ func (a *App) SetFileViewed(path string, viewed bool) error {
 	return nil
 }
 
+// GetFileAtHead returns the text of a file at the loaded PR's head commit.
+// Error prefix: "notfound:" if no PR is loaded or the file is not at the head commit.
+func (a *App) GetFileAtHead(path string) (string, error) {
+	if a.ghClient == nil {
+		return "", fmt.Errorf("auth: not authenticated")
+	}
+	if a.prCache == nil {
+		return "", fmt.Errorf("notfound: no PR loaded; call LoadPR first")
+	}
+	content, _, err := ghapi.FetchFileContent(a.ctx, a.ghClient, a.prOwner, a.prRepo, path, a.prCache.HeadSHA)
+	return content, err
+}
+
 // GetFileDiff fetches and parses the diff for a single file in the loaded PR.
 // Binary files return ParsedDiffDTO{IsBinary: true} with no hunks, no error.
 // Error prefix: "notfound:" if no PR is loaded or the file is not in the diff.
