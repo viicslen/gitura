@@ -20,7 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'select', index: number): void
-  /** Arrow keys: the index the selection should move to. */
+  /** Arrow, Home and End keys: the index the selection should move to; Infinity is the last. */
   (e: 'move', index: number): void
 }>()
 
