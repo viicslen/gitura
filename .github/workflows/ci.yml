@@ -26,14 +26,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Drop broken apt sources
-        run: sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
-
       # internal/app links Wails, which links GTK4 and WebKitGTK 6.0 on Linux.
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+        uses: ./.github/actions/linux-deps
 
       - name: Run tests
         run: go test -race -count=1 -coverprofile=coverage.out ./internal/...
@@ -59,13 +54,8 @@ jobs:
           go-version-file: go.mod
           cache: false  # golangci-lint manages its own cache
 
-      - name: Drop broken apt sources
-        run: sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
-
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+        uses: ./.github/actions/linux-deps
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
