@@ -1,0 +1,15 @@
+name: Linux system dependencies
+description: GTK4 and WebKitGTK 6.0, which Wails links on Linux. Cached, since the apt mirror is the slowest and least predictable step in CI.
+
+runs:
+  using: composite
+  steps:
+    - name: Drop broken apt sources
+      shell: bash
+      run: sudo rm -f /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
+
+    - name: Install cached apt packages
+      uses: awalsh128/cache-apt-pkgs-action@v1.6.3
+      with:
+        packages: libgtk-4-dev libwebkitgtk-6.0-dev
+        version: 1
