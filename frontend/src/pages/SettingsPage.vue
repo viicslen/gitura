@@ -579,7 +579,10 @@ const headerActions = computed(() => [
                 aria-controls="per-target-defaults"
                 @click="perKindOpen = !perKindOpen"
               >
-                <span class="flex-1 font-medium">Customize per target</span>
+                <span class="flex min-w-0 flex-1 flex-col">
+                  <span class="font-medium">Customize per target</span>
+                  <span class="text-xs text-muted-foreground">Pick a different command for some run buttons</span>
+                </span>
                 <span v-if="overrideCount" class="text-xs text-muted-foreground">{{ overrideCount }} set</span>
                 <ChevronDown class="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-fast" :class="perKindOpen && 'rotate-180'" aria-hidden="true" />
               </button>

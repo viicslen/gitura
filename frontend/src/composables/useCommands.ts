@@ -8,9 +8,9 @@ export const RUN_KINDS = [
   { id: 'review', label: 'Review', hint: 'A review and the threads it opened' },
   { id: 'thread', label: 'Thread', hint: 'Every comment in it' },
   { id: 'comment', label: 'Comment', hint: "General, or a thread's first" },
-  { id: 'reply', label: 'Reply', hint: '' },
+  { id: 'reply', label: 'Reply', hint: 'One comment after a thread\'s first' },
   { id: 'draft', label: 'Pending comment', hint: 'Not sent yet' },
-  { id: 'code', label: 'Code block', hint: '' },
+  { id: 'code', label: 'Code block', hint: 'A fenced block in a comment' },
 ] as const
 export type RunKind = (typeof RUN_KINDS)[number]['id']
 
