@@ -76,18 +76,19 @@ function handleReplySent(comment: model.ReviewCommentDTO): void {
 
 // Sticks across threads, so stepping through outdated threads keeps showing the code as it is now.
 const showCurrent = ref(false)
-const canShowCurrent = computed(() => !!props.thread?.outdated && !!props.thread.line && !!rootComment.value?.diff_hunk)
+// A LEFT-side thread is on the base file, which has no "now" to show.
+const canShowCurrent = computed(() => !!props.thread?.outdated && !!props.thread.line && props.thread.side !== 'LEFT' && !!rootComment.value?.diff_hunk)
 // Keyed on the thread object, which a PR refresh replaces, so a new head commit is fetched again.
 const current = ref<{ thread: model.CommentThreadDTO; code?: CurrentCode; error?: string } | null>(null)
 watch([() => props.thread, () => showCurrent.value && canShowCurrent.value], async ([thread, wanted]) => {
   const hunk = rootComment.value?.diff_hunk
-  if (!wanted || !thread || !hunk || current.value?.thread === thread) return
+  if (!wanted || !thread || !hunk || (current.value?.thread === thread && !current.value.error)) return
   let next: NonNullable<typeof current.value>
   try {
     next = { thread, code: currentCode(await GetFileAtHead(thread.path), hunk, thread.line) }
   } catch (err) {
     const msg = errorMessage(err)
-    next = { thread, error: msg.startsWith('notfound:') ? 'This file is no longer in the pull request.' : `Could not load the file: ${msg}` }
+    next = { thread, error: msg.startsWith('notfound:') ? 'This file is no longer at this path; it was deleted or renamed.' : `Could not load the file: ${msg}` }
   }
   if (props.thread === thread) current.value = next
 }, { immediate: true })
