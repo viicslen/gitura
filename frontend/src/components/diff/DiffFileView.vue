@@ -124,6 +124,15 @@ watch(() => props.file.filename, (path, previous) => {
 watch(form, (f) => {
   if (!f) formDraft.body = ''
 })
+// Hunks can be dropped (hiding whitespace), shifting indexes; Shift-click must not extend across hunks.
+watch(hunks, (hs) => {
+  const f = form.value
+  if (!f?.line) return
+  const hunk = hs.findIndex((h) =>
+    (h.lines ?? []).some((l) => (f.side === 'LEFT' ? l.type !== 'add' && l.old_no : l.type !== 'delete' && l.new_no) === f.line),
+  )
+  if (hunk !== f.hunk) form.value = { ...f, hunk }
+})
 // A send started from an earlier view of this file succeeded: drop the locked copy shown here.
 watch(() => props.unsentComments.get(props.file.filename), (entry, previous) => {
   if (previous?.sending && !entry) form.value = null

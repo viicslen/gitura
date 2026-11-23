@@ -133,4 +133,15 @@ describe('hideWhitespaceChanges', () => {
     const real = hunk(9, 1, 9, 1, [line('delete', 9, 0, 'y'), line('add', 0, 9, 'z')])
     expect(hideWhitespaceChanges([ws, real])).toEqual([real])
   })
+
+  it('keeps the lines of a file that only changed whitespace', () => {
+    const ws = hunk(1, 1, 1, 1, [line('delete', 1, 0, '\tx'), line('add', 0, 1, '  x')])
+    expect(hideWhitespaceChanges([ws]).map(brief)).toEqual([['c1/1:  x']])
+  })
+
+  it('handles a change block too large to spread into arguments', () => {
+    const adds = Array.from({ length: 200_000 }, (_, k) => line('add', 0, k + 1, `a${k}`))
+    const big = hunk(1, 1, 1, adds.length, [line('delete', 1, 0, 'gone'), ...adds])
+    expect(hideWhitespaceChanges([big])[0].lines).toHaveLength(200_001)
+  })
 })

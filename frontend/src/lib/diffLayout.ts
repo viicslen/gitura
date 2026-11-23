@@ -182,14 +182,18 @@ const MAX_PAIRING_CELLS = 1_000_000
 
 /**
  * Like `git diff -w`: a deleted and an added line that differ only in whitespace become one
- * unchanged line, and hunks left with no changes are dropped.
+ * unchanged line, and hunks left with no changes are dropped, unless every hunk is.
  */
 export function hideWhitespaceChanges(hunks: model.DiffHunkDTO[]): model.DiffHunkDTO[] {
   const bare = (l: model.DiffLineDTO) => l.content.replace(/\s+/g, '')
-  const out: model.DiffHunkDTO[] = []
+  const all: model.DiffHunkDTO[] = []
   for (const hunk of hunks) {
     const src = hunk.lines ?? []
     const lines: DiffLine[] = []
+    // Not push(...xs): a block can exceed the engine's argument limit.
+    const append = (xs: DiffLine[]) => {
+      for (const x of xs) lines.push(x)
+    }
     let i = 0
     while (i < src.length) {
       if (src[i].type === 'context') {
@@ -204,7 +208,8 @@ export function hideWhitespaceChanges(hunks: model.DiffHunkDTO[]): model.DiffHun
       }
       // shortcut: a huge change block is shown as is rather than paired, upgrade to Myers if that bites.
       if (dels.length * adds.length > MAX_PAIRING_CELLS) {
-        lines.push(...dels, ...adds)
+        append(dels)
+        append(adds)
         continue
       }
       // lcs[d][a]: longest whitespace-equal pairing of dels[d..] with adds[a..].
@@ -221,18 +226,21 @@ export function hideWhitespaceChanges(hunks: model.DiffHunkDTO[]): model.DiffHun
       const pendingAdds: model.DiffLineDTO[] = []
       while (d < dels.length || a < adds.length) {
         if (d < dels.length && a < adds.length && a0[d] === b0[a] && lcs[d][a] === lcs[d + 1][a + 1] + 1) {
-          lines.push(...pendingAdds.splice(0), { ...adds[a++], type: 'context' as model.DiffLineType, old_no: dels[d].old_no, old_content: dels[d++].content })
+          append(pendingAdds.splice(0))
+          lines.push({ ...adds[a++], type: 'context' as model.DiffLineType, old_no: dels[d].old_no, old_content: dels[d++].content })
         } else if (d < dels.length && (a === adds.length || lcs[d + 1][a] >= lcs[d][a + 1])) {
           lines.push(dels[d++])
         } else {
           pendingAdds.push(adds[a++])
         }
       }
-      lines.push(...pendingAdds)
+      append(pendingAdds)
     }
-    if (lines.some((l) => l.type !== 'context')) out.push({ ...hunk, lines })
+    all.push({ ...hunk, lines })
   }
-  return out
+  const changed = all.filter((h) => h.lines.some((l) => l.type !== 'context'))
+  // A whitespace-only file keeps its lines, so comments on them stay in place.
+  return changed.length ? changed : all
 }
 
 /** Every anchor key that maps to a visible line in the diff. */
