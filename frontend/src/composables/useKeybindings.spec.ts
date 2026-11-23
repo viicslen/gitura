@@ -59,6 +59,14 @@ describe('useKeybindings', () => {
       expect(bindings.value.vimLeave).toBe('Ctrl+[')
     })
 
+    it('unbinds a key, leaving it free for another action', async () => {
+      expect(await setBinding('vimDown', '')).toBeNull()
+      expect(await setBinding('vimUp', '')).toBeNull()
+      expect(bindings.value).toMatchObject({ vimDown: '', vimUp: '' })
+      expect(await setBinding('vimLast', 'j')).toBeNull()
+      expect(keyLabel('')).toBe('')
+    })
+
     it('labels keys case-sensitively, sequences step by step', () => {
       expect(keyLabel('g T')).toBe('g T')
       expect(keyLabel(' ')).toBe('Space')

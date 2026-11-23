@@ -99,8 +99,8 @@ const appearanceRows: { key: AppearanceKey; label: string; hint: string }[] = [
 // ── Toggles ────────────────────────────────────────────────────────────────
 const { toggles } = useToggles()
 type ToggleSection = keyof typeof TOGGLE_SECTIONS
-// Commands has its own tab content; its toggles sit under the command list.
-const toggleSections = (Object.keys(TOGGLE_SECTIONS) as ToggleSection[]).filter((s) => s !== 'commands')
+// Commands and Keybindings have their own tab content, with their toggles in it.
+const toggleSections = (Object.keys(TOGGLE_SECTIONS) as ToggleSection[]).filter((s) => s !== 'commands' && s !== 'keybindings')
 const [DefineToggles, ReuseToggles] = createReusableTemplate<{ section: ToggleSection }>()
 
 async function saveToggle(id: ToggleId, value: boolean): Promise<void> {
@@ -242,6 +242,7 @@ async function onRecordKeydown(event: KeyboardEvent, action: KeybindingAction): 
     bindError.value = ''
     return stopRecording()
   }
+  if (event.key === 'Backspace') return finishRecording(action, await setBinding(action, ''))
   if (kindOf(action) !== 'sequence') return finishRecording(action, await bindKey(action, event))
   const step = keyFor(action, event)
   if (typeof step !== 'string') {
@@ -676,13 +677,13 @@ const headerActions = computed(() => [
         </TabsContent>
 
         <TabsContent value="keybindings" class="space-y-3">
-          <p class="text-xs text-muted-foreground">Click a shortcut, then press the new key. Escape cancels.</p>
+          <p class="text-xs text-muted-foreground">Click a shortcut, then press the new key. Escape cancels; Backspace removes the shortcut.</p>
           <template v-for="(group, g) in SHORTCUT_GROUPS" :key="group.label">
-          <div v-if="g > 0" class="space-y-1 pt-3">
-            <h3 class="text-sm font-medium">{{ group.label }}</h3>
-            <p class="text-xs text-muted-foreground">Work everywhere outside a text field. Most take one key or two in a row, like g g. A shortcut above that uses the same key takes its place.</p>
+          <div v-if="g > 0" class="space-y-3 pt-3">
+            <ReuseToggles section="keybindings" />
+            <p class="text-xs text-muted-foreground">Most take one key or two in a row, like g g. A shortcut above that uses the same key takes its place.</p>
           </div>
-          <ul :class="card" :aria-label="group.label">
+          <ul :class="[card, g > 0 && !toggles.vim_keys && 'opacity-50']" :aria-label="group.label">
             <li v-for="(action, i) in group.actions" :key="action.id" :class="[row, 'wow-rise py-2.5']" :style="{ '--i': Math.min(i, 8) }">
               <div class="min-w-0 flex-1">
                 <p class="text-sm font-medium">{{ action.label }}</p>
@@ -704,7 +705,7 @@ const headerActions = computed(() => [
                     :key="bindings[action.id]"
                     class="col-start-1 row-start-1 transition-[opacity,visibility] duration-fast"
                     :class="recording === action.id && 'invisible opacity-0'"
-                  >{{ keyLabel(bindings[action.id]) }}</span>
+                  >{{ keyLabel(bindings[action.id]) || 'None' }}</span>
                 </Transition>
                 <span
                   class="col-start-1 row-start-1 transition-[opacity,visibility] duration-fast"

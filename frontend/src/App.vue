@@ -129,6 +129,7 @@ import { myOpenPRs } from '@/lib/prQuery'
 import { chordOf, keyLabel, useKeybindings } from '@/composables/useKeybindings'
 import { useVimKeys } from '@/composables/useVimKeys'
 import { useReviewTabs, type ReviewTab } from '@/composables/useReviewTabs'
+import { useToggles } from '@/composables/useToggles'
 
 const { authState, refreshAuthState, logout } = useAuth()
 const currentPage = ref<'prList' | 'review' | 'local'>('prList')
@@ -244,6 +245,7 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
 })
 
 const { reviewTab } = useReviewTabs()
+const { toggles } = useToggles()
 const REVIEW_TABS: ReviewTab[] = ['overview', 'conversation', 'files']
 useVimKeys({
   search: () => {
@@ -258,6 +260,7 @@ useVimKeys({
     reviewTab.value = REVIEW_TABS[(i + step + REVIEW_TABS.length) % REVIEW_TABS.length] ?? reviewTab.value
   },
   bindings: () => keybindings.value,
+  enabled: () => toggles.value.vim_keys,
 })
 
 function handleOpenReview(item: PRRef) {

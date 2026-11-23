@@ -86,16 +86,21 @@ async function save(next: Keybindings): Promise<string | null> {
 }
 
 /**
- * Binds `key` to an action. Resolves to an error message instead when another action in the same view (or one that
- * works anywhere) has it, or when one sequence would start another, so the shorter could never wait for the longer.
+ * Binds `key` to an action, or unbinds it when `key` is empty. Resolves to an error message instead when another
+ * action in the same view (or one that works anywhere) has it, or when one sequence would start another, so the
+ * shorter could never wait for the longer.
  */
 export async function setBinding(action: KeybindingAction, key: string): Promise<string | null> {
+  if (!key) return save({ ...bindings.value, [action]: '' })
   const def = KEYBINDING_ACTIONS.find((a) => a.id === action)
   const others = KEYBINDING_ACTIONS.filter((a) => a.id !== action && (a.view === def?.view || a.view === 'Anywhere' || def?.view === 'Anywhere'))
   const clash = others.find((a) => bindings.value[a.id] === key)
   if (clash) return `${keyLabel(key)} is already used for ${clash.label}.`
   if (kindOf(action) === 'sequence') {
-    const overlap = others.find((a) => kindOf(a.id) === 'sequence' && (bindings.value[a.id].startsWith(`${key} `) || key.startsWith(`${bindings.value[a.id]} `)))
+    const overlap = others.find((a) => {
+      const other = bindings.value[a.id]
+      return kindOf(a.id) === 'sequence' && !!other && (other.startsWith(`${key} `) || key.startsWith(`${other} `))
+    })
     if (overlap) return `${keyLabel(key)} overlaps ${keyLabel(bindings.value[overlap.id])}, used for ${overlap.label}.`
   }
   return save({ ...bindings.value, [action]: key })

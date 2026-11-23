@@ -16,6 +16,7 @@ describe('useVimKeys', () => {
   let scope: EffectScope
   let actions: VimActions
   let keys: Keybindings
+  let on: boolean
 
   beforeEach(() => {
     // jsdom lays nothing out, so every element would count as hidden.
@@ -30,7 +31,8 @@ describe('useVimKeys', () => {
         <ul data-vim-pane role="tree" id="tree"><li role="treeitem" tabindex="0" id="t1"></li></ul>
       </main>`
     keys = { ...DEFAULT_KEYBINDINGS }
-    actions = { search: vi.fn(), back: vi.fn(), tab: vi.fn(), bindings: () => keys }
+    on = true
+    actions = { search: vi.fn(), back: vi.fn(), tab: vi.fn(), bindings: () => keys, enabled: () => on }
     scope = effectScope()
     scope.run(() => useVimKeys(actions))
   })
@@ -108,6 +110,18 @@ describe('useVimKeys', () => {
     expect(actions.search).toHaveBeenCalledOnce()
     expect(actions.back).toHaveBeenCalledOnce()
     keys.nextFile = 'j'
+    expect(press('j')).toBe(true)
+    expect(focused()).toBe('a')
+  })
+
+  it('does nothing while turned off, or for a key left unbound', () => {
+    byId('a').focus()
+    on = false
+    expect(press('j')).toBe(true)
+    expect(press('/')).toBe(true)
+    expect(actions.search).not.toHaveBeenCalled()
+    on = true
+    keys.vimDown = ''
     expect(press('j')).toBe(true)
     expect(focused()).toBe('a')
   })

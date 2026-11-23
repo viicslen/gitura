@@ -8,6 +8,7 @@ export const TOGGLE_SECTIONS = {
   diff: 'Files',
   prList: 'Pull request list',
   commands: 'Commands',
+  keybindings: 'Keybindings',
 } as const
 
 interface ToggleDef {
@@ -36,6 +37,7 @@ export const TOGGLES = [
   { id: 'pr_list_reviewer', section: 'prList', label: 'Review requested', hint: 'Show pull requests waiting on your review when the list opens.', default: true },
   { id: 'pr_list_drafts', section: 'prList', label: 'Include drafts', hint: 'Show draft pull requests when the list opens.', default: false },
   { id: 'pr_list_tree', section: 'prList', label: 'Tree layout', hint: 'Nest each pull request under the one whose branch it is based on. Same as the List / Tree switch above the list.', default: false },
+  { id: 'vim_keys', section: 'keybindings', label: 'Vim keys', hint: 'Move around the whole app with the keys below, outside text fields.', default: true },
   { id: 'remove_draft_after_run', section: 'commands', label: 'Remove comments you run', hint: 'A pending comment sent to a command is taken out of your review, and one you are writing is discarded.', default: false },
 ] as const satisfies readonly ToggleDef[]
 

@@ -7,6 +7,7 @@ export interface VimActions {
   back: () => void
   tab: (step: 1 | -1) => void
   bindings: () => Keybindings
+  enabled: () => boolean
 }
 
 type VimAction = Exclude<Extract<KeybindingAction, `vim${string}`>, 'vimLeave'>
@@ -144,7 +145,7 @@ export function useVimKeys(actions: VimActions): void {
   const viewKeys = KEYBINDING_ACTIONS.filter((a) => kindOf(a.id) === 'key').map((a) => a.id)
 
   useEventListener(window, 'keydown', (event: KeyboardEvent) => {
-    if (sending || event.defaultPrevented || MODIFIERS.includes(event.key)) return
+    if (sending || event.defaultPrevented || MODIFIERS.includes(event.key) || !actions.enabled()) return
     const keys = actions.bindings()
     const held = event.ctrlKey || event.metaKey || event.altKey
     const pressed = held ? chordOf(event) : event.key
