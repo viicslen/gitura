@@ -12,7 +12,13 @@ export const KEYBINDING_ACTIONS = [
   { id: 'nextFile', label: 'Next file', view: 'Files', default: ']' },
   { id: 'prevThread', label: 'Previous thread', view: 'Conversation', default: 'ArrowLeft' },
   { id: 'nextThread', label: 'Next thread', view: 'Conversation', default: 'ArrowRight' },
+  { id: 'prevChange', label: 'Previous change, or the file before', view: 'Files', default: 'p' },
+  { id: 'nextChange', label: 'Next change, or the next file', view: 'Files', default: 'n' },
+  { id: 'toggleViewed', label: 'Mark the file viewed, or not', view: 'Files', default: 'v' },
+  { id: 'prevComment', label: 'Previous comment, or the thread before', view: 'Conversation', default: 'p' },
+  { id: 'nextComment', label: 'Next comment, or the next thread', view: 'Conversation', default: 'n' },
   { id: 'quickOpen', label: 'Open a pull request', view: 'Anywhere', default: 'Ctrl+K', kind: 'chord' },
+  { id: 'merge', label: 'Merge or close the pull request', view: 'Anywhere', default: 'Ctrl+Shift+M', kind: 'chord' },
   { id: 'vimDown', label: 'Next row, or scroll down', view: 'Vim', default: 'j', kind: 'sequence' },
   { id: 'vimUp', label: 'Previous row, or scroll up', view: 'Vim', default: 'k', kind: 'sequence' },
   { id: 'vimLeft', label: 'Left: previous thread, or the tab before', view: 'Vim', default: 'h', kind: 'sequence' },
@@ -93,10 +99,15 @@ async function save(next: Keybindings): Promise<string | null> {
  * action in the same view (or one that works anywhere) has it, or when one sequence would start another, so the
  * shorter could never wait for the longer.
  */
+/** The actions whose keys must differ from `action`'s: those in its view, or every one when either works anywhere. */
+function rivalsOf(action: KeybindingAction) {
+  const view = KEYBINDING_ACTIONS.find((a) => a.id === action)?.view
+  return KEYBINDING_ACTIONS.filter((a) => a.id !== action && (a.view === view || a.view === 'Anywhere' || view === 'Anywhere'))
+}
+
 export async function setBinding(action: KeybindingAction, key: string): Promise<string | null> {
   if (!key) return save({ ...bindings.value, [action]: '' })
-  const def = KEYBINDING_ACTIONS.find((a) => a.id === action)
-  const others = KEYBINDING_ACTIONS.filter((a) => a.id !== action && (a.view === def?.view || a.view === 'Anywhere' || def?.view === 'Anywhere'))
+  const others = rivalsOf(action)
   const clash = others.find((a) => bindings.value[a.id] === key)
   if (clash) return `${keyLabel(key)} is already used for ${clash.label}.`
   if (kindOf(action) === 'sequence') {
@@ -119,8 +130,15 @@ export async function bindKey(action: KeybindingAction, event: KeyboardEvent): P
 export function useKeybindings() {
   loaded ??= GetKeybindings()
     .then((saved) => {
-      const known = Object.entries(saved ?? {}).filter(([id]) => id in DEFAULT_KEYBINDINGS)
-      bindings.value = { ...DEFAULT_KEYBINDINGS, ...Object.fromEntries(known) }
+      const known = new Map(Object.entries(saved ?? {}).filter(([id]) => id in DEFAULT_KEYBINDINGS))
+      const next: Keybindings = { ...DEFAULT_KEYBINDINGS, ...Object.fromEntries(known) }
+      // An action added since the save starts unbound when its default is a saved key it would take over: one in its
+      // view, or a vim key, which yields to view shortcuts.
+      for (const { id } of KEYBINDING_ACTIONS) {
+        const rivals = [...rivalsOf(id), ...KEYBINDING_ACTIONS.filter((a) => a.view === 'Vim')]
+        if (!known.has(id) && rivals.some((a) => known.get(a.id) === next[id])) next[id] = ''
+      }
+      bindings.value = next
     })
     .catch(() => {})
   return {

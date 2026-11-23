@@ -17,6 +17,7 @@ import SwapBox from '@/components/motion/SwapBox.vue'
 import { GetFileAtHead } from '@/bindings/gitura/internal/app/app'
 import { currentCode, type CurrentCode } from '@/lib/currentCode'
 import { errorMessage } from '@/lib/utils'
+import { scrollToNext } from '@/lib/scrollJump'
 import { langFromPath } from '@/lib/highlight'
 import { useAvatarFallback } from '@/composables/useAvatarFallback'
 import { taskToggler } from '@/lib/taskList'
@@ -113,7 +114,19 @@ function rootAvatarKey(): string {
 
 function replyAvatarKey(replyId: number): string {
   return `thread-reply:${props.thread?.root_id ?? 0}:${replyId}`
-}</script>
+}
+
+const scroller = ref<InstanceType<typeof ScrollArea> | null>(null)
+/** Scrolls to the next (or previous) comment in the thread; false when there's none that way. */
+function jumpComment(dir: 1 | -1): boolean {
+  const root: unknown = scroller.value?.$el
+  const viewport = root instanceof Element ? root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]') : null
+  if (!viewport) return false
+  const top = viewport.getBoundingClientRect().top - viewport.scrollTop
+  const tops = Array.from(viewport.querySelectorAll('[data-thread-comment]'), (c) => c.getBoundingClientRect().top - top)
+  return scrollToNext(viewport, tops, dir, 16)
+}
+defineExpose({ jumpComment })</script>
 
 <template>
   <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-1 overflow-hidden">
@@ -133,7 +146,7 @@ function replyAvatarKey(replyId: number): string {
       </div>
 
       <!-- Keyed so each thread comes in on its own and starts at the top. -->
-      <ScrollArea v-else :key="thread.root_id" class="[grid-area:1/1] min-h-0">
+      <ScrollArea v-else ref="scroller" :key="thread.root_id" class="[grid-area:1/1] min-h-0">
         <div class="p-4">
           <!-- Fixed height: the badge is taller than the path and must not push the thread down. -->
           <div class="flex h-6 items-center gap-2 text-xs text-muted-foreground">
@@ -163,7 +176,7 @@ function replyAvatarKey(replyId: number): string {
             </Button>
           </div>
 
-          <div v-if="rootComment" class="mt-4 space-y-2">
+          <div v-if="rootComment" data-thread-comment class="mt-4 space-y-2">
             <EditableComment kind="review_comment" :id="rootComment.id" :target="rootComment" class="space-y-2">
               <template #header>
               <img
@@ -247,7 +260,7 @@ function replyAvatarKey(replyId: number): string {
 
           <!-- Block layout with margins on the replies, not space-y: a reply opening or closing takes its gap with it. -->
           <TransitionGroup tag="div" class="border-l-2 border-border pl-4" v-bind="collapse">
-            <div v-for="reply in replies" :key="reply.id" class="mt-3 first:mt-4" :class="collapsible">
+            <div v-for="reply in replies" :key="reply.id" data-thread-comment class="mt-3 first:mt-4" :class="collapsible">
               <EditableComment kind="review_comment" :id="reply.id" :target="reply" class="min-h-0 space-y-1" :class="reply.id === freshReplyId && 'wow-rise'">
                 <template #header>
                   <img

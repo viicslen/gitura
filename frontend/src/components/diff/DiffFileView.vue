@@ -13,6 +13,7 @@ import GlideList from '@/components/motion/GlideList.vue'
 import { ROW_GLIDE } from '@/components/motion/motion'
 import type * as model from '@/bindings/gitura/internal/model'
 import { langFromPath } from '@/lib/highlight'
+import { scrollToNext } from '@/lib/scrollJump'
 import { anchorKey, buildSplitLayout, diffLineKeys, syncScrollTop, type BlockKind, type CommentTarget, type Edge, type LineSelection, type Side, type UnsentComments } from '@/lib/diffLayout'
 
 const props = defineProps<{
@@ -384,6 +385,8 @@ const syncPoints = computed<[number, number][]>(() => {
 function onScroll(side: Side): void {
   const el = scrollEls[side].value
   if (!el) return
+  // Moved by anything but following the other pane (keys sent from outside it, a scrollbar drag): it leads from here.
+  if (side !== master.value && Math.abs(el.scrollTop - scrollTop[side]) > 1) master.value = side
   scrollTop[side] = el.scrollTop
   // Only follow sideways moves: a shorter pane clamps scrollLeft, and copying it on every
   // vertical scroll would yank the other pane back.
@@ -408,6 +411,19 @@ function onScroll(side: Side): void {
   scrollTop[other] = target.scrollTop
 }
 
+/** The pane under the wheel leads; when it can't move that way (it fits, or is at its end), the other pane takes the wheel. */
+function onWheel(side: Side, event: WheelEvent): void {
+  master.value = side
+  const el = scrollEls[side].value
+  const other: Side = side === 'LEFT' ? 'RIGHT' : 'LEFT'
+  const target = scrollEls[other].value
+  if (!el || !target || !event.deltaY) return
+  const stuck = event.deltaY > 0 ? el.scrollTop >= el.scrollHeight - el.clientHeight - 1 : el.scrollTop <= 0
+  if (!stuck) return
+  master.value = other
+  target.scrollTop += event.deltaY
+}
+
 watch(syncPoints, () => onScroll(master.value))
 watch(() => props.file.filename, () => {
   master.value = 'RIGHT'
@@ -417,6 +433,22 @@ watch(() => props.file.filename, () => {
     scrollTop[side] = 0
   }
 })
+
+/**
+ * Scrolls the next (or previous) change block, or with `last` the last one, a quarter down the leading pane, or the
+ * other pane when the leading one can't get there (it fits); false when there's none that way.
+ */
+function jumpChange(dir: 1 | -1, last = false): boolean {
+  const order: Side[] = mode.value === 'split' ? [master.value, master.value === 'LEFT' ? 'RIGHT' : 'LEFT'] : sides.value
+  return order.some((side) => {
+    const el = scrollEls[side].value
+    const rows = contentEl(side)?.children
+    if (!el || !rows) return false
+    const tops = layout.value.blocks.map((b) => (rows[b[side === 'LEFT' ? 'left' : 'right'][0].item] as HTMLElement | undefined)?.offsetTop ?? 0)
+    return scrollToNext(el, last ? tops.slice(-1) : tops, dir, el.clientHeight / 4)
+  })
+}
+defineExpose({ jumpChange })
 
 const SHAPE: Record<BlockKind, string> = {
   added: 'fill-emerald-500/20 stroke-emerald-500/70',
@@ -640,6 +672,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
           </div>
           <div
             :ref="(el) => setScrollEl(side, el)"
+            :data-vim-scroll="side === sides[sides.length - 1] || undefined"
             class="@container min-h-0 overflow-y-auto"
             :class="[
               wrapLines ? 'overflow-x-hidden' : 'overflow-x-auto',
@@ -649,7 +682,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
             @transitionrun="onGlide(side, $event)"
             @transitionend="onGlide(side, $event)"
             @transitioncancel="onGlide(side, $event)"
-            @wheel.passive="master = side"
+            @wheel.passive="onWheel(side, $event)"
             @touchstart.passive="master = side"
             @pointerdown="master = side"
             @keydown="master = side"

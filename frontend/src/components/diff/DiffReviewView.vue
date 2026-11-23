@@ -424,7 +424,30 @@ watch(() => props.active, (active) => {
 
 // ── Keyboard nav ──────────────────────────────────────────────────────────
 const { bindings } = useKeybindings()
-useViewShortcuts(() => props.active, () => ({ [bindings.value.nextFile]: nextFile, [bindings.value.prevFile]: prevFile }))
+const fileView = ref<InstanceType<typeof DiffFileView> | null>(null)
+async function jumpChange(dir: 1 | -1): Promise<void> {
+  if (fileView.value?.jumpChange(dir)) return
+  if (dir > 0) {
+    if (canGoNext.value) await nextFile()
+    return
+  }
+  if (!canGoPrev.value) return
+  await prevFile()
+  await nextTick()
+  // Going back lands on the file's last change, so the next p carries on through it.
+  if (!diffError.value && shownFile.value?.filename === currentFilePath.value) fileView.value?.jumpChange(1, true)
+}
+function toggleShownViewed(): void {
+  const file = shownFile.value
+  if (file && !viewedSaving.value.has(file.filename)) void toggleViewed(file.filename, !file.viewed)
+}
+useViewShortcuts(() => props.active, () => ({
+  [bindings.value.nextFile]: nextFile,
+  [bindings.value.prevFile]: prevFile,
+  [bindings.value.nextChange]: () => jumpChange(1),
+  [bindings.value.prevChange]: () => jumpChange(-1),
+  [bindings.value.toggleViewed]: toggleShownViewed,
+}))
 
 // ── Exposed interface for parent ──────────────────────────────────────────
 defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
@@ -446,7 +469,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
       </div>
       <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
         {{ currentFilePosition > 0 ? `File ${currentFilePosition} of ${files.length}` : 'Select a file' }}
-        <span class="ml-2 hidden text-muted-foreground/70 lg:inline">{{ keyLabel(bindings.prevFile) }} {{ keyLabel(bindings.nextFile) }} to move</span>
+        <span class="ml-2 hidden text-muted-foreground/70 lg:inline">{{ keyLabel(bindings.prevFile) }} {{ keyLabel(bindings.nextFile) }} to move, {{ keyLabel(bindings.prevChange) }} {{ keyLabel(bindings.nextChange) }} through changes</span>
       </span>
 
       <DropdownMenu>
@@ -616,6 +639,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
               <DiffFileView
                 data-vim-pane
                 v-else
+                ref="fileView"
                 :key="shownFile.filename"
                 :inert="diffLoading || undefined"
                 :file="shownFile"
@@ -637,7 +661,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
                 <template #header-actions>
                   <label
                     class="flex shrink-0 cursor-pointer select-none items-center gap-1.5 border-l border-border pl-3 text-xs text-muted-foreground"
-                    :title="shownFile.viewed ? 'Mark as not viewed' : 'Mark as viewed and go to the next file'"
+                    :title="`${shownFile.viewed ? 'Mark as not viewed' : 'Mark as viewed and go to the next file'} (${keyLabel(bindings.toggleViewed)})`"
                   >
                     <span class="relative flex rounded-sm" :class="{ 'wow-ring': justViewed.has(shownFile.filename) }">
                       <Checkbox

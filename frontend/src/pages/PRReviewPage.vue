@@ -32,7 +32,8 @@ import { GetPRLocalPath, SetPRLocalPath, OpenFolderPicker, GetPROverview, GetPRT
 import { toast } from 'vue-sonner'
 import { useReviewTabs, type ReviewTab } from '@/composables/useReviewTabs'
 import { useViewShortcuts } from '@/composables/useViewShortcuts'
-import { useKeybindings, keyLabel } from '@/composables/useKeybindings'
+import { useKeybindings, keyLabel, chordOf } from '@/composables/useKeybindings'
+import { useEventListener } from '@vueuse/core'
 import type { UnsentComments } from '@/lib/diffLayout'
 
 const { reviewTab, tabBadges, overviewMode } = useReviewTabs()
@@ -114,7 +115,16 @@ function handleSelect(index: number): void {
 }
 
 const { bindings } = useKeybindings()
-useViewShortcuts(() => reviewTab.value === 'conversation', () => ({ [bindings.value.nextThread]: goNext, [bindings.value.prevThread]: goPrev }))
+const detailPanel = ref<InstanceType<typeof CommentDetailPanel> | null>(null)
+function jumpComment(dir: 1 | -1): void {
+  if (!detailPanel.value?.jumpComment(dir)) void (dir > 0 ? goNext() : goPrev())
+}
+useViewShortcuts(() => reviewTab.value === 'conversation', () => ({
+  [bindings.value.nextThread]: goNext,
+  [bindings.value.prevThread]: goPrev,
+  [bindings.value.nextComment]: () => jumpComment(1),
+  [bindings.value.prevComment]: () => jumpComment(-1),
+}))
 
 watchEffect(() => {
   tabBadges.overview = overview.value?.reviews.filter((r) => r.has_threads && !r.all_threads_resolved).length ?? 0
@@ -190,6 +200,14 @@ const mergeButton = ref<HTMLElement | null>(null)
 const mergedStamp = ref(false)
 // Longer than the merged-stamp animation below, which ends invisible: a busy reload can start it late.
 const STAMP_MS = 2600
+
+const prOpen = computed(() => (prSummary.value?.state ?? props.prItem.state ?? 'open') === 'open')
+const mergeMenuOpen = ref(false)
+useEventListener(window, 'keydown', (event: KeyboardEvent) => {
+  if (event.defaultPrevented || !prOpen.value || chordOf(event) !== bindings.value.merge || document.activeElement?.closest('[role="dialog"]')) return
+  event.preventDefault()
+  mergeMenuOpen.value = true
+})
 
 function askAction(action: PRAction): void {
   actionError.value = ''
@@ -329,16 +347,17 @@ watch(
       <!-- In the strip from the start, not once the PR has loaded: the list only holds open PRs, so an unknown state counts
            as open. It closes up once the PR is merged or closed. -->
       <Transition v-bind="collapseX('-ml-0.5!')">
-        <span v-if="(prSummary?.state ?? prItem.state ?? 'open') === 'open'" class="ml-1" :class="collapsibleX">
+        <span v-if="prOpen" class="ml-1" :class="collapsibleX">
           <span ref="mergeButton" class="min-w-0">
-            <DropdownMenu>
+            <DropdownMenu v-model:open="mergeMenuOpen">
               <DropdownMenuTrigger as-child>
                 <Button
                   variant="outline"
                   size="sm"
                   class="h-7 gap-1.5 px-2.5 text-xs border-emerald-500/40 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
                   aria-label="Merge or close pull request"
-                  title="Merge or close pull request"
+                  :aria-keyshortcuts="bindings.merge.replace('Ctrl', 'Control') || undefined"
+                  :title="bindings.merge ? `Merge or close pull request (${keyLabel(bindings.merge)})` : 'Merge or close pull request'"
                   style="--wails-draggable: no-drag"
                 >
                   <GitMerge class="h-3.5 w-3.5" />
@@ -441,7 +460,7 @@ watch(
                     <template v-else>No threads</template>
                   </span>
                   <span class="flex-1" />
-                  <span class="hidden lg:inline text-muted-foreground/70 mr-2"><kbd class="font-sans">{{ keyLabel(bindings.prevThread) }}</kbd> <kbd class="font-sans">{{ keyLabel(bindings.nextThread) }}</kbd> to move</span>
+                  <span class="hidden lg:inline text-muted-foreground/70 mr-2"><kbd class="font-sans">{{ keyLabel(bindings.prevThread) }}</kbd> <kbd class="font-sans">{{ keyLabel(bindings.nextThread) }}</kbd> to move, <kbd class="font-sans">{{ keyLabel(bindings.prevComment) }}</kbd> <kbd class="font-sans">{{ keyLabel(bindings.nextComment) }}</kbd> through comments</span>
                   <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="!canGoBack" @click="goPrev()">
                     <ChevronLeft class="h-3.5 w-3.5" /> Previous
                   </Button>
@@ -450,6 +469,7 @@ watch(
                   </Button>
                 </div>
                 <CommentDetailPanel
+                  ref="detailPanel"
                   data-vim-pane
                   :thread="currentThread"
                   :index="currentIndex"

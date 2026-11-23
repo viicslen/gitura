@@ -142,11 +142,27 @@ describe('useVimKeys', () => {
     expect(focused()).toBe('a')
   })
 
+  it('scrolls the scroller a pane marks, not the first one in it', () => {
+    const tree = byId('tree')
+    tree.innerHTML = '<div id="s1" style="overflow-y:auto"></div><div id="s2" data-vim-scroll style="overflow-y:auto"></div>'
+    const scrolled: string[] = []
+    for (const id of ['s1', 's2']) {
+      const el = byId(id)
+      Object.defineProperty(el, 'scrollHeight', { value: 1000 })
+      Object.defineProperty(el, 'clientHeight', { value: 400 })
+      el.scrollBy = () => scrolled.push(id)
+    }
+    tree.tabIndex = -1
+    tree.focus()
+    press('d', { ctrlKey: true })
+    expect(scrolled).toEqual(['s2'])
+  })
+
   it('follows rebound keys, sequences and chords included', () => {
-    keys = { ...keys, vimDown: 'n', vimFirst: 'z z', vimNextPane: 'Alt+L', vimLeave: 'Ctrl+[' }
+    keys = { ...keys, vimDown: 'e', vimFirst: 'z z', vimNextPane: 'Alt+L', vimLeave: 'Ctrl+[' }
     byId('a').focus()
     expect(press('j')).toBe(true)
-    press('n')
+    press('e')
     expect(focused()).toBe('b')
     press('z')
     press('z')
