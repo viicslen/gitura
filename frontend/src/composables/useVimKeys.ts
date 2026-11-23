@@ -58,6 +58,9 @@ export function useVimKeys(actions: VimActions): void {
     const pane = el && !el.matches(TYPING) ? el.closest(PANE) : null
     if (el && pane) lastFocus.set(pane, el)
   })
+  useEventListener(document, 'focusout', (e: FocusEvent) => {
+    if (e.target instanceof HTMLElement) e.target.removeAttribute('data-vim-focus')
+  })
 
   const entry = (pane: Element): HTMLElement | undefined => {
     for (const selector of ENTRY) {
@@ -96,6 +99,9 @@ export function useVimKeys(actions: VimActions): void {
       if (first) enter(first)
       return
     }
+    // A pane entered before its rows loaded (the file tree) is entered again now that they're here.
+    const rows = focus.matches(PANE) ? entry(focus) : undefined
+    if (rows) return rows.focus()
     if (press(focus, key)) return
     const item = focus.closest<HTMLElement>(ITEM)
     if (item && (vertical || edge)) {
@@ -150,7 +156,7 @@ export function useVimKeys(actions: VimActions): void {
       event.preventDefault()
       const pane = focus.closest<HTMLElement>(PANE)
       focus.blur()
-      if (pane) enter(pane)
+      if (pane) run(() => enter(pane))
       return
     }
     if (focus?.closest('[role="menu"]')) return
@@ -169,6 +175,15 @@ export function useVimKeys(actions: VimActions): void {
     if (!id && combo !== pressed) id = find(pressed)
     if (!id || (commands[id].global && focus?.closest('[role="dialog"]'))) return
     event.preventDefault()
-    commands[id].run(focus)
+    const command = commands[id]
+    run(() => command.run(focus))
   })
+
+  function run(action: () => void): void {
+    const before = document.activeElement
+    action()
+    const now = document.activeElement
+    // WebKitGTK shows no :focus-visible after a script moves focus, so mark it for style.css to ring.
+    if (now instanceof HTMLElement && now !== before && now !== document.body) now.setAttribute('data-vim-focus', '')
+  }
 }

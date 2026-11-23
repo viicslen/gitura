@@ -183,10 +183,11 @@
     font-feature-settings: normal;
     font-variant-ligatures: none;
   }
-  /* A pane focused by vim keys (see useVimKeys) shows which one j and k will scroll. */
-  [data-vim-pane]:focus-visible {
-    outline: 2px solid var(--color-ring);
-    outline-offset: -2px;
+  /* Where vim keys (see useVimKeys) put focus. A box-shadow, as WebKitGTK leaves a changed outline unpainted. */
+  [data-vim-pane]:focus-visible,
+  [data-vim-focus]:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--color-ring);
   }
 }
 

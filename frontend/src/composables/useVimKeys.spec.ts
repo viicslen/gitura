@@ -39,7 +39,10 @@ describe('useVimKeys', () => {
   it('starts in the first pane with rows, then steps through its rows with j, k, gg and G', () => {
     press('j')
     expect(focused()).toBe('a')
+    expect(byId('a').hasAttribute('data-vim-focus')).toBe(true)
     press('j')
+    expect(byId('a').hasAttribute('data-vim-focus')).toBe(false)
+    expect(byId('b').hasAttribute('data-vim-focus')).toBe(true)
     press('j')
     press('j')
     expect(focused()).toBe('c')
@@ -64,6 +67,17 @@ describe('useVimKeys', () => {
     press('h')
     expect(seen).toEqual(['j', 'ArrowDown', 'h', 'ArrowLeft'])
     expect(focused()).toBe('t1')
+  })
+
+  it('enters the rows of a pane that was focused before they loaded', () => {
+    const tree = byId('tree')
+    byId('t1').remove()
+    byId('b').focus()
+    press('l', { ctrlKey: true })
+    expect(focused()).toBe('tree')
+    tree.innerHTML = '<li role="treeitem" tabindex="0" id="t2"></li>'
+    press('j')
+    expect(focused()).toBe('t2')
   })
 
   it('moves between panes with Ctrl+H and Ctrl+L, back to where focus was', () => {
