@@ -30,7 +30,10 @@ export const KEYBINDING_ACTIONS = [
   { id: 'vimLeave', label: 'Leave a text field', view: 'Vim', default: 'Escape', kind: 'leave' },
 ] as const
 
-export type KeybindingAction = (typeof KEYBINDING_ACTIONS)[number]['id']
+/** How long the second key of a sequence may take; after that the first key stands alone. */
+export const SEQUENCE_WAIT = 800
+
+export type KeybindingAction =(typeof KEYBINDING_ACTIONS)[number]['id']
 export type Keybindings = Record<KeybindingAction, string>
 type Kind = 'key' | 'chord' | 'sequence' | 'leave'
 

@@ -1,6 +1,6 @@
 import { useEventListener } from '@vueuse/core'
 import { reducedMotion } from '@/components/motion/wow'
-import { KEYBINDING_ACTIONS, chordOf, kindOf, type KeybindingAction, type Keybindings } from './useKeybindings'
+import { KEYBINDING_ACTIONS, SEQUENCE_WAIT, chordOf, kindOf, type KeybindingAction, type Keybindings } from './useKeybindings'
 
 export interface VimActions {
   search: () => void
@@ -50,6 +50,7 @@ function press(el: Element, key: string): boolean {
  */
 export function useVimKeys(actions: VimActions): void {
   let pending = ''
+  let pendingAt = 0
   let pointer: Element | null = null
   const lastFocus = new WeakMap<Element, HTMLElement>()
 
@@ -163,12 +164,13 @@ export function useVimKeys(actions: VimActions): void {
     if (focus?.closest('[role="menu"]')) return
     if (!held && viewKeys.some((id) => keys[id] === pressed)) return
 
-    const combo = pending && !held ? `${pending} ${pressed}` : pressed
+    const combo = pending && !held && event.timeStamp - pendingAt <= SEQUENCE_WAIT ? `${pending} ${pressed}` : pressed
     pending = ''
     const find = (key: string) => ids.find((id) => keys[id] === key)
     let id = find(combo)
     if (!id && !held && ids.some((v) => keys[v].startsWith(`${combo} `))) {
       pending = combo
+      pendingAt = event.timeStamp
       event.preventDefault()
       return
     }

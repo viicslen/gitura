@@ -35,7 +35,7 @@ import {
 } from '@/composables/useAppearance'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RUN_KINDS, commands, defaultCommands, loadDefaultCommands, type RunKind } from '@/composables/useCommands'
-import { KEYBINDING_ACTIONS, bindKey, keyFor, keyLabel, kindOf, setBinding, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
+import { KEYBINDING_ACTIONS, SEQUENCE_WAIT, bindKey, keyFor, keyLabel, kindOf, setBinding, useKeybindings, type KeybindingAction } from '@/composables/useKeybindings'
 import { reducedMotion } from '@/components/motion/wow'
 import { createReusableTemplate } from '@vueuse/core'
 
@@ -211,7 +211,6 @@ const SHORTCUT_GROUPS = [
 ]
 // The first key of a sequence being recorded; the second must follow within SEQUENCE_WAIT or the first is bound alone.
 const firstStep = ref('')
-const SEQUENCE_WAIT = 800
 let stepTimer: ReturnType<typeof setTimeout> | undefined
 
 function stopRecording(): void {
@@ -227,6 +226,8 @@ function startRecording(action: KeybindingAction): void {
 }
 
 function finishRecording(action: KeybindingAction, error: string | null): void {
+  // A save that answers after another shortcut started recording leaves that recording alone.
+  if (recording.value !== action) return
   bindError.value = error ?? ''
   if (error) return
   stopRecording()

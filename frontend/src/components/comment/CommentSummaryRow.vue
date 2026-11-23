@@ -61,6 +61,9 @@ function handleKeydown(event: KeyboardEvent): void {
   if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
     event.preventDefault()
     emit('move', props.index + (event.key === 'ArrowUp' ? -1 : 1))
+  } else if (event.key === 'Home' || event.key === 'End') {
+    event.preventDefault()
+    emit('move', event.key === 'Home' ? 0 : Infinity)
   } else if (event.key === 'Enter') {
     emit('select', props.index)
   }

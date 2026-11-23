@@ -114,6 +114,22 @@ describe('useVimKeys', () => {
     expect(focused()).toBe('a')
   })
 
+  it('drops the first key of a sequence once the second is too late', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    try {
+      byId('a').focus()
+      press('g')
+      vi.advanceTimersByTime(1000)
+      press('t')
+      expect(actions.tab).not.toHaveBeenCalled()
+      press('g')
+      press('t')
+      expect(actions.tab).toHaveBeenCalledWith(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does nothing while turned off, or for a key left unbound', () => {
     byId('a').focus()
     on = false
