@@ -249,15 +249,15 @@ describe('DiffFileView', () => {
 
   describe('split scrolling', () => {
     // jsdom lays nothing out: each pane gets a scroll range by hand.
-    async function panes(base: number, head: number) {
+    async function panes(base: number, head: number, shown = diff) {
       const wrapper = mount(DiffFileView, {
-        props: { file, diff, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true, postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments },
+        props: { file, diff: shown, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true, postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments },
         attachTo: document.body,
       })
       // A new layout gets measured, which sets up the points the panes sync through.
-      await wrapper.setProps({ diff: model.ParsedDiffDTO.createFrom({ ...diff, hunks: [...diff.hunks] }) })
+      await wrapper.setProps({ diff: model.ParsedDiffDTO.createFrom({ ...shown, hunks: [...shown.hunks] }) })
       await flushPromises()
-      const [left, right] = Array.from(document.querySelectorAll<HTMLElement>('.\\@container'))
+      const [left, right] = wrapper.findAll('.\\@container').map((w) => w.element)
       if (!left || !right) throw new Error('no split panes')
       for (const [el, height] of [[left, base], [right, head]] as const) {
         Object.defineProperty(el, 'clientHeight', { value: 400 })
@@ -271,6 +271,29 @@ describe('DiffFileView', () => {
       const { wrapper, left, right } = await panes(400, 2000)
       left.dispatchEvent(new WheelEvent('wheel', { deltaY: 120 }))
       expect(right.scrollTop).toBe(120)
+      wrapper.unmount()
+    })
+
+    it('jumps through changes in the base when the head fits, and to the last one on request', async () => {
+      // Old lines 1-20 kept, 21 deleted, 22-40 kept, 41 deleted: the base's rows 20 and 40.
+      const kept = (from: number, to: number, shift: number) =>
+        Array.from({ length: to - from + 1 }, (_, i) => ({ type: 'context', old_no: from + i, new_no: from + i - shift, content: `line ${from + i}` }))
+      const gone = (n: number) => ({ type: 'delete', old_no: n, new_no: 0, content: `gone ${n}` })
+      const lines = [...kept(1, 20, 0), gone(21), ...kept(22, 40, 1), gone(41)]
+      const deletions = model.ParsedDiffDTO.createFrom({ ...diff, hunks: [{ header: '@@', old_start: 1, old_lines: 41, new_start: 1, new_lines: 39, lines }] })
+      const { wrapper, left } = await panes(2000, 400, deletions)
+      const rows = left.firstElementChild?.children ?? []
+      Array.from(rows).forEach((row, i) => Object.defineProperty(row, 'offsetTop', { value: i * 20 }))
+
+      // A quarter of the 400px pane above each change.
+      expect(wrapper.vm.jumpChange(1)).toBe(true)
+      expect(left.scrollTop).toBe(300)
+      expect(wrapper.vm.jumpChange(1)).toBe(true)
+      expect(left.scrollTop).toBe(700)
+      expect(wrapper.vm.jumpChange(1)).toBe(false)
+      left.scrollTop = 0
+      expect(wrapper.vm.jumpChange(1, true)).toBe(true)
+      expect(left.scrollTop).toBe(700)
       wrapper.unmount()
     })
 

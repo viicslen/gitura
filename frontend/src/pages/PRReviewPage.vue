@@ -356,7 +356,7 @@ watch(
                   size="sm"
                   class="h-7 gap-1.5 px-2.5 text-xs border-emerald-500/40 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
                   aria-label="Merge or close pull request"
-                  :aria-keyshortcuts="bindings.merge || undefined"
+                  :aria-keyshortcuts="bindings.merge.replace('Ctrl', 'Control') || undefined"
                   :title="bindings.merge ? `Merge or close pull request (${keyLabel(bindings.merge)})` : 'Merge or close pull request'"
                   style="--wails-draggable: no-drag"
                 >

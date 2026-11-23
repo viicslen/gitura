@@ -434,14 +434,19 @@ watch(() => props.file.filename, () => {
   }
 })
 
-/** Scrolls the next (or previous) change block a quarter down the pane; false when there's none that way. */
-function jumpChange(dir: 1 | -1): boolean {
-  const side = mode.value === 'split' ? master.value : sides.value[0]
-  const el = scrollEls[side].value
-  const rows = contentEl(side)?.children
-  if (!el || !rows) return false
-  const tops = layout.value.blocks.map((b) => (rows[b[side === 'LEFT' ? 'left' : 'right'][0].item] as HTMLElement | undefined)?.offsetTop ?? 0)
-  return scrollToNext(el, tops, dir, el.clientHeight / 4)
+/**
+ * Scrolls the next (or previous) change block, or with `last` the last one, a quarter down the leading pane, or the
+ * other pane when the leading one can't get there (it fits); false when there's none that way.
+ */
+function jumpChange(dir: 1 | -1, last = false): boolean {
+  const order: Side[] = mode.value === 'split' ? [master.value, master.value === 'LEFT' ? 'RIGHT' : 'LEFT'] : sides.value
+  return order.some((side) => {
+    const el = scrollEls[side].value
+    const rows = contentEl(side)?.children
+    if (!el || !rows) return false
+    const tops = layout.value.blocks.map((b) => (rows[b[side === 'LEFT' ? 'left' : 'right'][0].item] as HTMLElement | undefined)?.offsetTop ?? 0)
+    return scrollToNext(el, last ? tops.slice(-1) : tops, dir, el.clientHeight / 4)
+  })
 }
 defineExpose({ jumpChange })
 

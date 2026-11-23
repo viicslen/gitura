@@ -425,9 +425,17 @@ watch(() => props.active, (active) => {
 // ── Keyboard nav ──────────────────────────────────────────────────────────
 const { bindings } = useKeybindings()
 const fileView = ref<InstanceType<typeof DiffFileView> | null>(null)
-function jumpChange(dir: 1 | -1): void {
+async function jumpChange(dir: 1 | -1): Promise<void> {
   if (fileView.value?.jumpChange(dir)) return
-  if (dir > 0 ? canGoNext.value : canGoPrev.value) void (dir > 0 ? nextFile() : prevFile())
+  if (dir > 0) {
+    if (canGoNext.value) await nextFile()
+    return
+  }
+  if (!canGoPrev.value) return
+  await prevFile()
+  await nextTick()
+  // Going back lands on the file's last change, so the next p carries on through it.
+  if (!diffError.value && shownFile.value?.filename === currentFilePath.value) fileView.value?.jumpChange(1, true)
 }
 function toggleShownViewed(): void {
   const file = shownFile.value

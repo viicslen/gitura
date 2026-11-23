@@ -4,7 +4,7 @@ import { GetKeybindings, SetKeybindings } from '@/bindings/gitura/internal/app/a
 import { DEFAULT_KEYBINDINGS, bindKey, keyLabel, setBinding, useKeybindings } from './useKeybindings'
 
 vi.mock('@/bindings/gitura/internal/app/app', () => ({
-  GetKeybindings: vi.fn(async () => ({ nextFile: 'n', bogus: 'x' })),
+  GetKeybindings: vi.fn(async () => ({ nextFile: 'n', vimDown: 'v', bogus: 'x' })),
   SetKeybindings: vi.fn(async () => {}),
 }))
 
@@ -12,11 +12,12 @@ const key = (k: string, init: KeyboardEventInit = {}) => new KeyboardEvent('keyd
 
 describe('useKeybindings', () => {
   // Don't call useKeybindings() in a describe body: it loads once, at collection, and Vitest clears mock history before each test.
-  it('merges saved bindings over defaults, dropping unknown actions', async () => {
+  it('merges saved bindings over defaults, dropping unknown actions and new defaults that take a saved key', async () => {
     const { bindings } = useKeybindings()
     await flushPromises()
     expect(GetKeybindings).toHaveBeenCalledOnce()
-    expect(bindings.value).toEqual({ ...DEFAULT_KEYBINDINGS, nextFile: 'n' })
+    // The saved map predates nextChange (n, taken by Next file) and toggleViewed (v, taken by a vim key).
+    expect(bindings.value).toEqual({ ...DEFAULT_KEYBINDINGS, nextFile: 'n', vimDown: 'v', nextChange: '', toggleViewed: '' })
     expect(bindings.value).not.toHaveProperty('bogus')
   })
 
