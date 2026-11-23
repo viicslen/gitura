@@ -183,6 +183,11 @@
     font-feature-settings: normal;
     font-variant-ligatures: none;
   }
+  /* A pane focused by vim keys (see useVimKeys) shows which one j and k will scroll. */
+  [data-vim-pane]:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: -2px;
+  }
 }
 
 .dark {

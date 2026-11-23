@@ -36,7 +36,7 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 </script>
 
 <template>
-  <nav class="w-12 border-r border-border flex flex-col items-center shrink-0 bg-muted/30 select-none" aria-label="App navigation">
+  <nav data-vim-pane class="w-12 border-r border-border flex flex-col items-center shrink-0 bg-muted/30 select-none" aria-label="App navigation">
     <!-- The --i of the rail's items start late, so they still land one by one after the sign-in reveal has reached the rail. -->
     <div class="h-10 w-full grid place-items-center wow-pop" :style="{ '--i': 4 }" style="--wails-draggable: drag">
       <img
@@ -48,6 +48,7 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
     </div>
     <button
       v-if="!focused"
+      data-vim-item
       :class="[item, idle, 'mt-1']"
       :style="{ '--i': 5 }"
       aria-label="Open a pull request"
@@ -71,9 +72,11 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
       </div>
       <button
         v-if="!focused"
+        data-vim-item
         :class="[item, !meta ? 'text-foreground' : idle]"
         :style="{ '--i': 6 }"
         aria-label="Pull requests"
+        :aria-current="!meta ? 'page' : undefined"
         title="Pull requests"
         @click="emit('home')"
       ><GitPullRequest :class="icon" /></button>
@@ -86,6 +89,7 @@ const idle = 'text-muted-foreground hover:bg-accent hover:text-foreground'
           <button
             v-for="(v, i) in VIEWS"
             :key="v.value"
+            data-vim-item
             :class="[item, reviewTab === v.value ? 'text-foreground' : idle]"
             :style="{ '--i': i * 2 }"
             :aria-label="viewLabel(v)"

@@ -416,7 +416,7 @@ watch(
                     >All <CountUp :value="threads.length" class="opacity-60" /></button>
                   </div>
                 </div>
-                <div class="flex-1 min-h-0 overflow-y-auto">
+                <div data-vim-pane class="flex-1 min-h-0 overflow-y-auto">
                   <CommentSummaryList
                     :threads="queue"
                     :total="threads.length"
@@ -450,6 +450,7 @@ watch(
                   </Button>
                 </div>
                 <CommentDetailPanel
+                  data-vim-pane
                   :thread="currentThread"
                   :index="currentIndex"
                   :is-at-end="isAtEnd && queue.length > 0"
@@ -468,6 +469,7 @@ watch(
 
           <Transition :name="tabMotion">
             <PROverviewPanel
+              data-vim-pane
               v-show="reviewTab === 'overview'"
               v-model:show-resolved-reviews="showResolvedReviews"
               v-model:mode="overviewMode"

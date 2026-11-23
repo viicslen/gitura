@@ -537,6 +537,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           <!-- Sidebar -->
           <div class="shrink-0 overflow-hidden" :style="{ width: `${clampWidth(sidebarWidth)}px` }">
             <DiffFileSidebar
+              data-vim-pane
               v-model:hide-viewed="hideViewed"
               v-model:hide-tests="hideTests"
               v-model:auto-view-tests="autoViewTests"
@@ -613,6 +614,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
 
               <!-- Diff content -->
               <DiffFileView
+                data-vim-pane
                 v-else
                 :key="shownFile.filename"
                 :inert="diffLoading || undefined"

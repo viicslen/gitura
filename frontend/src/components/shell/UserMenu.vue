@@ -30,6 +30,7 @@ function setMode(value: unknown): void {
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger
+      data-vim-item
       class="rounded-full outline-none transition-transform duration-slow ease-spring hover:scale-115 active:scale-90 focus-visible:ring-2 focus-visible:ring-ring"
       :aria-label="`Account menu for ${login}`"
     >
