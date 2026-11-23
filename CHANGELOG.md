@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.12.0](https://github.com/viicslen/gitura/compare/v1.11.0...v1.12.0) (2026-11-23)
+
+
+### Features
+
+* **conversation:** see an outdated thread's code as it is now ([#99](https://github.com/viicslen/gitura/issues/99)) ([ea1e854](https://github.com/viicslen/gitura/commit/ea1e854e139076c07997770f5d8bcc0237249604))
+* **conversation:** show an outdated thread's code as it is now ([6eaf08d](https://github.com/viicslen/gitura/commit/6eaf08d76d113119e221937b66381a58c6e11290))
+* **diff:** hide whitespace changes ([f449007](https://github.com/viicslen/gitura/commit/f4490075e63b8788d8b70435800b3b5469cd1dfb))
+* **diff:** hide whitespace-only changes so real edits stand out ([#96](https://github.com/viicslen/gitura/issues/96)) ([acff84d](https://github.com/viicslen/gitura/commit/acff84dd0c1fc591fde90fd5b8329d66b69d0f6b))
+* **keys:** get around the whole app from the keyboard with vim keys ([#98](https://github.com/viicslen/gitura/issues/98)) ([f28420c](https://github.com/viicslen/gitura/commit/f28420c6f0e45b3e04fed699216914b83a4d3e1f))
+* **keys:** navigate the whole app with rebindable vim keys ([d25034a](https://github.com/viicslen/gitura/commit/d25034a765a5fd20ad06d37de1a96ac174032151))
+* **keys:** remove a shortcut with Backspace, and turn vim keys off ([1a074e8](https://github.com/viicslen/gitura/commit/1a074e8e0adfe1ff1c5aaef1748952d0121093af))
+
+
+### Bug Fixes
+
+* **conversation:** retry a failed current-code load and skip base-side threads ([c92c0a2](https://github.com/viicslen/gitura/commit/c92c0a2ecf0aa7b1cd61a1bd30799c526f925b50))
+* **diff:** keep comments and comment ranges right when hiding whitespace ([53a576f](https://github.com/viicslen/gitura/commit/53a576fce851d831158ec92622dc5a33579b1448))
+* **diff:** remap a restored comment form to its current hunk ([30b086f](https://github.com/viicslen/gitura/commit/30b086f581931b5cd1fcd569e7eee689e881c317))
+* **keys:** expire a half-typed sequence, jump to the first or last thread, keep a newer recording ([7611539](https://github.com/viicslen/gitura/commit/7611539be2bdba72f2be38259e55966a0f25c686))
+* **keys:** show where vim keys move focus, and enter a tree that loads late ([f874c6e](https://github.com/viicslen/gitura/commit/f874c6ed54c14ffa144aa241bac740a1fa9e8fd8))
+* **settings:** describe every setting ([f5ed970](https://github.com/viicslen/gitura/commit/f5ed970a1de4cc922dce7487d8ff3b190e2e298f))
+* **settings:** keep a restarted shortcut recording when an earlier save answers late ([827fb55](https://github.com/viicslen/gitura/commit/827fb55eece0e9878651a5c64af89f0cfe06f7c3))
+* **settings:** mention indented code blocks in the Code block hint ([e88eede](https://github.com/viicslen/gitura/commit/e88eede1f3b1bda716f576bab27a9a04ca3de5c4))
+* **settings:** stop pull request list hints stating a value ([75e8041](https://github.com/viicslen/gitura/commit/75e80413fc9fbcd41a4534329aa11e73f763b385))
+
 ## [1.11.0](https://github.com/viicslen/gitura/compare/v1.10.0...v1.11.0) (2026-11-20)
 
 
