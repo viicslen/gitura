@@ -24,8 +24,8 @@ const visible = (el: Element): boolean => el.getClientRects().length > 0 && !el.
 const scrollable = (el: Element): boolean => el.scrollHeight > el.clientHeight && /auto|scroll/.test(getComputedStyle(el).overflowY)
 
 function scrollerOf(el: Element): Element | null {
-  // Focus on a pane itself means its content scroller, which sits inside it.
-  if (el.matches(PANE)) for (const n of el.querySelectorAll('*')) if (scrollable(n)) return n
+  // Focus on a pane itself means its content scroller, which sits inside it: the one marked data-vim-scroll, else the first.
+  if (el.matches(PANE)) for (const n of [...el.querySelectorAll('[data-vim-scroll]'), ...el.querySelectorAll('*')]) if (scrollable(n)) return n
   for (let n: Element | null = el; n; n = n.parentElement) if (scrollable(n)) return n
   return null
 }

@@ -385,6 +385,8 @@ const syncPoints = computed<[number, number][]>(() => {
 function onScroll(side: Side): void {
   const el = scrollEls[side].value
   if (!el) return
+  // Moved by anything but following the other pane (keys sent from outside it, a scrollbar drag): it leads from here.
+  if (side !== master.value && Math.abs(el.scrollTop - scrollTop[side]) > 1) master.value = side
   scrollTop[side] = el.scrollTop
   // Only follow sideways moves: a shorter pane clamps scrollLeft, and copying it on every
   // vertical scroll would yank the other pane back.
@@ -407,6 +409,19 @@ function onScroll(side: Side): void {
     el.clientHeight,
   )
   scrollTop[other] = target.scrollTop
+}
+
+/** The pane under the wheel leads; when it can't move that way (it fits, or is at its end), the other pane takes the wheel. */
+function onWheel(side: Side, event: WheelEvent): void {
+  master.value = side
+  const el = scrollEls[side].value
+  const other: Side = side === 'LEFT' ? 'RIGHT' : 'LEFT'
+  const target = scrollEls[other].value
+  if (!el || !target || !event.deltaY) return
+  const stuck = event.deltaY > 0 ? el.scrollTop >= el.scrollHeight - el.clientHeight - 1 : el.scrollTop <= 0
+  if (!stuck) return
+  master.value = other
+  target.scrollTop += event.deltaY
 }
 
 watch(syncPoints, () => onScroll(master.value))
@@ -652,6 +667,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
           </div>
           <div
             :ref="(el) => setScrollEl(side, el)"
+            :data-vim-scroll="side === sides[sides.length - 1] || undefined"
             class="@container min-h-0 overflow-y-auto"
             :class="[
               wrapLines ? 'overflow-x-hidden' : 'overflow-x-auto',
@@ -661,7 +677,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
             @transitionrun="onGlide(side, $event)"
             @transitionend="onGlide(side, $event)"
             @transitioncancel="onGlide(side, $event)"
-            @wheel.passive="master = side"
+            @wheel.passive="onWheel(side, $event)"
             @touchstart.passive="master = side"
             @pointerdown="master = side"
             @keydown="master = side"

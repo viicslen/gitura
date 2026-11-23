@@ -246,4 +246,40 @@ describe('DiffFileView', () => {
     expect(paneUpdates).toBe(0)
     wrapper.unmount()
   })
+
+  describe('split scrolling', () => {
+    // jsdom lays nothing out: each pane gets a scroll range by hand.
+    async function panes(base: number, head: number) {
+      const wrapper = mount(DiffFileView, {
+        props: { file, diff, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true, postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments },
+        attachTo: document.body,
+      })
+      // A new layout gets measured, which sets up the points the panes sync through.
+      await wrapper.setProps({ diff: model.ParsedDiffDTO.createFrom({ ...diff, hunks: [...diff.hunks] }) })
+      await flushPromises()
+      const [left, right] = Array.from(document.querySelectorAll<HTMLElement>('.\\@container'))
+      if (!left || !right) throw new Error('no split panes')
+      for (const [el, height] of [[left, base], [right, head]] as const) {
+        Object.defineProperty(el, 'clientHeight', { value: 400 })
+        Object.defineProperty(el, 'scrollHeight', { value: height })
+        Object.defineProperty(el, 'scrollTop', { value: 0, writable: true })
+      }
+      return { wrapper, left, right }
+    }
+
+    it('wheels the head when the base under the pointer has nowhere to go', async () => {
+      const { wrapper, left, right } = await panes(400, 2000)
+      left.dispatchEvent(new WheelEvent('wheel', { deltaY: 120 }))
+      expect(right.scrollTop).toBe(120)
+      wrapper.unmount()
+    })
+
+    it('follows the base to its end when keys scrolled it from outside', async () => {
+      const { wrapper, left, right } = await panes(1000, 2000)
+      left.scrollTop = 600
+      left.dispatchEvent(new Event('scroll'))
+      expect(right.scrollTop).toBe(1600)
+      wrapper.unmount()
+    })
+  })
 })
