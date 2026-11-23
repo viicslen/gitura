@@ -143,10 +143,10 @@ describe('useVimKeys', () => {
   })
 
   it('follows rebound keys, sequences and chords included', () => {
-    keys = { ...keys, vimDown: 'n', vimFirst: 'z z', vimNextPane: 'Alt+L', vimLeave: 'Ctrl+[' }
+    keys = { ...keys, vimDown: 'e', vimFirst: 'z z', vimNextPane: 'Alt+L', vimLeave: 'Ctrl+[' }
     byId('a').focus()
     expect(press('j')).toBe(true)
-    press('n')
+    press('e')
     expect(focused()).toBe('b')
     press('z')
     press('z')

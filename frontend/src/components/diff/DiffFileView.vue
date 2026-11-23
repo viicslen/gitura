@@ -13,6 +13,7 @@ import GlideList from '@/components/motion/GlideList.vue'
 import { ROW_GLIDE } from '@/components/motion/motion'
 import type * as model from '@/bindings/gitura/internal/model'
 import { langFromPath } from '@/lib/highlight'
+import { scrollToNext } from '@/lib/scrollJump'
 import { anchorKey, buildSplitLayout, diffLineKeys, syncScrollTop, type BlockKind, type CommentTarget, type Edge, type LineSelection, type Side, type UnsentComments } from '@/lib/diffLayout'
 
 const props = defineProps<{
@@ -417,6 +418,17 @@ watch(() => props.file.filename, () => {
     scrollTop[side] = 0
   }
 })
+
+/** Scrolls the next (or previous) change block a quarter down the pane; false when there's none that way. */
+function jumpChange(dir: 1 | -1): boolean {
+  const side = mode.value === 'split' ? master.value : sides.value[0]
+  const el = scrollEls[side].value
+  const rows = contentEl(side)?.children
+  if (!el || !rows) return false
+  const tops = layout.value.blocks.map((b) => (rows[b[side === 'LEFT' ? 'left' : 'right'][0].item] as HTMLElement | undefined)?.offsetTop ?? 0)
+  return scrollToNext(el, tops, dir, el.clientHeight / 4)
+}
+defineExpose({ jumpChange })
 
 const SHAPE: Record<BlockKind, string> = {
   added: 'fill-emerald-500/20 stroke-emerald-500/70',
