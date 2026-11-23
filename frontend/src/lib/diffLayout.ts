@@ -89,9 +89,10 @@ export function buildSplitLayout(hunks: model.DiffHunkDTO[]): SplitLayout {
     }
 
     const lines = hunk.lines ?? []
-    const line = (l: model.DiffLineDTO, side: Side, block: number, changes?: Range[]): PaneItem => {
+    const line = (l: DiffLine, side: Side, block: number, changes?: Range[]): PaneItem => {
       const no = side === 'LEFT' ? l.old_no : l.new_no
-      return { type: 'line', key: `${side}:${no}`, no, content: l.content, hunk: hi, block, ...(changes && { changes }) }
+      const content = side === 'LEFT' ? l.old_content ?? l.content : l.content
+      return { type: 'line', key: `${side}:${no}`, no, content, hunk: hi, block, ...(changes && { changes }) }
     }
 
     let i = 0
@@ -172,6 +173,66 @@ export function syncScrollTop(
     return from + (followerMaxTop - from) * (Math.min(top, maxTop) - (maxTop - edge)) / edge
   }
   return middle(top)
+}
+
+/** An unchanged line whose two sides differ only in whitespace carries the old side's text too. */
+type DiffLine = model.DiffLineDTO & { old_content?: string }
+
+const MAX_PAIRING_CELLS = 1_000_000
+
+/**
+ * Like `git diff -w`: a deleted and an added line that differ only in whitespace become one
+ * unchanged line, and hunks left with no changes are dropped.
+ */
+export function hideWhitespaceChanges(hunks: model.DiffHunkDTO[]): model.DiffHunkDTO[] {
+  const bare = (l: model.DiffLineDTO) => l.content.replace(/\s+/g, '')
+  const out: model.DiffHunkDTO[] = []
+  for (const hunk of hunks) {
+    const src = hunk.lines ?? []
+    const lines: DiffLine[] = []
+    let i = 0
+    while (i < src.length) {
+      if (src[i].type === 'context') {
+        lines.push(src[i++])
+        continue
+      }
+      const dels: model.DiffLineDTO[] = []
+      const adds: model.DiffLineDTO[] = []
+      while (i < src.length && src[i].type !== 'context') {
+        const l = src[i++]
+        ;(l.type === 'delete' ? dels : adds).push(l)
+      }
+      // shortcut: a huge change block is shown as is rather than paired, upgrade to Myers if that bites.
+      if (dels.length * adds.length > MAX_PAIRING_CELLS) {
+        lines.push(...dels, ...adds)
+        continue
+      }
+      // lcs[d][a]: longest whitespace-equal pairing of dels[d..] with adds[a..].
+      const a0 = dels.map(bare)
+      const b0 = adds.map(bare)
+      const lcs = Array.from({ length: dels.length + 1 }, () => new Array<number>(adds.length + 1).fill(0))
+      for (let d = dels.length - 1; d >= 0; d--) {
+        for (let a = adds.length - 1; a >= 0; a--) {
+          lcs[d][a] = a0[d] === b0[a] ? lcs[d + 1][a + 1] + 1 : Math.max(lcs[d + 1][a], lcs[d][a + 1])
+        }
+      }
+      let d = 0
+      let a = 0
+      const pendingAdds: model.DiffLineDTO[] = []
+      while (d < dels.length || a < adds.length) {
+        if (d < dels.length && a < adds.length && a0[d] === b0[a] && lcs[d][a] === lcs[d + 1][a + 1] + 1) {
+          lines.push(...pendingAdds.splice(0), { ...adds[a++], type: 'context' as model.DiffLineType, old_no: dels[d].old_no, old_content: dels[d++].content })
+        } else if (d < dels.length && (a === adds.length || lcs[d + 1][a] >= lcs[d][a + 1])) {
+          lines.push(dels[d++])
+        } else {
+          pendingAdds.push(adds[a++])
+        }
+      }
+      lines.push(...pendingAdds)
+    }
+    if (lines.some((l) => l.type !== 'context')) out.push({ ...hunk, lines })
+  }
+  return out
 }
 
 /** Every anchor key that maps to a visible line in the diff. */

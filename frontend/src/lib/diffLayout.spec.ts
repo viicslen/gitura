@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSplitLayout, diffLineKeys, mapOffset, syncScrollTop, type PaneItem } from './diffLayout'
+import { buildSplitLayout, diffLineKeys, hideWhitespaceChanges, mapOffset, syncScrollTop, type PaneItem } from './diffLayout'
 import type * as model from '@/bindings/gitura/internal/model'
 
 const ctx = (o: number, n: number) => ({ type: 'context', old_no: o, new_no: n, content: `c${o}` })
@@ -103,5 +103,34 @@ describe('diffLineKeys', () => {
     expect([...diffLineKeys([hunk(1, 2, 1, 2, [ctx(1, 1), del(2), add(2)])])].sort()).toEqual(
       ['LEFT:1', 'LEFT:2', 'RIGHT:1', 'RIGHT:2'],
     )
+  })
+})
+
+describe('hideWhitespaceChanges', () => {
+  const line = (type: string, old_no: number, new_no: number, content: string) => ({ type, old_no, new_no, content })
+  const brief = (h: model.DiffHunkDTO) => h.lines.map((l) => `${l.type[0]}${l.old_no}/${l.new_no}:${l.content}`)
+
+  it('turns whitespace-only edits into unchanged lines and keeps real changes', () => {
+    const h = hunk(1, 3, 1, 3, [
+      line('delete', 1, 0, 'if (x) {'),
+      line('delete', 2, 0, '  foo()'),
+      line('delete', 3, 0, '}'),
+      line('add', 0, 1, 'if (x)  {'),
+      line('add', 0, 2, '    bar()'),
+      line('add', 0, 3, '}'),
+    ])
+    expect(hideWhitespaceChanges([h]).map(brief)).toEqual([
+      ['c1/1:if (x)  {', 'd2/0:  foo()', 'a0/2:    bar()', 'c3/3:}'],
+    ])
+    const { left, right } = buildSplitLayout(hideWhitespaceChanges([h]))
+    const text = (items: PaneItem[]) => items.flatMap((i) => (i.type === 'line' ? [i.content] : []))
+    expect(text(left)).toEqual(['if (x) {', '  foo()', '}'])
+    expect(text(right)).toEqual(['if (x)  {', '    bar()', '}'])
+  })
+
+  it('drops hunks that only changed whitespace', () => {
+    const ws = hunk(1, 1, 1, 1, [line('delete', 1, 0, '\tx'), line('add', 0, 1, '  x')])
+    const real = hunk(9, 1, 9, 1, [line('delete', 9, 0, 'y'), line('add', 0, 9, 'z')])
+    expect(hideWhitespaceChanges([ws, real])).toEqual([real])
   })
 })

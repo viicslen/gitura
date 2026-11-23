@@ -26,6 +26,7 @@ export const TOGGLES = [
   { id: 'return_after_merge', section: 'review', label: 'Leave the review after merging', hint: 'Go back to the pull request list. A --focus window closes instead.', default: false },
   { id: 'show_resolved_reviews', section: 'review', label: 'Include fully resolved reviews', hint: 'Starting value of the switch in Overview.', default: false },
   { id: 'wrap_lines', section: 'diff', label: 'Wrap lines', hint: 'Wrap long lines instead of scrolling sideways.', default: true, legacyKey: 'gitura.diffWrapLines' },
+  { id: 'hide_whitespace', section: 'diff', label: 'Hide whitespace changes', hint: 'Show lines that only changed indentation or spacing as unchanged.', default: false },
   { id: 'show_comments', section: 'diff', label: 'Show comments', hint: 'Starting value of Show comments in the View menu.', default: true },
   { id: 'hide_viewed', section: 'diff', label: 'Hide viewed files', hint: 'Leave files you marked viewed out of the file list.', default: false, legacyKey: 'gitura.diffHideViewed' },
   { id: 'hide_tests', section: 'diff', label: 'Hide test files', hint: 'Leave test files out of the file list.', default: false, legacyKey: 'gitura.diffHideTests' },

@@ -26,7 +26,7 @@ import { useViewShortcuts } from '@/composables/useViewShortcuts'
 import { useReviewTabs } from '@/composables/useReviewTabs'
 import { useKeybindings, keyLabel } from '@/composables/useKeybindings'
 import type * as model from '@/bindings/gitura/internal/model'
-import type { UnsentComments } from '@/lib/diffLayout'
+import { hideWhitespaceChanges, type UnsentComments } from '@/lib/diffLayout'
 import { toast } from 'vue-sonner'
 import { useLocalStorage, useWindowSize } from '@vueuse/core'
 import { toggleRef } from '@/composables/useToggles'
@@ -178,6 +178,10 @@ const { width: windowWidth } = useWindowSize()
 const SIDEBAR_MAX = computed(() => Math.max(SIDEBAR_MIN, Math.min(640, Math.round(windowWidth.value * 0.4))))
 const sidebarWidth = useLocalStorage('gitura.diffSidebarWidth', 256)
 const wrapLines = toggleRef('wrap_lines')
+const hideWhitespace = toggleRef('hide_whitespace')
+const shownDiff = computed(() =>
+  hideWhitespace.value && currentDiff.value ? { ...currentDiff.value, hunks: hideWhitespaceChanges(currentDiff.value.hunks ?? []) } : currentDiff.value,
+)
 
 const clampWidth = (w: number) => Math.round(Math.min(SIDEBAR_MAX.value, Math.max(SIDEBAR_MIN, w)))
 let resizeFrom: { x: number; width: number } | null = null
@@ -464,6 +468,9 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
           <DropdownMenuCheckboxItem v-model="wrapLines" @select.prevent>
             Wrap lines
           </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem v-model="hideWhitespace" @select.prevent>
+            Hide whitespace
+          </DropdownMenuCheckboxItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -610,7 +617,7 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
                 :key="shownFile.filename"
                 :inert="diffLoading || undefined"
                 :file="shownFile"
-                :diff="currentDiff"
+                :diff="shownDiff"
                 :commentable="true"
                 :threads="threadsForFile"
                 :drafts="draftsForFile"
