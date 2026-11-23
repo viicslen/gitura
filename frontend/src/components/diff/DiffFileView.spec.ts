@@ -46,6 +46,54 @@ describe('DiffFileView', () => {
     wrapper.unmount()
   })
 
+  it('extends a comment range in its hunk after an earlier hunk is dropped', async () => {
+    const hunk = (start: number) => ({ header: '@@', old_start: start, old_lines: 3, new_start: start, new_lines: 3, lines: [ctx(start), ctx(start + 1), ctx(start + 2)] })
+    const two = model.ParsedDiffDTO.createFrom({ ...diff, hunks: [hunk(1), hunk(10)] })
+    const wrapper = mount(DiffFileView, {
+      props: { file, diff: two, commentable: true, threads: [], drafts: [], showThreads: true,
+        wrapLines: true, postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments },
+      attachTo: document.body,
+    })
+    const press = async (n: number, shiftKey = false) => {
+      await wrapper.find(`button[aria-label="Comment on new line ${n}"]`).trigger('mousedown', { button: 0, shiftKey })
+      window.dispatchEvent(new MouseEvent('mouseup'))
+      await flushPromises()
+    }
+
+    await press(11)
+    await wrapper.setProps({ diff: model.ParsedDiffDTO.createFrom({ ...diff, hunks: [hunk(10)] }) })
+    await press(12, true)
+
+    const selected = wrapper.findAll('button[aria-label^="Comment on new line"]').filter((b) =>
+      b.element.parentElement?.className.includes('bg-primary/15'),
+    )
+    expect(selected.map((b) => b.text())).toEqual(['11', '12'])
+    wrapper.unmount()
+  })
+
+  it('extends a restored comment range in its hunk after an earlier hunk is dropped', async () => {
+    const hunk = (start: number) => ({ header: '@@', old_start: start, old_lines: 3, new_start: start, new_lines: 3, lines: [ctx(start), ctx(start + 1), ctx(start + 2)] })
+    const props = { file, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true,
+      postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments }
+    const first = mount(DiffFileView, { props: { ...props, diff: model.ParsedDiffDTO.createFrom({ ...diff, hunks: [hunk(1), hunk(10)] }) }, attachTo: document.body })
+    await first.find('button[aria-label="Comment on new line 11"]').trigger('mousedown', { button: 0 })
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await flushPromises()
+    await first.find('textarea').setValue('half a thought')
+    first.unmount()
+
+    const second = mount(DiffFileView, { props: { ...props, diff: model.ParsedDiffDTO.createFrom({ ...diff, hunks: [hunk(10)] }) }, attachTo: document.body })
+    await second.find('button[aria-label="Comment on new line 12"]').trigger('mousedown', { button: 0, shiftKey: true })
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await flushPromises()
+
+    const selected = second.findAll('button[aria-label^="Comment on new line"]').filter((b) =>
+      b.element.parentElement?.className.includes('bg-primary/15'),
+    )
+    expect(selected.map((b) => b.text())).toEqual(['11', '12'])
+    second.unmount()
+  })
+
   it('keeps a half-written comment when the view is left and comes back', async () => {
     const unsentComments: UnsentComments = reactive(new Map())
     const props = { file, diff, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true, postComment: vi.fn(), unsentComments }

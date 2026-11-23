@@ -106,10 +106,18 @@ function stashForm(path: string): void {
   if (form.value && formDraft.body.trim()) props.unsentComments.set(path, { target: form.value, body: formDraft.body })
   else props.unsentComments.delete(path)
 }
+// Hunks can be dropped (hiding whitespace), shifting indexes; Shift-click must not extend across hunks.
+function inCurrentHunk(f: FormTarget): FormTarget {
+  if (!f.line) return f
+  const hunk = hunks.value.findIndex((h) =>
+    (h.lines ?? []).some((l) => (f.side === 'LEFT' ? l.type !== 'add' && l.old_no : l.type !== 'delete' && l.new_no) === f.line),
+  )
+  return hunk === f.hunk ? f : { ...f, hunk }
+}
 // TODO: a restored comment whose line is gone after new commits stays hidden until the file is left.
 function restoreForm(path: string): void {
   const saved = props.unsentComments.get(path)
-  form.value = saved?.target ?? null
+  form.value = saved ? inCurrentHunk(saved.target) : null
   formDraft.body = saved?.body ?? ''
 }
 restoreForm(props.file.filename)
@@ -123,6 +131,9 @@ watch(() => props.file.filename, (path, previous) => {
 })
 watch(form, (f) => {
   if (!f) formDraft.body = ''
+})
+watch(hunks, () => {
+  if (form.value) form.value = inCurrentHunk(form.value)
 })
 // A send started from an earlier view of this file succeeded: drop the locked copy shown here.
 watch(() => props.unsentComments.get(props.file.filename), (entry, previous) => {
