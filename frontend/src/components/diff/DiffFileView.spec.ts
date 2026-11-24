@@ -305,4 +305,15 @@ describe('DiffFileView', () => {
       wrapper.unmount()
     })
   })
+
+  it('focuses the head pane so keys scroll the diff', () => {
+    const wrapper = mount(DiffFileView, {
+      props: { file, diff, commentable: true, threads: [], drafts: [], showThreads: true,
+        wrapLines: true, postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments },
+      attachTo: document.body,
+    })
+    wrapper.vm.focus()
+    expect(document.activeElement).toBe(wrapper.find('[data-vim-scroll]').element)
+    wrapper.unmount()
+  })
 })
