@@ -419,10 +419,13 @@ async function reload(): Promise<void> {
 // a file still being reviewed stays open. Either way focus lands in the diff, so keys scroll it straight away.
 watch(() => props.active, async (active) => {
   if (!active) return
+  const from = document.activeElement
   const start = startFile.value
   if (currentFile.value?.viewed && start && !start.viewed) await selectFile(start.filename)
   await nextTick()
-  if (props.active) fileView.value?.focus()
+  // Focus moved by the user while the file loaded stays put; body means the view they left hid it.
+  const now = document.activeElement
+  if (props.active && (now === from || now === document.body)) fileView.value?.focus()
 })
 
 // ── Keyboard nav ──────────────────────────────────────────────────────────
