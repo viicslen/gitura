@@ -448,7 +448,11 @@ function jumpChange(dir: 1 | -1, last = false): boolean {
     return scrollToNext(el, last ? tops.slice(-1) : tops, dir, el.clientHeight / 4)
   })
 }
-defineExpose({ jumpChange })
+/** Focuses the head pane, so arrow, page and vim keys scroll the diff. */
+function focus(): void {
+  scrollEls[sides.value[sides.value.length - 1]].value?.focus({ preventScroll: true })
+}
+defineExpose({ jumpChange, focus })
 
 const SHAPE: Record<BlockKind, string> = {
   added: 'fill-emerald-500/20 stroke-emerald-500/70',
@@ -673,6 +677,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
           <div
             :ref="(el) => setScrollEl(side, el)"
             :data-vim-scroll="side === sides[sides.length - 1] || undefined"
+            :tabindex="side === sides[sides.length - 1] ? -1 : undefined"
             class="@container min-h-0 overflow-y-auto"
             :class="[
               wrapLines ? 'overflow-x-hidden' : 'overflow-x-auto',

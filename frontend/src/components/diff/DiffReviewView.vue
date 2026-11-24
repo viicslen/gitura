@@ -416,10 +416,13 @@ async function reload(): Promise<void> {
 }
 
 // Coming back to Files while the open file is already viewed picks up at the first unviewed one;
-// a file still being reviewed stays open.
-watch(() => props.active, (active) => {
+// a file still being reviewed stays open. Either way focus lands in the diff, so keys scroll it straight away.
+watch(() => props.active, async (active) => {
+  if (!active) return
   const start = startFile.value
-  if (active && currentFile.value?.viewed && start && !start.viewed) void selectFile(start.filename)
+  if (currentFile.value?.viewed && start && !start.viewed) await selectFile(start.filename)
+  await nextTick()
+  if (props.active) fileView.value?.focus()
 })
 
 // ── Keyboard nav ──────────────────────────────────────────────────────────
