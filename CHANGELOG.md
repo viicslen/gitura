@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.1](https://github.com/viicslen/gitura/compare/v1.13.0...v1.13.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **diff:** scroll the diff with the keyboard as soon as you open the Files tab ([#103](https://github.com/viicslen/gitura/issues/103)) ([4d8d4b9](https://github.com/viicslen/gitura/commit/4d8d4b905330c0bc5b9a26141deeda422181d781))
+
 ## [1.13.0](https://github.com/viicslen/gitura/compare/v1.12.0...v1.13.0) (2026-11-23)
 
 
