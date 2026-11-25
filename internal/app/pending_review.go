@@ -55,27 +55,14 @@ func (a *App) SyncPendingReview() (model.PendingReviewDTO, error) {
 
 // restorePendingReview loads the user's PENDING review on the loaded PR from GitHub into memory.
 func (a *App) restorePendingReview() (model.PendingReviewDTO, error) {
-	// List all reviews; PENDING reviews are only visible to their author,
-	// so any PENDING entry belongs to the authenticated user.
-	reviews, _, err := a.ghClient.PullRequests.ListReviews(
-		a.ctx, a.prOwner, a.prRepo, a.prNumber, nil,
-	)
+	pending, err := a.findPendingReview()
 	if err != nil {
 		return model.PendingReviewDTO{}, fmt.Errorf("github: list reviews: %w", err)
 	}
-
-	var reviewID int64
-	var reviewCommit string
-	for _, r := range reviews {
-		if r.GetState() == "PENDING" {
-			reviewID = r.GetID()
-			reviewCommit = r.GetCommitID()
-			break
-		}
-	}
-	if reviewID == 0 {
+	if pending == nil {
 		return model.PendingReviewDTO{HasPending: false}, nil
 	}
+	reviewID, reviewCommit := pending.GetID(), pending.GetCommitID()
 
 	drafts, err := ghapi.FetchPendingReviewDrafts(
 		a.ctx, ghapi.NewHTTPClient(a.authToken), a.prOwner, a.prRepo, a.prNumber, reviewID,
@@ -287,8 +274,11 @@ func (a *App) dropPendingReview() error {
 func (a *App) submitReviewWithFileComments(req *github.PullRequestReviewRequest, files []model.DraftCommentDTO) (*github.PullRequestReview, error) {
 	event, body := *req.Event, req.Body
 	req.Event, req.Body = nil, nil
-	pending, _, err := a.ghClient.PullRequests.CreateReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, req)
+	pending, resp, err := a.ghClient.PullRequests.CreateReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, req)
 	if err != nil {
+		if resp != nil && resp.StatusCode >= http.StatusInternalServerError {
+			a.adoptOrphanedPendingReview()
+		}
 		return nil, err
 	}
 	// Should a step below fail, a retry deletes this half-built review before starting over.
@@ -307,6 +297,41 @@ func (a *App) submitReviewWithFileComments(req *github.PullRequestReviewRequest,
 	}
 	a.pendingReviewID = 0
 	return review, nil
+}
+
+// adoptOrphanedPendingReview records a pending review GitHub created despite answering 5xx,
+// so the retry deletes it instead of failing on GitHub's one-pending-review-per-user rule.
+func (a *App) adoptOrphanedPendingReview() {
+	r, err := a.findPendingReview()
+	if err != nil {
+		logger.L.Warn("SubmitReview: could not check for an orphaned pending review", "err", err)
+		return
+	}
+	if r != nil {
+		a.pendingReviewID = r.GetID()
+		logger.L.Info("SubmitReview: adopted pending review created by a failed request", "review_id", r.GetID())
+	}
+}
+
+// findPendingReview returns the authenticated user's PENDING review on the loaded PR, or nil.
+// GitHub shows PENDING reviews only to their author, so any one found is ours.
+func (a *App) findPendingReview() (*github.PullRequestReview, error) {
+	opts := &github.ListOptions{PerPage: 100}
+	for {
+		reviews, resp, err := a.ghClient.PullRequests.ListReviews(a.ctx, a.prOwner, a.prRepo, a.prNumber, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range reviews {
+			if r.GetState() == "PENDING" {
+				return r, nil
+			}
+		}
+		if resp.NextPage == 0 {
+			return nil, nil
+		}
+		opts.Page = resp.NextPage
+	}
 }
 
 // DiscardPendingReview clears the local pending review state and, if a GitHub
