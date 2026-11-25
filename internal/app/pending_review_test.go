@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/go-github/v93/github"
@@ -59,7 +60,9 @@ func TestPostImmediateComment_WholeFile_SendsFileSubjectWithoutLine(t *testing.T
 func TestSubmitReview_WithFileComment_CreatesPendingReviewWithLineCommentsOnly(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		if r.Method == http.MethodPost {
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
@@ -77,6 +80,54 @@ func TestSubmitReview_WithFileComment_CreatesPendingReviewWithLineCommentsOnly(t
 	assert.NotContains(t, got, "event", "the review must stay pending until file comments join it")
 	assert.Len(t, got["comments"], 1)
 	assert.Len(t, app.pendingComments, 2, "a failed submit keeps the drafts")
+}
+
+func TestSubmitReview_PendingCreateAnswers5xx_RetryDeletesOnlyTheReviewItLeft(t *testing.T) {
+	for name, tc := range map[string]struct {
+		remoteBody string
+		deleted    []string
+	}{
+		"left by the failed request": {"line", []string{"/repos/o/r/pulls/1/reviews/9"}},
+		"started on github.com":      {"mine on the web", nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var deleted []string
+			created := false
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodPost && !created:
+					created = true
+					w.WriteHeader(http.StatusBadGateway)
+				case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/reviews/9/comments"):
+					_, _ = w.Write([]byte(`[{"body":"` + tc.remoteBody + `"}]`))
+				case r.Method == http.MethodGet && r.URL.Query().Get("page") == "":
+					w.Header().Set("Link", `<http://`+r.Host+r.URL.Path+`?page=2>; rel="next"`)
+					_, _ = w.Write([]byte(`[{"id":1,"state":"COMMENTED"}]`))
+				case r.Method == http.MethodGet:
+					_, _ = w.Write([]byte(`[{"id":9,"state":"PENDING","commit_id":"sha"}]`))
+				case r.Method == http.MethodDelete:
+					deleted = append(deleted, r.URL.Path)
+					_, _ = w.Write([]byte(`{}`))
+				default:
+					w.WriteHeader(http.StatusUnprocessableEntity)
+				}
+			}))
+			defer srv.Close()
+			base := srv.URL + "/"
+			client, err := github.NewClient(github.WithURLs(&base, nil))
+			require.NoError(t, err)
+			app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}, prOwner: "o", prRepo: "r", prNumber: 1}
+			app.pendingComments = []model.DraftCommentDTO{
+				{Path: "a.go", Line: 3, Side: "RIGHT", Body: "line"},
+				{Path: "a.go", Side: "RIGHT", Body: "file"},
+			}
+
+			_, err = app.SubmitReview(model.ReviewSubmitRequest{Verdict: "COMMENT"})
+			require.Error(t, err)
+			_, _ = app.SubmitReview(model.ReviewSubmitRequest{Verdict: "COMMENT"})
+			assert.Equal(t, tc.deleted, deleted)
+		})
+	}
 }
 
 func TestSubmitReview_DeletingPendingReviewFails_KeepsItForRetry(t *testing.T) {
