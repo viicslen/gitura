@@ -277,7 +277,7 @@ func (a *App) submitReviewWithFileComments(req *github.PullRequestReviewRequest,
 	pending, resp, err := a.ghClient.PullRequests.CreateReview(a.ctx, a.prOwner, a.prRepo, a.prNumber, req)
 	if err != nil {
 		if resp != nil && resp.StatusCode >= http.StatusInternalServerError {
-			a.adoptOrphanedPendingReview()
+			a.adoptOrphanedPendingReview(req)
 		}
 		return nil, err
 	}
@@ -301,37 +301,52 @@ func (a *App) submitReviewWithFileComments(req *github.PullRequestReviewRequest,
 
 // adoptOrphanedPendingReview records a pending review GitHub created despite answering 5xx,
 // so the retry deletes it instead of failing on GitHub's one-pending-review-per-user rule.
-func (a *App) adoptOrphanedPendingReview() {
+// It adopts only a review matching sent; one started on github.com would lose its drafts on retry.
+func (a *App) adoptOrphanedPendingReview(sent *github.PullRequestReviewRequest) {
 	r, err := a.findPendingReview()
+	if err == nil && r != nil && r.GetCommitID() == sent.GetCommitID() {
+		var remote []string
+		remote, err = a.pendingReviewBodies(r.GetID())
+		want := make([]string, len(sent.Comments))
+		for i, c := range sent.Comments {
+			want[i] = c.GetBody()
+		}
+		slices.Sort(remote)
+		slices.Sort(want)
+		if err == nil && slices.Equal(remote, want) {
+			a.pendingReviewID = r.GetID()
+			logger.L.Info("SubmitReview: adopted pending review created by a failed request", "review_id", r.GetID())
+			return
+		}
+	}
 	if err != nil {
 		logger.L.Warn("SubmitReview: could not check for an orphaned pending review", "err", err)
-		return
 	}
-	if r != nil {
-		a.pendingReviewID = r.GetID()
-		logger.L.Info("SubmitReview: adopted pending review created by a failed request", "review_id", r.GetID())
+}
+
+func (a *App) pendingReviewBodies(reviewID int64) ([]string, error) {
+	var bodies []string
+	for c, err := range a.ghClient.PullRequests.ListReviewCommentsIter(a.ctx, a.prOwner, a.prRepo, a.prNumber, reviewID, &github.ListOptions{PerPage: 100}) {
+		if err != nil {
+			return nil, err
+		}
+		bodies = append(bodies, c.GetBody())
 	}
+	return bodies, nil
 }
 
 // findPendingReview returns the authenticated user's PENDING review on the loaded PR, or nil.
 // GitHub shows PENDING reviews only to their author, so any one found is ours.
 func (a *App) findPendingReview() (*github.PullRequestReview, error) {
-	opts := &github.ListOptions{PerPage: 100}
-	for {
-		reviews, resp, err := a.ghClient.PullRequests.ListReviews(a.ctx, a.prOwner, a.prRepo, a.prNumber, opts)
+	for r, err := range a.ghClient.PullRequests.ListReviewsIter(a.ctx, a.prOwner, a.prRepo, a.prNumber, &github.ListOptions{PerPage: 100}) {
 		if err != nil {
 			return nil, err
 		}
-		for _, r := range reviews {
-			if r.GetState() == "PENDING" {
-				return r, nil
-			}
+		if r.GetState() == "PENDING" {
+			return r, nil
 		}
-		if resp.NextPage == 0 {
-			return nil, nil
-		}
-		opts.Page = resp.NextPage
 	}
+	return nil, nil
 }
 
 // DiscardPendingReview clears the local pending review state and, if a GitHub
