@@ -77,14 +77,6 @@ func (s *prSubmodule) rel(path string) string {
 	return strings.TrimPrefix(path, s.path+"/")
 }
 
-// prFile returns a submodule PR's file at path, nil when path isn't in that PR's diff.
-func (s *prSubmodule) prFile(path string) *github.CommitFile {
-	if fs := s.prFiles[s.rel(path)]; s.pr != nil && len(fs) > 0 {
-		return fs[0]
-	}
-	return nil
-}
-
 // prFileLike returns the submodule PR's file at bf's path that, like bf, a file of s's bump, reads as a pointer
 // change or not, nil when the PR lists none.
 func (s *prSubmodule) prFileLike(bf *github.CommitFile) *github.CommitFile {
@@ -412,7 +404,7 @@ func (a *App) prFileDTO(f *github.CommitFile) model.PRFileDTO {
 		dto.Repo, dto.Submodule = in.path, in.path
 		dto.Viewed = a.viewedFiles[fileID{repo: in.path, path: dto.Filename}]
 		dto.LinesUnknown = in.TreeRef != "" && f.Patch == nil && f.GetChanges() == 0
-		if in.prFile(dto.Filename) == nil {
+		if in.prFileLike(f) == nil {
 			dto.Viewed, dto.ViewedLocal = a.subViewedNow(in, f), true
 		}
 	}
@@ -513,7 +505,7 @@ func (a *App) migrateSubViewed(s *prSubmodule) {
 	for _, f := range s.Files {
 		path, id := f.GetFilename(), a.idOf(s, f)
 		fp, ok := a.subViewed[id]
-		if !ok || s.prFile(path) == nil {
+		if !ok || s.prFileLike(f) == nil {
 			continue
 		}
 		if fp != s.fingerprint(f) {
@@ -584,10 +576,10 @@ func (a *App) fetchViewedOf(s *prSubmodule) {
 // this moved the mark's destination.
 func (a *App) setSubmoduleFileViewed(s *prSubmodule, f *github.CommitFile, viewed bool) (rerouted bool, err error) {
 	path := f.GetFilename()
-	if rerouted, err = a.recheckViewedRoute(s, path); err != nil {
+	if rerouted, err = a.recheckViewedRoute(s, f); err != nil {
 		return false, err
 	}
-	if s.prFile(path) == nil {
+	if s.prFileLike(f) == nil {
 		return rerouted, a.setAppViewed(s, f, viewed)
 	}
 	if err := ghapi.SetFileViewed(a.ctx, ghapi.NewHTTPClient(a.authToken), s.pr.GetNodeID(), s.rel(path), viewed); err != nil {
@@ -610,12 +602,12 @@ func (a *App) setSubmoduleFileViewed(s *prSubmodule, f *github.CommitFile, viewe
 
 // recheckViewedRoute checks s's PR, or its absence, again past submodulePRMaxAge, and reports whether that
 // changed which of s's files the PR takes viewed marks on, or their marks on GitHub.
-func (a *App) recheckViewedRoute(s *prSubmodule, path string) (bool, error) {
+func (a *App) recheckViewedRoute(s *prSubmodule, f *github.CommitFile) (bool, error) {
 	return a.rerouted(s, func() error {
 		switch {
 		case s.pr != nil && time.Since(s.checkedAt) > submodulePRMaxAge:
 			// A file missing from the cached list may have joined the PR since, so the list is read again.
-			_, err := a.revalidateSubmodulePR(s, s.prFile(path) == nil)
+			_, err := a.revalidateSubmodulePR(s, s.prFileLike(f) == nil)
 			return err
 		case s.staleNoPR():
 			a.retrySubmodulePR(s)

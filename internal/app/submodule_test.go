@@ -2099,6 +2099,25 @@ func TestGetFileDiffAndSetFileViewed_NestedPointerAndFileShareAPath_EachReachesI
 	}
 }
 
+func TestSetFileViewed_SubmodulePRListsOnlyTheFileReplacingAPointer_PointerMarkKeptInGitura(t *testing.T) {
+	marks := 0
+	fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) {
+		marks++
+		_, _ = w.Write([]byte(`{"data":{}}`))
+	})
+	app := twinApp(t, []*github.CommitFile{{Filename: new("vendor"), Patch: new(twinFilePatch)}})
+
+	require.NoError(t, viewedErr(app.SetFileViewed("lib", "lib/vendor", true, true)))
+
+	assert.Zero(t, marks, "so/sr#5's mark on vendor is the file's")
+	viewed := map[string][2]bool{}
+	for _, f := range app.prFilesCache {
+		dto := app.prFileDTO(f)
+		viewed[dto.Status] = [2]bool{dto.Viewed, dto.ViewedLocal}
+	}
+	assert.Equal(t, map[string][2]bool{"submodule": {true, true}, "added": {false, false}}, viewed)
+}
+
 func TestSubmoduleDrafts_SubmodulePRListsPointerFileOrBothAtOnePath_SendsOnlyDraftsOfAListedKind(t *testing.T) {
 	ptr := &github.CommitFile{Filename: new("vendor"), Patch: new(twinPointerPatch)}
 	file := &github.CommitFile{Filename: new("vendor"), Patch: new(twinFilePatch)}
