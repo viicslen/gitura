@@ -266,12 +266,13 @@ func TestSubmitReview_FileReviewSubmitAndLookupFail_NextSubmitReadsThatReviewFir
 		creates, submits, deletes int
 		wantErr                   string
 	}{
-		"it was submitted":                {status: http.StatusOK, review: `{"id":10,"state":"COMMENTED","html_url":"https://x/review"}`, creates: 1, submits: 1},
-		"it is still pending":             {status: http.StatusOK, review: `{"id":10,"state":"PENDING"}`, creates: 2, submits: 2, deletes: 1},
-		"it is gone":                      {status: http.StatusNotFound, creates: 2, submits: 2},
-		"lookup fails again":              {status: http.StatusInternalServerError, creates: 1, submits: 1, wantErr: "earlier attempt"},
-		"it reads back empty":             {status: http.StatusOK, review: `{}`, creates: 1, submits: 1, wantErr: "earlier attempt"},
-		"it reads back as another review": {status: http.StatusOK, review: `{"id":11,"state":"COMMENTED"}`, creates: 1, submits: 1, wantErr: "earlier attempt"},
+		"it was submitted":                        {status: http.StatusOK, review: `{"id":10,"state":"COMMENTED","html_url":"https://x/review"}`, creates: 1, submits: 1},
+		"it is still pending":                     {status: http.StatusOK, review: `{"id":10,"state":"PENDING"}`, creates: 2, submits: 2, deletes: 1},
+		"it is gone":                              {status: http.StatusNotFound, creates: 2, submits: 2},
+		"lookup fails again":                      {status: http.StatusInternalServerError, creates: 1, submits: 1, wantErr: "earlier attempt"},
+		"it reads back empty":                     {status: http.StatusOK, review: `{}`, creates: 1, submits: 1, wantErr: "earlier attempt"},
+		"it reads back as another review":         {status: http.StatusOK, review: `{"id":11,"state":"COMMENTED"}`, creates: 1, submits: 1, wantErr: "earlier attempt"},
+		"it reads back as another pending review": {status: http.StatusOK, review: `{"id":11,"state":"PENDING"}`, creates: 1, submits: 1, wantErr: "earlier attempt"},
 	}
 	for dname, dest := range dests {
 		for sname, tc := range states {
@@ -950,6 +951,7 @@ func TestSubmitReview_FileReviewSubmitAnswerUnclear_TrustsOnlyAReadBackOfThatRev
 		"2xx null, read back submitted":             {http.StatusOK, `null`, submitted, "https://x/review"},
 		"5xx, read back empty":                      {http.StatusBadGateway, "", `{}`, ""},
 		"5xx, read back as another review":          {http.StatusBadGateway, "", `{"id":11,"state":"COMMENTED"}`, ""},
+		"5xx, read back as another pending review":  {http.StatusBadGateway, "", `{"id":11,"state":"PENDING"}`, ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"data":{}}`)) })

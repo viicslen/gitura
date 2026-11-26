@@ -422,7 +422,7 @@ func (a *App) submitPending(p orphanReview, req github.PullRequestSubmitReviewRe
 	}
 	r, _, gerr := a.ghClient.PullRequests.GetReview(a.ctx, p.owner, p.repo, p.number, p.id)
 	switch {
-	case gerr == nil && r.GetState() == "PENDING":
+	case gerr == nil && r.GetID() == p.id && r.GetState() == "PENDING":
 		return nil, err
 	case gerr == nil && submitted(r, p.id):
 		a.markClaimed(true, p.id)
@@ -448,11 +448,11 @@ func (a *App) pendingOutcome(p orphanReview) finder {
 			return "", false, nil
 		case err != nil:
 			return "", false, err
-		case r.GetState() == "PENDING":
+		case r.GetID() == p.id && r.GetState() == "PENDING":
 			a.orphans = append(a.orphans, p)
 			return "", false, nil
 		case !submitted(r, p.id):
-			return "", false, fmt.Errorf("GitHub read review %d back as neither pending nor submitted", p.id)
+			return "", false, fmt.Errorf("GitHub read review %d back as neither that review pending nor submitted", p.id)
 		}
 		a.markClaimed(true, p.id)
 		return r.GetHTMLURL(), true, nil
