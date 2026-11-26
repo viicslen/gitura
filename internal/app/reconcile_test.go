@@ -700,7 +700,7 @@ func pendingCreateApp(t *testing.T, deleted *[]string, creates *int) *App {
 			}
 			_, _ = w.Write([]byte(`[{"id":9,"state":"PENDING","commit_id":"new"}]`))
 		case p == "/repos/so/sr/pulls/5/reviews/9/comments":
-			_, _ = w.Write([]byte(`[{"body":"in PR diff"}]`))
+			_, _ = w.Write([]byte(`[{"path":"a.txt","body":"in PR diff"}]`))
 		case p == "/repos/so/sr/pulls/5/reviews/9":
 			if r.Method == http.MethodDelete {
 				*deleted, left = append(*deleted, p), false

@@ -452,7 +452,7 @@ func TestSubmitReview_SubmodulePendingCreateAnswers5xx_RetryDeletesTheOrphanAndP
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/so/sr/pulls/5/reviews":
 			_, _ = w.Write([]byte(`[{"id":9,"state":"PENDING","commit_id":"new"}]`))
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/so/sr/pulls/5/reviews/9/comments":
-			_, _ = w.Write([]byte(`[{"body":"in PR diff"}]`))
+			_, _ = w.Write([]byte(`[{"path":"a.txt","body":"in PR diff"}]`))
 		case r.Method == http.MethodDelete && r.URL.Path == "/repos/so/sr/pulls/5/reviews/9":
 			deleted, orphan = append(deleted, r.URL.Path), false
 			_, _ = w.Write([]byte(`{}`))

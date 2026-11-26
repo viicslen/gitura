@@ -88,13 +88,14 @@ func TestSubmitReview_WithFileComment_CreatesPendingReviewWithLineCommentsOnly(t
 
 func TestSubmitReview_PendingCreateAnswers5xx_RetryDeletesOnlyTheReviewItLeft(t *testing.T) {
 	for name, tc := range map[string]struct {
-		before     bool
-		remoteBody string
-		deleted    []string
+		before                 bool
+		remotePath, remoteBody string
+		deleted                []string
 	}{
-		"left by the failed request":        {false, "line", []string{"/repos/o/r/pulls/1/reviews/9"}},
-		"started on github.com":             {false, "mine on the web", nil},
-		"there before, matching the drafts": {true, "line", nil},
+		"left by the failed request":                       {false, "a.go", "line", []string{"/repos/o/r/pulls/1/reviews/9"}},
+		"started on github.com":                            {false, "a.go", "mine on the web", nil},
+		"started on github.com, same text on another file": {false, "b.go", "line", nil},
+		"there before, matching the drafts":                {true, "a.go", "line", nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var deleted []string
@@ -105,7 +106,7 @@ func TestSubmitReview_PendingCreateAnswers5xx_RetryDeletesOnlyTheReviewItLeft(t 
 					created = true
 					w.WriteHeader(http.StatusBadGateway)
 				case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/reviews/9/comments"):
-					_, _ = w.Write([]byte(`[{"body":"` + tc.remoteBody + `"}]`))
+					_, _ = w.Write([]byte(`[{"path":"` + tc.remotePath + `","body":"` + tc.remoteBody + `"}]`))
 				case r.Method == http.MethodGet && r.URL.Query().Get("page") == "":
 					w.Header().Set("Link", `<http://`+r.Host+r.URL.Path+`?page=2>; rel="next"`)
 					_, _ = w.Write([]byte(`[{"id":1,"state":"COMMENTED"}]`))

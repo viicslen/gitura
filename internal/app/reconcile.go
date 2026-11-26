@@ -460,7 +460,7 @@ type commentKey struct {
 }
 
 // sameReviewComments reports whether review r holds exactly sent's line comments, matched on their anchors
-// too when anchored, else on their bodies alone.
+// too when anchored, else on their paths and bodies.
 // Pass anchored false for a pending review: GitHub's REST API omits line and side on its comments.
 func (a *App) sameReviewComments(owner, repo string, number int, r *github.PullRequestReview, sent *github.PullRequestReviewRequest, anchored bool) (bool, error) {
 	count := map[commentKey]int{}
@@ -485,5 +485,5 @@ func keyOf(k commentKey, anchored bool) commentKey {
 	if anchored {
 		return k
 	}
-	return commentKey{body: k.body}
+	return commentKey{path: k.path, body: k.body}
 }
