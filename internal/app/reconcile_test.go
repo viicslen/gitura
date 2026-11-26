@@ -903,3 +903,79 @@ func TestDiscardPendingReview_ParentReviewWithoutDraftsUncertain_ForgetsTheAttem
 
 	assert.Nil(t, app.parentAttempt)
 }
+
+func TestSubmitReview_ParentReviewAnswers2xxWithoutAReview_LooksItUpInsteadOfTrustingIt(t *testing.T) {
+	published := `[{"id":9,"user":{"login":"me"},"state":"APPROVED","commit_id":"sha","body":"LGTM","html_url":"https://parent/first","submitted_at":"` + stamp(0) + `"}]`
+	for name, answer := range map[string]string{"empty": "", "null": "null", "no ID": "{}"} {
+		t.Run(name, func(t *testing.T) {
+			posts, lookups := 0, 0
+			app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodPost && r.URL.Path == "/repos/so/sr/pulls/5/comments":
+					_, _ = w.Write([]byte(`{"id":100,"html_url":"https://sub/comment"}`))
+				case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls/1/reviews":
+					posts++
+					_, _ = w.Write([]byte(answer))
+				case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/1/reviews":
+					lookups++
+					_, _ = w.Write([]byte(published))
+				case r.URL.Path == "/repos/o/r/pulls/1/reviews/9/comments":
+					_, _ = w.Write([]byte(`[]`))
+				default:
+					w.WriteHeader(http.StatusTeapot)
+				}
+			})
+			app.pendingComments = subDrafts()[:1]
+			req := model.ReviewSubmitRequest{Verdict: "APPROVE", Body: "LGTM", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "comments"}}}
+
+			res, err := app.SubmitReview(shown(t, app, req))
+
+			require.NoError(t, err)
+			assert.Equal(t, []int{1, 1}, []int{posts, lookups}, "posts, lookups")
+			assert.Equal(t, "https://parent/first", res.HTMLURL)
+		})
+	}
+}
+
+func TestSubmitReview_FileReviewSubmitAnswerUnclear_TrustsOnlyAReadBackOfThatReviewSubmitted(t *testing.T) {
+	submitted := `{"id":10,"state":"COMMENTED","html_url":"https://x/review"}`
+	for name, tc := range map[string]struct {
+		status           int
+		answer, readBack string
+		wantURL          string
+	}{
+		"2xx without a review, read back submitted": {http.StatusOK, `{}`, submitted, "https://x/review"},
+		"2xx null, read back submitted":             {http.StatusOK, `null`, submitted, "https://x/review"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"data":{}}`)) })
+			app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
+				switch p := r.URL.Path; {
+				case r.Method == http.MethodGet && p == "/repos/o/r/pulls/1/reviews":
+					_, _ = w.Write([]byte(`[]`))
+				case p == "/repos/o/r/pulls/1/reviews":
+					_, _ = w.Write([]byte(`{"id":10,"node_id":"PRR_10"}`))
+				case p == "/repos/o/r/pulls/1/reviews/10/events":
+					w.WriteHeader(tc.status)
+					_, _ = w.Write([]byte(tc.answer))
+				case p == "/repos/o/r/pulls/1/reviews/10":
+					_, _ = w.Write([]byte(tc.readBack))
+				default:
+					w.WriteHeader(http.StatusTeapot)
+				}
+			})
+			app.pendingComments = []model.DraftCommentDTO{{Path: "a.go", Side: "RIGHT", Body: "file"}}
+
+			res, err := app.SubmitReview(model.ReviewSubmitRequest{Verdict: "COMMENT"})
+
+			if tc.wantURL == "" {
+				require.Error(t, err)
+				assert.NotNil(t, app.parentAttempt, "the outcome stays unknown")
+				assert.Len(t, app.pendingComments, 1)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantURL, res.HTMLURL)
+		})
+	}
+}

@@ -23,6 +23,10 @@ func ambiguous(resp *github.Response) bool {
 	return resp == nil || resp.StatusCode >= http.StatusInternalServerError || resp.StatusCode/100 == 2
 }
 
+// errNoReview is a 2xx answer to a review write that did not identify the review: go-github decodes an empty,
+// null or {} body without error.
+var errNoReview = errors.New("GitHub's answer did not identify the review")
+
 // reviewStates maps a review event sent to GitHub to the state of the review it creates.
 var reviewStates = map[string]string{"APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED", "COMMENT": "COMMENTED"}
 
@@ -328,6 +332,9 @@ func (a *App) createReview(owner, repo string, number int, req *github.PullReque
 		return r.GetHTMLURL(), r != nil, err
 	}, func() (*github.Response, error) {
 		r, resp, err := a.ghClient.PullRequests.CreateReview(a.ctx, owner, repo, number, req)
+		if err == nil && r.GetID() == 0 {
+			err = errNoReview
+		}
 		if err == nil {
 			review = r
 			a.markClaimed(true, r.GetID())
@@ -407,6 +414,9 @@ func (a *App) attempts() []*uncertainError {
 func (a *App) submitPending(p orphanReview, req github.PullRequestSubmitReviewRequest) (*github.PullRequestReview, error) {
 	start := time.Now()
 	review, resp, err := a.ghClient.PullRequests.SubmitReview(a.ctx, p.owner, p.repo, p.number, p.id, req)
+	if err == nil && review.GetID() == 0 {
+		err = errNoReview
+	}
 	if err == nil || !ambiguous(resp) {
 		return review, err
 	}
