@@ -64,6 +64,18 @@ describe('SubmoduleReviewChoices', () => {
     wrapper.unmount()
   })
 
+  it('sends a routable submodule with no choice made as the review it is shown with', () => {
+    const shown = { path: 'vendor/lib', pr: 'so/lib#5', to_pr: 2, folded: 1 }
+    expect(submoduleRequest([withPR], {})).toEqual([{ ...shown, mode: 'review', verdict: 'COMMENT', body: '' }])
+    expect(submitBlocker('REQUEST_CHANGES', '', [], [{ ...withPR, folded: 0 }], {})).toContain('every comment goes to a submodule PR')
+  })
+
+  it('reads no choice from the prototype for a submodule at a path such as constructor', () => {
+    const ctor = { ...withPR, path: 'constructor' }
+    expect(keepChoices([ctor], {}).constructor).toEqual({ mode: 'review', verdict: 'COMMENT', body: '' })
+    expect(submoduleRequest([ctor], {})[0]).toMatchObject({ path: 'constructor', mode: 'review', verdict: 'COMMENT', body: '' })
+  })
+
   it('sends single comments without a verdict or text to fill in', async () => {
     const { wrapper, choices } = render([withPR])
     const tab = (label: string) => wrapper.findAll('[role="tab"]').find((t) => t.text() === label)

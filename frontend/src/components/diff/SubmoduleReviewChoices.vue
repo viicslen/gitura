@@ -17,11 +17,16 @@ const isMode = (m: unknown): m is SubmoduleChoice['mode'] => m === 'review' || m
 export const inFlightReview = (r?: model.InFlightReviewDTO | null): Pick<SubmoduleChoice, 'verdict' | 'body'> | null =>
   r && isVerdict(r.verdict) ? { verdict: r.verdict, body: r.body } : null
 
+// Own properties only: a submodule at a path such as `constructor` must not read Object.prototype.
+export const choiceOf = (choices: Record<string, SubmoduleChoice>, path: string): SubmoduleChoice | undefined =>
+  Object.hasOwn(choices, path) ? choices[path] : undefined
+const newChoice = (): SubmoduleChoice => ({ mode: 'review', verdict: 'COMMENT', body: '' })
+
 /** A choice per routable submodule, keeping those already made; one an unsettled earlier submit sent with is held to what it sent. */
 export const keepChoices = (drafts: model.SubmoduleDraftsDTO[], prev: Record<string, SubmoduleChoice>): Record<string, SubmoduleChoice> =>
   Object.fromEntries(
     drafts.filter(routable).map((d) => {
-      const choice: SubmoduleChoice = prev[d.path] ?? { mode: 'review', verdict: 'COMMENT', body: '' }
+      const choice = choiceOf(prev, d.path) ?? newChoice()
       return [d.path, isMode(d.in_flight) ? { ...choice, mode: d.in_flight, ...inFlightReview(d.in_flight_review) } : choice]
     }),
   )
@@ -35,7 +40,7 @@ export function submitBlocker(
   choices: Record<string, SubmoduleChoice>,
 ): string {
   if (verdict === 'APPROVE' || body.trim()) return ''
-  const toPR = (d: model.SubmoduleDraftsDTO) => routable(d) && choices[d.path]?.mode !== 'fold'
+  const toPR = (d: model.SubmoduleDraftsDTO) => routable(d) && choiceOf(choices, d.path)?.mode !== 'fold'
   const parent = comments.filter((c) => !c.submodule).length + drafts.reduce((n, d) => n + d.folded + (toPR(d) ? 0 : d.to_pr), 0)
   if (parent) return ''
   if (verdict === 'REQUEST_CHANGES') return drafts.some(toPR) ? 'Requesting changes needs text here: every comment goes to a submodule PR.' : 'Requesting changes needs text or a comment.'
@@ -49,7 +54,7 @@ export const submoduleRequest = (drafts: model.SubmoduleDraftsDTO[], choices: Re
     pr: d.pr,
     to_pr: d.to_pr,
     folded: d.folded,
-    ...(routable(d) && d.path in choices ? choices[d.path] : { mode: 'fold' }),
+    ...(routable(d) ? choiceOf(choices, d.path) ?? newChoice() : { mode: 'fold' }),
   }))
 </script>
 
@@ -84,7 +89,7 @@ const held = (d: model.SubmoduleDraftsDTO, mode: SubmoduleChoice['mode']) => !!d
   <section v-if="shown.length" class="flex min-w-0 flex-col gap-2" aria-label="Comments on submodule files">
     <p class="text-xs font-medium text-muted-foreground">Comments on submodule files</p>
     <template v-for="d in shown" :key="d.path">
-      <div v-if="routable(d) && d.path in choices" class="flex min-w-0 flex-col gap-2 rounded-md border border-border px-3 py-2" :data-submodule="d.path">
+      <div v-if="routable(d) && choiceOf(choices, d.path)" class="flex min-w-0 flex-col gap-2 rounded-md border border-border px-3 py-2" :data-submodule="d.path">
         <div class="flex min-w-0 items-baseline gap-2 text-xs">
           <span class="truncate font-mono">{{ d.path }}</span>
           <a :href="d.pr_url" class="shrink-0 underline underline-offset-2">{{ d.pr }}</a>
