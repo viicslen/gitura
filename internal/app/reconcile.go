@@ -422,14 +422,19 @@ func (a *App) submitPending(p orphanReview, req github.PullRequestSubmitReviewRe
 	}
 	r, _, gerr := a.ghClient.PullRequests.GetReview(a.ctx, p.owner, p.repo, p.number, p.id)
 	switch {
-	case gerr != nil:
-		logger.L.Warn("could not check whether a failed review was submitted", "err", gerr)
-		return nil, &uncertainError{start: start, err: err, find: a.pendingOutcome(p), pending: &p}
-	case r.GetState() != "PENDING":
+	case gerr == nil && r.GetState() == "PENDING":
+		return nil, err
+	case gerr == nil && submitted(r, p.id):
 		a.markClaimed(true, p.id)
 		return r, nil
 	}
-	return nil, err
+	logger.L.Warn("could not check whether a failed review was submitted", "err", gerr, "state", r.GetState())
+	return nil, &uncertainError{start: start, err: err, find: a.pendingOutcome(p), pending: &p}
+}
+
+// submitted reports whether r is review id, read back submitted.
+func submitted(r *github.PullRequestReview, id int64) bool {
+	return r.GetID() == id && slices.Contains([]string{"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"}, r.GetState())
 }
 
 // pendingOutcome finds what an uncertain submit of pending review p published: the review once submitted,
@@ -446,6 +451,8 @@ func (a *App) pendingOutcome(p orphanReview) finder {
 		case r.GetState() == "PENDING":
 			a.orphans = append(a.orphans, p)
 			return "", false, nil
+		case !submitted(r, p.id):
+			return "", false, fmt.Errorf("GitHub read review %d back as neither pending nor submitted", p.id)
 		}
 		a.markClaimed(true, p.id)
 		return r.GetHTMLURL(), true, nil
