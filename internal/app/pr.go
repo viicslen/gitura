@@ -74,9 +74,11 @@ func (a *App) LoadPR(owner, repo string, number int) (model.PullRequestSummary, 
 	pr.Owner = owner
 	pr.Repo = repo
 
-	samePR := a.isLoadedPR(owner, repo, number)
-
-	// Cache for subsequent GetCommentThreads calls.
+	a.prMu.Lock()
+	// Draft comments live only in memory; a refresh of the same PR must not drop them.
+	if !a.isLoadedPR(owner, repo, number) {
+		a.resetDrafts()
+	}
 	a.prOwner = owner
 	a.prRepo = repo
 	a.prNumber = number
@@ -84,16 +86,11 @@ func (a *App) LoadPR(owner, repo string, number int) (model.PullRequestSummary, 
 	a.threads = filtered
 	a.issueComments = filteredComments
 	a.reviews = decoratedReviews
-	a.prFilesCache = nil
+	a.prFilesCache, a.prSubmodules, a.prSubmoduleOf = nil, nil, nil
 	a.commits = nil
 	a.viewedFiles = nil
+	a.prMu.Unlock()
 	a.StopLocalReview()
-	// Draft comments live only in memory; a refresh of the same PR must not drop them.
-	if !samePR {
-		a.pendingReviewID = 0
-		a.pendingComments = nil
-		a.pendingHeadSHA = ""
-	}
 
 	logger.L.Info("LoadPR complete",
 		"threads", len(filtered),

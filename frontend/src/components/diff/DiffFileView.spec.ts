@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
 import type { UnsentComments } from '@/lib/diffLayout'
 import DiffFileView from './DiffFileView.vue'
+import { fileKey } from '@/lib/fileTree'
 import * as model from '@/bindings/gitura/internal/model'
 
 const ctx = (n: number) => ({ type: 'context', old_no: n, new_no: n, content: `line ${n}` })
@@ -92,6 +93,63 @@ describe('DiffFileView', () => {
     )
     expect(selected.map((b) => b.text())).toEqual(['11', '12'])
     second.unmount()
+  })
+
+  it('sends a comment with the head, submodule range and file its form was opened on, and keeps the text when that send fails', async () => {
+    const postComment = vi.fn(() => Promise.resolve(false))
+    const unsentComments: UnsentComments = reactive(new Map())
+    const inner = model.PRFileDTO.createFrom({ ...file, filename: 'lib/a.ts', repo: 'lib', submodule: 'lib' })
+    const wrapper = mount(DiffFileView, {
+      props: { file: inner, diff, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true, postComment, unsentComments, headSha: 'old', submoduleRange: 'a..b' },
+      attachTo: document.body,
+    })
+    await wrapper.find('button[aria-label="Comment on new line 2"]').trigger('mousedown', { button: 0 })
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await flushPromises()
+    await wrapper.find('textarea').setValue('on old code')
+    await wrapper.setProps({ headSha: 'new', submoduleRange: 'a..c' })
+    await wrapper.find('[aria-label="Add to review"]').trigger('click')
+    await flushPromises()
+
+    expect(postComment).toHaveBeenCalledWith(expect.objectContaining({ path: 'lib/a.ts', submodule: 'lib', head_sha: 'old', range: 'a..b', line: 2 }), 'draft')
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('on old code')
+    wrapper.unmount()
+    expect(unsentComments.get(fileKey(inner))?.target.headSha).toBe('old')
+  })
+
+  it('closes the form as soon as a comment on a submodule file is posted now, with no inline thread to wait for', async () => {
+    const postComment = vi.fn(() => Promise.resolve(true))
+    const inner = model.PRFileDTO.createFrom({ ...file, filename: 'lib/a.ts', repo: 'lib', submodule: 'lib' })
+    const wrapper = mount(DiffFileView, {
+      props: { file: inner, diff, commentable: true, threads: [], drafts: [], showThreads: true, wrapLines: true,
+        postComment, unsentComments: reactive(new Map()) as UnsentComments, submoduleRange: 'a..b' },
+      attachTo: document.body,
+    })
+    await wrapper.find('button[aria-label="Comment on new line 2"]').trigger('mousedown', { button: 0 })
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await flushPromises()
+    await wrapper.find('textarea').setValue('now')
+    await wrapper.find('[aria-label="Add as single comment"]').trigger('click')
+    await flushPromises()
+
+    expect(postComment).toHaveBeenCalledWith(expect.objectContaining({ path: 'lib/a.ts' }), 'immediate')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('lists a draft pinned to another submodule range with the unplaced ones instead of at its line', async () => {
+    const inner = model.PRFileDTO.createFrom({ ...file, filename: 'lib/a.ts', repo: 'lib', submodule: 'lib' })
+    const draft = model.DraftCommentDTO.createFrom({ path: 'lib/a.ts', submodule: 'lib', range: 'a..b', line: 2, side: 'RIGHT', body: 'pinned' })
+    const wrapper = mount(DiffFileView, {
+      props: { file: inner, diff, commentable: true, threads: [], drafts: [draft], showThreads: true, wrapLines: true,
+        postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments, submoduleRange: 'a..b' },
+    })
+    expect(wrapper.text()).toContain('pinned')
+    expect(wrapper.text()).not.toContain('Pending comments')
+
+    await wrapper.setProps({ submoduleRange: 'a..c' })
+    expect(wrapper.text()).toContain('Pending comments written on an earlier change of this submodule')
+    expect(wrapper.text()).toContain('pinned')
   })
 
   it('keeps a half-written comment when the view is left and comes back', async () => {
@@ -304,6 +362,15 @@ describe('DiffFileView', () => {
       expect(right.scrollTop).toBe(1600)
       wrapper.unmount()
     })
+  })
+
+  it('shows the binary state when only the loaded diff knows the file is binary', () => {
+    const wrapper = mount(DiffFileView, {
+      props: { file, diff: { ...diff, is_binary: true, hunks: [] }, commentable: true, threads: [], drafts: [], showThreads: true,
+        wrapLines: true, postComment: vi.fn(), unsentComments: reactive(new Map()) as UnsentComments },
+    })
+    expect(wrapper.text()).toContain('Binary file')
+    expect(wrapper.text()).not.toContain('No textual changes')
   })
 
   it('focuses the head pane so keys scroll the diff', () => {

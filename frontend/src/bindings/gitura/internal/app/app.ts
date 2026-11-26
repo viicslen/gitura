@@ -33,7 +33,9 @@ export function AddCommand(cmd: model$0.CommandDTO): $CancellablePromise<model$0
  * AddDraftComment adds a comment to the local pending review batch.
  * Comments are stored in-memory only; no GitHub API calls are made during
  * the draft phase. All comments are submitted together by SubmitReview.
- * Error prefix: "auth:" — no client; "notfound:" — no PR loaded.
+ * The comment's Submodule names the repository of the file commented on, as its FileKeyDTO does.
+ * Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "conflict:" — drafts on an older commit;
+ * "validation:" — Submodule is not a submodule the loaded change has that file in.
  */
 export function AddDraftComment(comment: model$0.DraftCommentDTO): $CancellablePromise<model$0.PendingReviewDTO> {
     return $Call.ByID(2102670509, comment).then(($result: any) => {
@@ -98,7 +100,8 @@ export function DeleteComment(kind: string, id: number): $CancellablePromise<voi
 /**
  * DeleteDraftComment removes the pending draft at index, provided it still reads expected.
  * Removing the last draft discards the whole pending review.
- * Error prefixes: "conflict:" — draft moved or changed; "github:" — API error.
+ * Error prefixes: "conflict:" — draft moved or changed, or its last submit may have reached GitHub;
+ * "github:" — API error.
  */
 export function DeleteDraftComment(index: number, expected: string): $CancellablePromise<model$0.PendingReviewDTO> {
     return $Call.ByID(1202499449, index, expected).then(($result: any) => {
@@ -107,9 +110,9 @@ export function DeleteDraftComment(index: number, expected: string): $Cancellabl
 }
 
 /**
- * DiscardPendingReview clears the local pending review state and, if a GitHub
- * pending review was synced, deletes it from GitHub too.
- * Error prefix: "auth:" — no client; "github:" — API error.
+ * DiscardPendingReview clears the local pending review state and deletes from GitHub the synced
+ * pending review and those failed submits left, if any are still pending.
+ * Error prefix: "auth:" — no client; "github:" — API error, the drafts are kept.
  */
 export function DiscardPendingReview(): $CancellablePromise<void> {
     return $Call.ByID(2517925839);
@@ -180,20 +183,22 @@ export function GetDefaultCommands(): $CancellablePromise<{ [_ in string]?: stri
 }
 
 /**
- * GetFileAtHead returns the text of a file at the loaded PR's head commit.
+ * GetFileAtHead returns the text of a file at the loaded PR's head commit; for a file inside a
+ * bumped submodule (submodule set), at the commit the submodule is bumped to.
  * Error prefix: "notfound:" if no PR is loaded or the file is not at the head commit.
  */
-export function GetFileAtHead(path: string): $CancellablePromise<string> {
-    return $Call.ByID(526019203, path);
+export function GetFileAtHead(submodule: string, path: string): $CancellablePromise<string> {
+    return $Call.ByID(526019203, submodule, path);
 }
 
 /**
- * GetFileDiff fetches and parses the diff for a single file in the loaded PR.
+ * GetFileDiff fetches and parses the diff for a single file in the loaded PR; submodule is the file's
+ * PRFileDTO.Repo and pointer is set for a submodule's pointer row.
  * Binary files return ParsedDiffDTO{IsBinary: true} with no hunks, no error.
  * Error prefix: "notfound:" if no PR is loaded or the file is not in the diff.
  */
-export function GetFileDiff(path: string): $CancellablePromise<model$0.ParsedDiffDTO> {
-    return $Call.ByID(1861487559, path).then(($result: any) => {
+export function GetFileDiff(submodule: string, path: string, pointer: boolean): $CancellablePromise<model$0.ParsedDiffDTO> {
+    return $Call.ByID(1861487559, submodule, path, pointer).then(($result: any) => {
         return $$createType11($result);
     });
 }
@@ -286,12 +291,13 @@ export function GetToggles(): $CancellablePromise<{ [_ in string]?: boolean }> {
 }
 
 /**
- * GetViewedFiles returns the paths the user has marked as viewed on GitHub for the loaded PR.
+ * GetViewedFiles returns the files the user has marked as viewed on GitHub for the loaded PR,
+ * marks on submodule files included, and the submodules whose PR's marks couldn't be read.
  * It is separate from GetPRFiles so the file list still loads when this lookup fails.
  */
-export function GetViewedFiles(): $CancellablePromise<string[]> {
+export function GetViewedFiles(): $CancellablePromise<model$0.ViewedFilesDTO> {
     return $Call.ByID(3160718169).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType20($result);
     });
 }
 
@@ -312,7 +318,7 @@ export function IsFocused(): $CancellablePromise<boolean> {
  */
 export function ListOpenPRs(filters: model$0.PRListFilters): $CancellablePromise<model$0.PRListResult> {
     return $Call.ByID(1328633817, filters).then(($result: any) => {
-        return $$createType20($result);
+        return $$createType21($result);
     });
 }
 
@@ -339,7 +345,7 @@ export function ListSystemFonts(): $CancellablePromise<string[]> {
  */
 export function LoadPR(owner: string, repo: string, $number: number): $CancellablePromise<model$0.PullRequestSummary> {
     return $Call.ByID(19891564, owner, repo, $number).then(($result: any) => {
-        return $$createType21($result);
+        return $$createType22($result);
     });
 }
 
@@ -373,18 +379,21 @@ export function OpenFolderPicker(title: string, defaultDir: string): $Cancellabl
  */
 export function PollDeviceFlow(): $CancellablePromise<model$0.PollResult> {
     return $Call.ByID(536289881).then(($result: any) => {
-        return $$createType22($result);
+        return $$createType23($result);
     });
 }
 
 /**
  * PostImmediateComment posts a standalone inline comment immediately (not as a
- * draft review comment). The comment is immediately visible on GitHub.
- * Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+ * draft review comment). The comment is immediately visible on GitHub. A comment on a submodule
+ * file goes to the submodule's open PR when its lines are in that PR's diff, and otherwise to the
+ * loaded PR's conversation, quoting the file and lines.
+ * Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "conflict:" — written against another head,
+ * or the submodule PR changed since it was loaded; "validation:" — Submodule is not a submodule the loaded PR has that file in; "github:" — API error.
  */
 export function PostImmediateComment(comment: model$0.DraftCommentDTO): $CancellablePromise<model$0.ReviewCommentDTO> {
     return $Call.ByID(2936724426, comment).then(($result: any) => {
-        return $$createType23($result);
+        return $$createType24($result);
     });
 }
 
@@ -427,7 +436,7 @@ export function RemoveIgnoredCommenter(login: string): $CancellablePromise<void>
  */
 export function ReplyToComment(threadRootID: number, body: string): $CancellablePromise<model$0.ReviewCommentDTO> {
     return $Call.ByID(891857116, threadRootID, body).then(($result: any) => {
-        return $$createType23($result);
+        return $$createType24($result);
     });
 }
 
@@ -455,7 +464,7 @@ export function ResolveThread(threadRootID: number): $CancellablePromise<void> {
  */
 export function RunCommands(commandNames: string[], input: string, runCtx: model$0.RunContext): $CancellablePromise<model$0.RunResult[]> {
     return $Call.ByID(779693889, commandNames, input, runCtx).then(($result: any) => {
-        return $$createType25($result);
+        return $$createType26($result);
     });
 }
 
@@ -465,7 +474,7 @@ export function RunCommands(commandNames: string[], input: string, runCtx: model
  */
 export function SearchPRs(text: string): $CancellablePromise<model$0.PRListResult> {
     return $Call.ByID(3656722189, text).then(($result: any) => {
-        return $$createType20($result);
+        return $$createType21($result);
     });
 }
 
@@ -490,9 +499,13 @@ export function SetDefaultCommand(kind: string, name: string): $CancellablePromi
 
 /**
  * SetFileViewed marks or unmarks a file as viewed on GitHub, like the "Viewed" checkbox on github.com.
+ * submodule is the file's PRFileDTO.Repo and pointer is set for a pointer row; GitHub keeps one mark per path,
+ * so on the loaded PR's own files a pointer row and a regular file at its path share it. rerouted reports that the submodule's PR, checked again,
+ * changed whether it takes the mark or gitura keeps it, so that submodule's rows in GetPRFiles changed.
+ * Error prefix: "notfound:" — no such file in the loaded change.
  */
-export function SetFileViewed(path: string, viewed: boolean): $CancellablePromise<void> {
-    return $Call.ByID(2709386364, path, viewed);
+export function SetFileViewed(submodule: string, path: string, pointer: boolean, viewed: boolean): $CancellablePromise<boolean> {
+    return $Call.ByID(2709386364, submodule, path, pointer, viewed);
 }
 
 /**
@@ -538,7 +551,7 @@ export function SetToggles(toggles: { [_ in string]?: boolean }): $CancellablePr
  */
 export function StartDeviceFlow(): $CancellablePromise<model$0.DeviceFlowInfo> {
     return $Call.ByID(539006732).then(($result: any) => {
-        return $$createType26($result);
+        return $$createType27($result);
     });
 }
 
@@ -565,14 +578,31 @@ export function StopLocalReview(): $CancellablePromise<void> {
  * SubmitReview submits all pending draft comments as a single review.
  * If an existing GitHub pending review was synced, it is deleted first so
  * there is no conflict when creating the new submitted review.
- * All locally-buffered comments are sent together with the verdict in one
- * CreateReview call.
+ * Drafts on submodule files go first, as one review per submodule PR that has their lines in its
+ * diff, or as single comments there, unless req.Submodules folds them; the rest are quoted in the
+ * review body. A retry after a failure does not repost the submodule reviews or comments that went through.
+ * Every check, and every lookup of what an earlier attempt sent, runs before anything is written.
  * Side effect: clears pendingReviewID and pendingComments on success.
- * Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+ * Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "validation:" — bad verdict or
+ * submodule choice, or an empty review; "conflict:" — a submodule PR closed or moved on since it was
+ * loaded, or a choice differs from that of an earlier attempt that may have reached GitHub; "github:" — API error.
  */
 export function SubmitReview(req: model$0.ReviewSubmitRequest): $CancellablePromise<model$0.ReviewSubmitResult> {
     return $Call.ByID(174168682, req).then(($result: any) => {
-        return $$createType27($result);
+        return $$createType28($result);
+    });
+}
+
+/**
+ * SubmoduleDrafts says, for each submodule with pending drafts on its files, how many of them can
+ * go to its open PR and how many SubmitReview adds to the review body regardless. A failed lookup
+ * of the submodule's PR is retried first, at most once per submoduleRetryDelay unless retry is set, and
+ * one that found none is repeated past submodulePRMaxAge.
+ * Error prefix: "auth:" — no client; "notfound:" — no PR loaded; "github:" — API error.
+ */
+export function SubmoduleDrafts(retry: boolean): $CancellablePromise<model$0.SubmoduleDraftsDTO[]> {
+    return $Call.ByID(3600644128, retry).then(($result: any) => {
+        return $$createType30($result);
     });
 }
 
@@ -599,7 +629,7 @@ export function SyncPendingReview(): $CancellablePromise<model$0.PendingReviewDT
  */
 export function TakeLaunch(): $CancellablePromise<$models.Launch | null> {
     return $Call.ByID(4182159370).then(($result: any) => {
-        return $$createType29($result);
+        return $$createType32($result);
     });
 }
 
@@ -636,7 +666,8 @@ export function UpdateCommand(name: string, cmd: model$0.CommandDTO): $Cancellab
 
 /**
  * UpdateDraftComment replaces the body of the pending draft at index, provided it still reads expected.
- * Error prefixes: "validation:" — empty body; "conflict:" — draft moved or changed.
+ * Error prefixes: "validation:" — empty body; "conflict:" — draft moved or changed, or its last submit may
+ * have reached GitHub.
  */
 export function UpdateDraftComment(index: number, expected: string, body: string): $CancellablePromise<model$0.PendingReviewDTO> {
     return $Call.ByID(769416035, index, expected, body).then(($result: any) => {
@@ -665,13 +696,16 @@ const $$createType16 = model$0.PROverviewDTO.createFrom;
 const $$createType17 = model$0.PRTimelineDTO.createFrom;
 const $$createType18 = $Create.Array($Create.Any);
 const $$createType19 = $Create.Map($Create.Any, $Create.Any);
-const $$createType20 = model$0.PRListResult.createFrom;
-const $$createType21 = model$0.PullRequestSummary.createFrom;
-const $$createType22 = model$0.PollResult.createFrom;
-const $$createType23 = model$0.ReviewCommentDTO.createFrom;
-const $$createType24 = model$0.RunResult.createFrom;
-const $$createType25 = $Create.Array($$createType24);
-const $$createType26 = model$0.DeviceFlowInfo.createFrom;
-const $$createType27 = model$0.ReviewSubmitResult.createFrom;
-const $$createType28 = $models.Launch.createFrom;
-const $$createType29 = $Create.Nullable($$createType28);
+const $$createType20 = model$0.ViewedFilesDTO.createFrom;
+const $$createType21 = model$0.PRListResult.createFrom;
+const $$createType22 = model$0.PullRequestSummary.createFrom;
+const $$createType23 = model$0.PollResult.createFrom;
+const $$createType24 = model$0.ReviewCommentDTO.createFrom;
+const $$createType25 = model$0.RunResult.createFrom;
+const $$createType26 = $Create.Array($$createType25);
+const $$createType27 = model$0.DeviceFlowInfo.createFrom;
+const $$createType28 = model$0.ReviewSubmitResult.createFrom;
+const $$createType29 = model$0.SubmoduleDraftsDTO.createFrom;
+const $$createType30 = $Create.Array($$createType29);
+const $$createType31 = $models.Launch.createFrom;
+const $$createType32 = $Create.Nullable($$createType31);

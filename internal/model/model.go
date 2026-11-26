@@ -45,6 +45,7 @@ type ReviewCommentDTO struct {
 	DiffHunk     string `json:"diff_hunk"`
 	CreatedAt    string `json:"created_at"` // RFC3339
 	IsSuggestion bool   `json:"is_suggestion"`
+	HTMLURL      string `json:"html_url,omitempty"`
 }
 
 // CommentThreadDTO groups a root ReviewComment with all its replies.
@@ -223,6 +224,46 @@ type PRFileDTO struct {
 	PreviousFilename string `json:"previous_filename,omitempty"` // non-empty for renames
 	IsBinary         bool   `json:"is_binary"`
 	Viewed           bool   `json:"viewed"` // marked as viewed by the user on GitHub
+	// ViewedLocal means the Viewed mark of this submodule file is kept in gitura, not on a GitHub PR.
+	ViewedLocal bool `json:"viewed_local,omitempty"`
+	// LinesUnknown means Additions/Deletions are not counted yet: the file's content loads when it is opened.
+	LinesUnknown bool `json:"lines_unknown,omitempty"`
+	// Repo is the repository holding the row, which with Filename identifies it: "" for the loaded change,
+	// else a submodule's path. A pointer row's is the repository holding that submodule.
+	Repo string `json:"repo,omitempty"`
+	// Submodule is the path of the submodule a file belongs to. The submodule's own row
+	// (Filename == Submodule, Status "submodule") carries the fields below.
+	Submodule          string `json:"submodule,omitempty"`
+	SubmoduleRange     string `json:"submodule_range,omitempty"`     // "old..new" short SHAs; new may end in "-dirty"
+	SubmoduleBackwards bool   `json:"submodule_backwards,omitempty"` // the bump rewinds to an ancestor
+	SubmoduleDiverged  bool   `json:"submodule_diverged,omitempty"`  // neither commit is an ancestor of the other
+	// SubmodulePR names the submodule's open PR whose head is the bumped commit ("owner/repo#12");
+	// review comments and viewed marks on its files go there.
+	SubmodulePR    string `json:"submodule_pr,omitempty"`
+	SubmodulePRURL string `json:"submodule_pr_url,omitempty"`
+	// SubmodulePRUnknown means looking up the submodule's open PR failed, as opposed to finding none.
+	SubmodulePRUnknown bool `json:"submodule_pr_unknown,omitempty"`
+	// SubmoduleViewedUnknown means reading the Viewed marks on the submodule's PR failed; its files may show unviewed wrongly.
+	SubmoduleViewedUnknown bool `json:"submodule_viewed_unknown,omitempty"`
+	// SubmoduleUnavailable says why the submodule's files are missing, e.g. "no access".
+	SubmoduleUnavailable string `json:"submodule_unavailable,omitempty"`
+}
+
+// FileKeyDTO identifies a file in the Files list: one path can be both a file of the loaded change
+// and a file inside a submodule, e.g. when a tracked directory becomes a submodule.
+type FileKeyDTO struct {
+	// Submodule is the file's PRFileDTO.Repo.
+	Submodule string `json:"submodule,omitempty"`
+	Path      string `json:"path"`
+	// Pointer marks a submodule's pointer row (Status "submodule"), apart from a regular file at its path.
+	Pointer bool `json:"pointer,omitempty"`
+}
+
+// ViewedFilesDTO is what GetViewedFiles reports.
+type ViewedFilesDTO struct {
+	Files []FileKeyDTO `json:"files"`
+	// UnknownSubmodules are the submodules whose PR's Viewed marks couldn't be read; see PRFileDTO.SubmoduleViewedUnknown.
+	UnknownSubmodules []string `json:"unknown_submodules,omitempty"`
 }
 
 // DiffLineType classifies a single line in a diff hunk.
@@ -279,6 +320,21 @@ type DraftCommentDTO struct {
 	Side      string `json:"side"`                 // "LEFT" or "RIGHT"
 	StartLine int    `json:"start_line,omitempty"` // 0 means single-line comment
 	StartSide string `json:"start_side,omitempty"` // "LEFT" or "RIGHT"; required when StartLine > 0
+	// Submodule is the PRFileDTO.Repo of the file commented on. It stays set if the bump later disappears,
+	// so the draft is folded into the review body.
+	Submodule string `json:"submodule,omitempty"`
+	// Pointer is set on a comment on a submodule's pointer row, as FileKeyDTO.Pointer.
+	Pointer bool `json:"pointer,omitempty"`
+	// HeadSHA is the PR head the comment was written against; a mismatch means the PR changed meanwhile.
+	HeadSHA string `json:"head_sha,omitempty"`
+	// Range is the submodule's "old..new" (SubmoduleRange) the comment was written against; a mismatch means the bump changed meanwhile.
+	Range string `json:"range,omitempty"`
+	// ID identifies the pending draft through edits; the backend assigns it.
+	ID int64 `json:"-"`
+	// Bump is the submodule's "old..new" commits when the draft was added; the backend fills it.
+	Bump string `json:"-"`
+	// DiffHunk is the hunk GitHub shows a restored draft under, ending at its line.
+	DiffHunk string `json:"-"`
 }
 
 // PendingReviewDTO describes the current pending review state.
@@ -288,18 +344,70 @@ type PendingReviewDTO struct {
 	Comments   []DraftCommentDTO `json:"comments"`
 	HasPending bool              `json:"has_pending"`
 	HeadSHA    string            `json:"head_sha"` // commit the comments' line numbers refer to
+	// InFlightReview is the review an earlier submit whose outcome is unknown sent; SubmitReview refuses another
+	// verdict or text until a submit settles it.
+	InFlightReview *InFlightReviewDTO `json:"in_flight_review,omitempty"`
+}
+
+// InFlightReviewDTO is the verdict and text of a review sent by a submit whose outcome is unknown.
+type InFlightReviewDTO struct {
+	Verdict string `json:"verdict"`
+	Body    string `json:"body"`
 }
 
 // ReviewSubmitRequest is the request payload for submitting a review verdict.
 type ReviewSubmitRequest struct {
 	Body    string `json:"body,omitempty"` // optional top-level review message
 	Verdict string `json:"verdict"`        // "APPROVE" | "REQUEST_CHANGES" | "COMMENT"
+	// Submodules says what to do with the drafts that can go to each submodule's PR, one per submodule
+	// with drafts; a "fold" choice has them added to Body.
+	Submodules []SubmoduleReviewChoice `json:"submodules,omitempty"`
+}
+
+// SubmoduleReviewChoice is what SubmitReview does with the drafts on one submodule's files that
+// fall inside its PR's diff; the others are always added to the review body.
+type SubmoduleReviewChoice struct {
+	Path    string `json:"path"`              // the submodule's path in the loaded PR
+	Mode    string `json:"mode"`              // "review" — a review on the submodule PR | "comments" — single comments there | "fold" — into the review body
+	Verdict string `json:"verdict,omitempty"` // "review" mode: "APPROVE" | "REQUEST_CHANGES" | "COMMENT"
+	Body    string `json:"body,omitempty"`    // "review" mode: the review's text
+	// PR, ToPR and Folded are the routing the dialog showed for the submodule, as SubmoduleDrafts reported it;
+	// every submodule with drafts needs a choice, "fold" for one shown without any.
+	PR     string `json:"pr,omitempty"`
+	ToPR   int    `json:"to_pr"`
+	Folded int    `json:"folded"`
+}
+
+// SubmoduleDraftsDTO says where SubmitReview would send the pending drafts on one submodule's files.
+type SubmoduleDraftsDTO struct {
+	Path      string `json:"path"`
+	PR        string `json:"pr,omitempty"` // the submodule's open PR, "owner/repo#12"
+	PRURL     string `json:"pr_url,omitempty"`
+	ToPR      int    `json:"to_pr"`                // drafts inside that PR's diff, which a SubmoduleReviewChoice routes
+	Folded    int    `json:"folded"`               // drafts added to the review body whatever the choice
+	OwnPR     bool   `json:"own_pr,omitempty"`     // the viewer wrote that PR, so GitHub refuses Approve and Request changes
+	PRUnknown bool   `json:"pr_unknown,omitempty"` // the open-PR lookup failed; its drafts fold unless a retry finds the PR
+	// InFlight is the mode, "review" or "comments", an earlier submit whose outcome is unknown sent drafts to
+	// the PR with; SubmitReview refuses another until a submit settles it.
+	InFlight string `json:"in_flight,omitempty"`
+	// InFlightReview is what that submit sent in "review" mode, which the next one must send too.
+	InFlightReview *InFlightReviewDTO `json:"in_flight_review,omitempty"`
+	// Outdated counts the drafts written against another bump of the submodule than the loaded one, which fold.
+	Outdated int `json:"outdated,omitempty"`
+	// Rerouted says looking the PR up again changed which files it takes viewed marks on, or their marks.
+	Rerouted bool `json:"rerouted,omitempty"`
 }
 
 // ReviewSubmitResult is returned after a successful review submission.
 type ReviewSubmitResult struct {
 	ReviewID int64  `json:"review_id"`
 	HTMLURL  string `json:"html_url"`
+	// SubmoduleReviewURLs links the reviews posted on submodule PRs for comments on submodule files.
+	SubmoduleReviewURLs []string `json:"submodule_review_urls,omitempty"`
+	// SubmoduleCommentURLs links the single comments posted on submodule PRs instead of a review.
+	SubmoduleCommentURLs []string `json:"submodule_comment_urls,omitempty"`
+	// FoldedComments counts submodule-file comments written into the review body instead.
+	FoldedComments int `json:"folded_comments,omitempty"`
 }
 
 // CommandDTO is a named CLI invocation template configured by the user.

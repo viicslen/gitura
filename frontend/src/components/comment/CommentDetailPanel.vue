@@ -86,7 +86,7 @@ watch([() => props.thread, () => showCurrent.value && canShowCurrent.value], asy
   if (!wanted || !thread || !hunk || (current.value?.thread === thread && !current.value.error)) return
   let next: NonNullable<typeof current.value>
   try {
-    next = { thread, code: currentCode(await GetFileAtHead(thread.path), hunk, thread.line) }
+    next = { thread, code: currentCode(await GetFileAtHead('', thread.path), hunk, thread.line) }
   } catch (err) {
     const msg = errorMessage(err)
     next = { thread, error: msg.startsWith('notfound:') ? 'This file is no longer at this path; it was deleted or renamed.' : `Could not load the file: ${msg}` }

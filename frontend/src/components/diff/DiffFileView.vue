@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { useElementSize, useEventListener, useResizeObserver } from '@vueuse/core'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import GlideList from '@/components/motion/GlideList.vue'
 import { ROW_GLIDE } from '@/components/motion/motion'
 import type * as model from '@/bindings/gitura/internal/model'
 import { langFromPath } from '@/lib/highlight'
+import { fileKey, isPointer, repoOf } from '@/lib/fileTree'
 import { scrollToNext } from '@/lib/scrollJump'
 import { anchorKey, buildSplitLayout, diffLineKeys, syncScrollTop, type BlockKind, type CommentTarget, type Edge, type LineSelection, type Side, type UnsentComments } from '@/lib/diffLayout'
 
@@ -32,6 +33,10 @@ const props = defineProps<{
   unsentComments: UnsentComments
   /** Saves a new comment as a draft or posts it now; resolves false on failure. */
   postComment: (comment: model.DraftCommentDTO, mode: 'draft' | 'immediate') => Promise<boolean>
+  /** The head shown now; a comment form keeps the one it was opened on. */
+  headSha?: string
+  /** The range of the submodule holding the file, shown now; pinned like headSha. */
+  submoduleRange?: string
 }>()
 
 const emit = defineEmits<{
@@ -83,8 +88,11 @@ const indexedDrafts = computed(() => {
 })
 // No line numbers to go stale, so these show even when the drafts were written on an older commit.
 const fileDrafts = computed(() => indexedDrafts.value.filter((d) => !d.draft.line))
+provide('draftsStale', computed(() => !!props.draftsStale))
+// A draft pinned to another submodule range has line numbers from that range's diff, not this one.
+const otherRange = (d: model.DraftCommentDTO) => !!d.range && d.range !== props.submoduleRange
 const placedDrafts = computed(() =>
-  props.draftsStale ? [] : indexedDrafts.value.filter((d) => lineKeys.value.has(draftKey(d.draft))),
+  props.draftsStale ? [] : indexedDrafts.value.filter((d) => !otherRange(d.draft) && lineKeys.value.has(draftKey(d.draft))),
 )
 const unplacedDrafts = computed(() =>
   indexedDrafts.value.filter((d) => !placedDrafts.value.includes(d) && !fileDrafts.value.includes(d)),
@@ -101,11 +109,11 @@ const formDraft = reactive({ body: '' })
 
 // A comment that is sending stays in the shared map marked `sending`, so every view of the file
 // shows it locked instead of offering it again or letting a competing draft replace it.
-const sending = computed(() => !!props.unsentComments.get(props.file.filename)?.sending)
-function stashForm(path: string): void {
-  if (props.unsentComments.get(path)?.sending) return
-  if (form.value && formDraft.body.trim()) props.unsentComments.set(path, { target: form.value, body: formDraft.body })
-  else props.unsentComments.delete(path)
+const sending = computed(() => !!props.unsentComments.get(fileKey(props.file))?.sending)
+function stashForm(key: string): void {
+  if (props.unsentComments.get(key)?.sending) return
+  if (form.value && formDraft.body.trim()) props.unsentComments.set(key, { target: form.value, body: formDraft.body })
+  else props.unsentComments.delete(key)
 }
 // Hunks can be dropped (hiding whitespace), shifting indexes; Shift-click must not extend across hunks.
 function inCurrentHunk(f: FormTarget): FormTarget {
@@ -116,17 +124,17 @@ function inCurrentHunk(f: FormTarget): FormTarget {
   return hunk === f.hunk ? f : { ...f, hunk }
 }
 // TODO: a restored comment whose line is gone after new commits stays hidden until the file is left.
-function restoreForm(path: string): void {
-  const saved = props.unsentComments.get(path)
+function restoreForm(key: string): void {
+  const saved = props.unsentComments.get(key)
   form.value = saved ? inCurrentHunk(saved.target) : null
   formDraft.body = saved?.body ?? ''
 }
-restoreForm(props.file.filename)
-onBeforeUnmount(() => stashForm(props.file.filename))
+restoreForm(fileKey(props.file))
+onBeforeUnmount(() => stashForm(fileKey(props.file)))
 const drag = ref<{ side: Side; hunk: number; anchor: number; current: number } | null>(null)
-watch(() => props.file.filename, (path, previous) => {
+watch(() => fileKey(props.file), (key, previous) => {
   stashForm(previous)
-  restoreForm(path)
+  restoreForm(key)
   drag.value = null
   opened = rowKeys()
 })
@@ -137,9 +145,11 @@ watch(hunks, () => {
   if (form.value) form.value = inCurrentHunk(form.value)
 })
 // A send started from an earlier view of this file succeeded: drop the locked copy shown here.
-watch(() => props.unsentComments.get(props.file.filename), (entry, previous) => {
+watch(() => props.unsentComments.get(fileKey(props.file)), (entry, previous) => {
   if (previous?.sending && !entry) form.value = null
 })
+
+const pinned = () => ({ headSha: props.headSha, range: props.submoduleRange })
 
 function rangeTarget(side: Side, hunk: number, a: number, b: number): FormTarget {
   const [lo, hi] = a <= b ? [a, b] : [b, a]
@@ -150,7 +160,7 @@ function rangeTarget(side: Side, hunk: number, a: number, b: number): FormTarget
 function extendForm(side: Side, hunk: number, line: number): boolean {
   const f = form.value
   if (!f || f.side !== side || f.hunk !== hunk) return false
-  form.value = rangeTarget(side, hunk, Math.min(f.startLine ?? f.line, line), Math.max(f.line, line))
+  form.value = { ...rangeTarget(side, hunk, Math.min(f.startLine ?? f.line, line), Math.max(f.line, line)), headSha: f.headSha, range: f.range }
   return true
 }
 
@@ -167,14 +177,14 @@ function onHover(side: Side, hunk: number, line: number): void {
 function onActivate(side: Side, hunk: number, line: number, shift: boolean): void {
   if (sending.value) return
   if (shift && extendForm(side, hunk, line)) return
-  form.value = { side, hunk, line }
+  form.value = { side, hunk, line, ...pinned() }
 }
 
 useEventListener(window, 'mouseup', () => {
   const d = drag.value
   if (!d) return
   drag.value = null
-  form.value = rangeTarget(d.side, d.hunk, d.anchor, d.current)
+  form.value = { ...rangeTarget(d.side, d.hunk, d.anchor, d.current), ...pinned() }
 })
 
 const selection = computed<LineSelection | null>(() => {
@@ -204,24 +214,29 @@ function threadLands(at: string): Promise<void> {
 async function submitComment(body: string, submitMode: 'draft' | 'immediate'): Promise<boolean> {
   const t = form.value
   if (!t || sending.value) return false
-  const path = props.file.filename
+  const key = fileKey(props.file)
   const comment = {
-    path,
+    path: props.file.filename,
+    submodule: repoOf(props.file),
+    pointer: isPointer(props.file),
+    head_sha: t.headSha,
+    range: t.range,
     body,
     line: t.line,
     side: t.side,
     start_line: t.startLine,
     start_side: t.startLine ? t.side : undefined,
   } as model.DraftCommentDTO
-  props.unsentComments.set(path, { target: t, body: formDraft.body, sending: true })
-  const entry = props.unsentComments.get(path)
+  props.unsentComments.set(key, { target: t, body: formDraft.body, sending: true })
+  const entry = props.unsentComments.get(key)
   let ok = false
   try {
     ok = await props.postComment(comment, submitMode)
-    if (ok && submitMode === 'immediate' && props.showThreads && !unmounted.value) await threadLands(anchorKey(t.side, t.line))
+    // A submodule file's comment goes to its PR or the parent's conversation, never a thread on this diff.
+    if (ok && submitMode === 'immediate' && props.showThreads && !props.submoduleRange && !unmounted.value) await threadLands(anchorKey(t.side, t.line))
   } finally {
-    if (entry && props.unsentComments.get(path) === entry) {
-      if (ok) props.unsentComments.delete(path)
+    if (entry && props.unsentComments.get(key) === entry) {
+      if (ok) props.unsentComments.delete(key)
       else entry.sending = false
     }
   }
@@ -425,7 +440,7 @@ function onWheel(side: Side, event: WheelEvent): void {
 }
 
 watch(syncPoints, () => onScroll(master.value))
-watch(() => props.file.filename, () => {
+watch(() => fileKey(props.file), () => {
   master.value = 'RIGHT'
   for (const side of ['LEFT', 'RIGHT'] as const) {
     const el = scrollEls[side].value
@@ -489,6 +504,7 @@ function statusLabel(status: string): string {
     case 'removed': return 'Deleted'
     case 'renamed': return 'Renamed'
     case 'copied': return 'Copied'
+    case 'submodule': return 'Submodule'
     default: return 'Modified'
   }
 }
@@ -526,12 +542,13 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
         title="Comment on this file"
         aria-label="Comment on this file"
         :disabled="sending"
-        @click="form = FILE_TARGET"
+        @click="form = { ...FILE_TARGET, ...pinned() }"
       >
         <MessageSquarePlus />
       </Button>
       <slot name="header-actions" />
     </div>
+    <slot name="notices" />
 
     <Transition v-bind="ROW_GLIDE">
       <div v-if="fileRows.length" class="grid max-h-[40%] shrink-0 bg-muted/20 shadow-[inset_0_-1px_0_var(--color-border)]">
@@ -569,7 +586,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
       </div>
     </Transition>
 
-    <div v-if="file.is_binary" class="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
+    <div v-if="file.is_binary || diff?.is_binary" class="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
       Binary file — diff not available
     </div>
 
@@ -632,7 +649,9 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
               <p v-if="unplacedDrafts.length" class="px-4 pt-1 text-xs text-muted-foreground">
                 {{ draftsStale
                   ? 'Your pending comments were written against an earlier commit and will be submitted against it'
-                  : 'Pending comments outside the visible diff' }}
+                  : unplacedDrafts.some((d) => otherRange(d.draft))
+                    ? 'Pending comments written on an earlier change of this submodule'
+                    : 'Pending comments outside the visible diff' }}
               </p>
               <GlideList v-slot="{ item: d }" :items="unplacedDrafts" :item-key="(d) => d.key" :appear="settled">
                 <div class="grid"><div class="min-h-0 min-w-0"><DiffDraftComment :draft="d.draft" :class="freshGlow(d.key)" /></div></div>

@@ -13,7 +13,9 @@ export {
     DiffLineDTO,
     DiffLineType,
     DraftCommentDTO,
+    FileKeyDTO,
     IgnoredCommenterDTO,
+    InFlightReviewDTO,
     IssueCommentDTO,
     LabelDTO,
     LoadProgress,
@@ -34,5 +36,8 @@ export {
     RunContext,
     RunOutput,
     RunResult,
-    SuggestionCommitResult
+    SubmoduleDraftsDTO,
+    SubmoduleReviewChoice,
+    SuggestionCommitResult,
+    ViewedFilesDTO
 } from "./models.js";

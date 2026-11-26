@@ -14,3 +14,17 @@ LIMIT 1;
 INSERT INTO pr_state (owner, repo, number, local_path)
 VALUES (?, ?, ?, ?)
 ON CONFLICT (owner, repo, number) DO UPDATE SET local_path = excluded.local_path;
+
+-- name: ListSubmoduleViewed :many
+SELECT submodule, path, pointer, fingerprint
+FROM submodule_file_viewed
+WHERE owner = ? AND repo = ? AND number = ?;
+
+-- name: UpsertSubmoduleViewed :exec
+INSERT INTO submodule_file_viewed (owner, repo, number, submodule, path, pointer, fingerprint)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (owner, repo, number, submodule, path, pointer) DO UPDATE SET fingerprint = excluded.fingerprint;
+
+-- name: DeleteSubmoduleViewed :exec
+DELETE FROM submodule_file_viewed
+WHERE owner = ? AND repo = ? AND number = ? AND submodule = ? AND path = ? AND pointer = ?;

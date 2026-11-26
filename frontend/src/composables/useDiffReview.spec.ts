@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { CancellablePromise } from '@wailsio/runtime'
 import * as model from '@/bindings/gitura/internal/model'
 import * as App from '@/bindings/gitura/internal/app/app'
+import { fileKey } from '@/lib/fileTree'
+import { flushPromises } from '@vue/test-utils'
 
 const SetFileViewed = vi.fn()
 vi.mock('@/bindings/gitura/internal/app/app', () => ({
@@ -31,7 +33,18 @@ describe('useDiffReview.setViewed', () => {
     SetFileViewed.mockResolvedValueOnce(undefined)
     const review = withFile()
     await review.setViewed('a.go', true)
-    expect(SetFileViewed).toHaveBeenCalledWith('a.go', true)
+    expect(SetFileViewed).toHaveBeenCalledWith('', 'a.go', false, true)
+    expect(review.files.value[0].viewed).toBe(true)
+  })
+
+  it('reloads the files when a submodule PR no longer takes the mark, so the row shows it kept in gitura', async () => {
+    SetFileViewed.mockResolvedValueOnce(true)
+    vi.mocked(App.GetPRFiles).mockResolvedValueOnce([model.PRFileDTO.createFrom({ filename: 'lib/a.txt', repo: 'lib', submodule: 'lib', viewed_local: true })])
+    vi.mocked(App.GetViewedFiles).mockResolvedValueOnce(model.ViewedFilesDTO.createFrom({ files: [{ submodule: 'lib', path: 'lib/a.txt' }] }))
+    const review = useDiffReview()
+    review.files.value = [model.PRFileDTO.createFrom({ filename: 'lib/a.txt', repo: 'lib', submodule: 'lib', viewed: false })]
+    await review.setViewed(fileKey(review.files.value[0]), true)
+    await vi.waitFor(() => expect(review.files.value[0].viewed_local).toBe(true))
     expect(review.files.value[0].viewed).toBe(true)
   })
 
@@ -64,14 +77,14 @@ describe('useDiffReview.setViewedMany', () => {
     const review = useDiffReview()
     review.files.value = ['a.go', 'b.go', 'c.go', 'd.go'].map((filename) => model.PRFileDTO.createFrom({ filename, viewed: filename === 'b.go' }))
     let inFlight = 0
-    SetFileViewed.mockImplementation(async (path: string) => {
+    SetFileViewed.mockImplementation(async (_repo: string, path: string) => {
       expect(++inFlight).toBe(1)
       await Promise.resolve()
       inFlight--
       if (path === 'c.go') throw new Error('403')
     })
     await expect(review.setViewedMany(['a.go', 'b.go', 'c.go', 'd.go'], true)).rejects.toThrow('403')
-    expect(SetFileViewed.mock.calls.map((c) => c[0])).toEqual(['a.go', 'c.go'])
+    expect(SetFileViewed.mock.calls.map((c) => c[1])).toEqual(['a.go', 'c.go'])
     expect(review.files.value.map((f) => f.viewed)).toEqual([true, true, false, false])
     expect(review.viewedSaving.value.size).toBe(0)
   })
@@ -105,7 +118,7 @@ describe('useDiffReview file filters', () => {
     expect(review.visibleFiles.value.map((f) => f.filename)).toEqual(['a.go', 'c.go', 'd.go'])
 
     await review.nextFile()
-    expect(review.currentFilePath.value).toBe('c.go')
+    expect(review.currentFileKey.value).toBe('c.go')
     expect(review.currentFileIndex.value).toBe(3)
 
     // The open file gets marked viewed: it leaves the list, but moving still works both ways.
@@ -113,9 +126,9 @@ describe('useDiffReview file filters', () => {
     expect(review.visibleFiles.value.map((f) => f.filename)).toEqual(['a.go', 'd.go'])
     expect(review.canGoPrev.value).toBe(true)
     await review.nextFile()
-    expect(review.currentFilePath.value).toBe('d.go')
+    expect(review.currentFileKey.value).toBe('d.go')
     await review.prevFile()
-    expect(review.currentFilePath.value).toBe('a.go')
+    expect(review.currentFileKey.value).toBe('a.go')
   })
 
   it('keeps only the latest diff when files are switched quickly', async () => {
@@ -123,12 +136,28 @@ describe('useDiffReview file filters', () => {
     vi.mocked(App.GetFileDiff).mockImplementationOnce(() => new CancellablePromise((r) => { resolveSlow = r }))
     vi.mocked(App.GetFileDiff).mockResolvedValueOnce(diffNamed('fast'))
     const review = useDiffReview()
+    review.files.value = ['a.go', 'b.go'].map((filename) => model.PRFileDTO.createFrom({ filename }))
     const slow = review.selectFile('a.go')
     await review.selectFile('b.go')
     resolveSlow(diffNamed('slow'))
     await slow
-    expect(review.currentFilePath.value).toBe('b.go')
+    expect(review.currentFileKey.value).toBe('b.go')
     expect(review.currentDiff.value?.filename).toBe('fast')
+  })
+})
+
+describe('useDiffReview lines unknown', () => {
+  it('fills in the counts and binary flag of a file whose lines were unknown once its diff loads', async () => {
+    vi.mocked(App.GetFileDiff).mockResolvedValueOnce(model.ParsedDiffDTO.createFrom({ filename: 'lib/a.png', is_binary: true, total_additions: 0, total_deletions: 0 }))
+    vi.mocked(App.GetFileDiff).mockResolvedValueOnce(model.ParsedDiffDTO.createFrom({ filename: 'lib/b.c', total_additions: 7, total_deletions: 2 }))
+    const review = useDiffReview()
+    review.files.value = ['lib/a.png', 'lib/b.c'].map((filename) => model.PRFileDTO.createFrom({ filename, lines_unknown: true }))
+    await review.selectFile('lib/a.png')
+    await review.selectFile('lib/b.c')
+    expect(review.files.value.map(({ is_binary, additions, deletions, lines_unknown }) => ({ is_binary, additions, deletions, lines_unknown }))).toEqual([
+      { is_binary: true, additions: 0, deletions: 0, lines_unknown: false },
+      { is_binary: false, additions: 7, deletions: 2, lines_unknown: false },
+    ])
   })
 })
 
@@ -136,6 +165,7 @@ describe('useDiffReview refetch', () => {
   it('keeps the open diff on screen while it is fetched again', async () => {
     vi.mocked(App.GetFileDiff).mockResolvedValueOnce(diffNamed('old'))
     const review = useDiffReview()
+    review.files.value = [model.PRFileDTO.createFrom({ filename: 'a.go' })]
     await review.selectFile('a.go')
     let resolve!: (v: model.ParsedDiffDTO) => void
     vi.mocked(App.GetFileDiff).mockImplementationOnce(() => new CancellablePromise((r) => { resolve = r }))
@@ -152,10 +182,97 @@ describe('useDiffReview start file', () => {
   it('opens the first shown file that has not been viewed yet', async () => {
     await loadToggles()
     vi.mocked(App.GetPRFiles).mockResolvedValueOnce(['a.go', 'b_test.go', 'c.go', 'd.go'].map((filename) => model.PRFileDTO.createFrom({ filename, viewed: false })))
-    vi.mocked(App.GetViewedFiles).mockResolvedValueOnce(['a.go'])
+    vi.mocked(App.GetViewedFiles).mockResolvedValueOnce(model.ViewedFilesDTO.createFrom({ files: [{ path: 'a.go' }] }))
     const review = useDiffReview()
     review.hideTests.value = true
     await review.loadFiles()
-    expect(review.currentFilePath.value).toBe('c.go')
+    expect(review.currentFileKey.value).toBe('c.go')
+  })
+})
+
+describe('useDiffReview files sharing a path', () => {
+  it('selects, marks viewed and reads the viewed state of a main-repository file and a submodule file at one path apart', async () => {
+    SetFileViewed.mockReset().mockResolvedValue(undefined)
+    const review = useDiffReview()
+    review.files.value = [
+      model.PRFileDTO.createFrom({ filename: 'lib/a.txt', status: 'removed', viewed: false }),
+      model.PRFileDTO.createFrom({ filename: 'lib', status: 'submodule', submodule: 'lib', viewed: false }),
+      model.PRFileDTO.createFrom({ filename: 'lib/a.txt', status: 'added', repo: 'lib', submodule: 'lib', viewed: false }),
+    ]
+    const [own, , inner] = review.files.value
+
+    await review.selectFile(fileKey(inner))
+    expect(App.GetFileDiff).toHaveBeenLastCalledWith('lib', 'lib/a.txt', false)
+    expect(review.currentFile.value).toBe(inner)
+    expect(review.currentFileIndex.value).toBe(2)
+
+    await review.setViewed(fileKey(inner), true)
+    expect(SetFileViewed).toHaveBeenCalledWith('lib', 'lib/a.txt', false, true)
+    expect([own.viewed, inner.viewed]).toEqual([false, true])
+
+    vi.mocked(App.GetViewedFiles).mockResolvedValueOnce(model.ViewedFilesDTO.createFrom({ files: [{ path: 'lib/a.txt' }] }))
+    await review.loadViewed()
+    expect([own.viewed, inner.viewed]).toEqual([true, false])
+
+    await review.selectFile(fileKey(own))
+    expect(App.GetFileDiff).toHaveBeenLastCalledWith('', 'lib/a.txt', false)
+    expect(review.currentFile.value).toBe(own)
+  })
+})
+
+describe('useDiffReview submodule replaced by a file at its path', () => {
+  it('selects, marks viewed and reads the viewed state of the pointer row and the file apart', async () => {
+    SetFileViewed.mockReset().mockResolvedValue(undefined)
+    vi.mocked(App.GetViewedFiles).mockResolvedValue(model.ViewedFilesDTO.createFrom({ files: [{ path: 'lib', pointer: true }] }))
+    const review = useDiffReview()
+    review.files.value = [
+      model.PRFileDTO.createFrom({ filename: 'lib', status: 'submodule', submodule: 'lib', viewed: false }),
+      model.PRFileDTO.createFrom({ filename: 'lib', status: 'added', viewed: false }),
+    ]
+    const [pointer, file] = review.files.value
+    expect(fileKey(pointer)).not.toBe(fileKey(file))
+
+    await review.selectFile(fileKey(file))
+    expect(App.GetFileDiff).toHaveBeenLastCalledWith('', 'lib', false)
+    expect(review.currentFile.value).toBe(file)
+    await review.selectFile(fileKey(pointer))
+    expect(App.GetFileDiff).toHaveBeenLastCalledWith('', 'lib', true)
+    expect(review.currentFile.value).toBe(pointer)
+
+    await review.setViewed(fileKey(pointer), true)
+    expect(SetFileViewed).toHaveBeenCalledWith('', 'lib', true, true)
+    await flushPromises()
+    expect(App.GetViewedFiles).toHaveBeenCalled()
+    expect([pointer.viewed, file.viewed]).toEqual([true, false])
+    vi.mocked(App.GetViewedFiles).mockReset()
+  })
+
+  it('skips reading the marks again in a local review, which keeps one per row', async () => {
+    SetFileViewed.mockReset().mockResolvedValue(false)
+    vi.mocked(App.GetViewedFiles).mockReset()
+    const review = useDiffReview(true)
+    review.files.value = [
+      model.PRFileDTO.createFrom({ filename: 'lib', status: 'submodule', submodule: 'lib', viewed: false }),
+      model.PRFileDTO.createFrom({ filename: 'lib', status: 'added', viewed: false }),
+    ]
+    await review.setViewed(fileKey(review.files.value[0]), true)
+    await flushPromises()
+    expect(SetFileViewed).toHaveBeenCalledWith('', 'lib', true, true)
+    expect(App.GetViewedFiles).not.toHaveBeenCalled()
+  })
+})
+
+describe('useDiffReview submodule Viewed marks', () => {
+  it('flags the submodule whose PR marks could not be read on the load that lists it', async () => {
+    const pointer = { filename: 'lib', status: 'submodule', submodule: 'lib', submodule_pr: 'o/lib#3', viewed: false }
+    vi.mocked(App.GetPRFiles).mockResolvedValueOnce([model.PRFileDTO.createFrom(pointer), model.PRFileDTO.createFrom({ filename: 'lib/a.txt', repo: 'lib', submodule: 'lib', viewed: false })])
+    vi.mocked(App.GetViewedFiles).mockResolvedValueOnce(model.ViewedFilesDTO.createFrom({ files: [], unknown_submodules: ['lib'] }))
+    const review = useDiffReview()
+    await review.loadFiles()
+    expect(review.files.value.find((f) => f.filename === 'lib')?.submodule_viewed_unknown).toBe(true)
+
+    vi.mocked(App.GetViewedFiles).mockResolvedValueOnce(model.ViewedFilesDTO.createFrom({ files: [] }))
+    await review.loadViewed()
+    expect(review.files.value.find((f) => f.filename === 'lib')?.submodule_viewed_unknown).toBe(false)
   })
 })

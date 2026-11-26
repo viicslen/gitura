@@ -191,7 +191,7 @@ func pendingDraft(node graphQLThread, reviewID int64) (*model.DraftCommentDTO, b
 	if !inReview(root) {
 		return nil, true
 	}
-	d := &model.DraftCommentDTO{Path: root.Path, Body: root.Body, Side: node.DiffSide}
+	d := &model.DraftCommentDTO{Path: root.Path, Body: root.Body, Side: node.DiffSide, DiffHunk: root.DiffHunk}
 	// GitHub reports line 1 on a file thread.
 	if node.SubjectType == "FILE" {
 		return d, true

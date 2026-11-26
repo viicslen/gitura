@@ -5,6 +5,7 @@ package db
 
 import (
 	"database/sql"
+	_ "embed" // schema.sql
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,15 +15,9 @@ import (
 
 // schema is the DDL run on every Open to ensure tables exist.
 // It is idempotent — all statements use IF NOT EXISTS.
-const schema = `
-CREATE TABLE IF NOT EXISTS pr_state (
-    owner      TEXT    NOT NULL,
-    repo       TEXT    NOT NULL,
-    number     INTEGER NOT NULL,
-    local_path TEXT    NOT NULL DEFAULT '',
-    PRIMARY KEY (owner, repo, number)
-);
-`
+//
+//go:embed schema.sql
+var schema string
 
 // Open opens (or creates) the gitura state database at stateDir/gitura/state.db.
 // The directory is created with mode 0700 if it does not exist.

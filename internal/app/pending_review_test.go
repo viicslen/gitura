@@ -48,7 +48,7 @@ func TestPostImmediateComment_WholeFile_SendsFileSubjectWithoutLine(t *testing.T
 	base := srv.URL + "/"
 	client, err := github.NewClient(github.WithURLs(&base, nil))
 	require.NoError(t, err)
-	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}}
+	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}, prFilesCache: []*github.CommitFile{}}
 
 	_, err = app.PostImmediateComment(model.DraftCommentDTO{Path: "a.go", Side: "RIGHT", Body: "x"})
 	require.NoError(t, err)
@@ -60,6 +60,10 @@ func TestPostImmediateComment_WholeFile_SendsFileSubjectWithoutLine(t *testing.T
 func TestSubmitReview_WithFileComment_CreatesPendingReviewWithLineCommentsOnly(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
 		if r.Method == http.MethodPost {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
 		}
@@ -69,7 +73,7 @@ func TestSubmitReview_WithFileComment_CreatesPendingReviewWithLineCommentsOnly(t
 	base := srv.URL + "/"
 	client, err := github.NewClient(github.WithURLs(&base, nil))
 	require.NoError(t, err)
-	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}}
+	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}, prFilesCache: []*github.CommitFile{}}
 	app.pendingComments = []model.DraftCommentDTO{
 		{Path: "a.go", Line: 3, Side: "RIGHT", Body: "line"},
 		{Path: "a.go", Side: "RIGHT", Body: "file"},
@@ -84,11 +88,13 @@ func TestSubmitReview_WithFileComment_CreatesPendingReviewWithLineCommentsOnly(t
 
 func TestSubmitReview_PendingCreateAnswers5xx_RetryDeletesOnlyTheReviewItLeft(t *testing.T) {
 	for name, tc := range map[string]struct {
+		before     bool
 		remoteBody string
 		deleted    []string
 	}{
-		"left by the failed request": {"line", []string{"/repos/o/r/pulls/1/reviews/9"}},
-		"started on github.com":      {"mine on the web", nil},
+		"left by the failed request":        {false, "line", []string{"/repos/o/r/pulls/1/reviews/9"}},
+		"started on github.com":             {false, "mine on the web", nil},
+		"there before, matching the drafts": {true, "line", nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var deleted []string
@@ -103,8 +109,10 @@ func TestSubmitReview_PendingCreateAnswers5xx_RetryDeletesOnlyTheReviewItLeft(t 
 				case r.Method == http.MethodGet && r.URL.Query().Get("page") == "":
 					w.Header().Set("Link", `<http://`+r.Host+r.URL.Path+`?page=2>; rel="next"`)
 					_, _ = w.Write([]byte(`[{"id":1,"state":"COMMENTED"}]`))
-				case r.Method == http.MethodGet:
+				case r.Method == http.MethodGet && (created || tc.before):
 					_, _ = w.Write([]byte(`[{"id":9,"state":"PENDING","commit_id":"sha"}]`))
+				case r.Method == http.MethodGet:
+					_, _ = w.Write([]byte(`[]`))
 				case r.Method == http.MethodDelete:
 					deleted = append(deleted, r.URL.Path)
 					_, _ = w.Write([]byte(`{}`))
@@ -116,7 +124,7 @@ func TestSubmitReview_PendingCreateAnswers5xx_RetryDeletesOnlyTheReviewItLeft(t 
 			base := srv.URL + "/"
 			client, err := github.NewClient(github.WithURLs(&base, nil))
 			require.NoError(t, err)
-			app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}, prOwner: "o", prRepo: "r", prNumber: 1}
+			app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}, prFilesCache: []*github.CommitFile{}, prOwner: "o", prRepo: "r", prNumber: 1}
 			app.pendingComments = []model.DraftCommentDTO{
 				{Path: "a.go", Line: 3, Side: "RIGHT", Body: "line"},
 				{Path: "a.go", Side: "RIGHT", Body: "file"},
@@ -140,7 +148,7 @@ func TestSubmitReview_DeletingPendingReviewFails_KeepsItForRetry(t *testing.T) {
 	base := srv.URL + "/"
 	client, err := github.NewClient(github.WithURLs(&base, nil))
 	require.NoError(t, err)
-	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}, pendingReviewID: 5}
+	app := &App{ctx: context.Background(), ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "sha"}, prFilesCache: []*github.CommitFile{}, pendingReviewID: 5}
 	app.pendingComments = []model.DraftCommentDTO{{Path: "a.go", Side: "RIGHT", Body: "file"}}
 
 	_, err = app.SubmitReview(model.ReviewSubmitRequest{Verdict: "COMMENT"})
@@ -152,7 +160,7 @@ func TestSubmitReview_DeletingPendingReviewFails_KeepsItForRetry(t *testing.T) {
 func TestAddDraftComment_HeadMovedAfterFirstDraft_KeepsOriginalCommit(t *testing.T) {
 	client, err := github.NewClient()
 	require.NoError(t, err)
-	app := &App{ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "old"}}
+	app := &App{ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "old"}, prFilesCache: []*github.CommitFile{}}
 
 	pending, err := app.AddDraftComment(model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "x"})
 	require.NoError(t, err)
@@ -166,4 +174,70 @@ func TestAddDraftComment_HeadMovedAfterFirstDraft_KeepsOriginalCommit(t *testing
 
 	app.pendingComments = nil
 	assert.Equal(t, "new", app.reviewCommitSHA())
+}
+
+func TestAddDraftComment_WrittenAgainstAnotherHead_RejectedAndNotStored(t *testing.T) {
+	client, err := github.NewClient()
+	require.NoError(t, err)
+	app := &App{ghClient: client, prCache: &model.PullRequestSummary{HeadSHA: "prB"}, prFilesCache: []*github.CommitFile{}}
+
+	_, err = app.AddDraftComment(model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "x", HeadSHA: "prA"})
+	require.ErrorContains(t, err, "conflict:")
+	assert.Empty(t, app.pendingComments)
+
+	_, err = app.PostImmediateComment(model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "x", HeadSHA: "prA"})
+	require.ErrorContains(t, err, "conflict:")
+}
+
+func TestSyncPendingReview_DraftsAtPointerRowAndFileReplacingIt_RestoresEachOnItsRow(t *testing.T) {
+	thread := func(path string, line int, side, hunk string) map[string]any {
+		th := map[string]any{"diffSide": side, "subjectType": "LINE", "originalLine": line, "comments": map[string]any{"nodes": []map[string]any{
+			{"pullRequestReview": map[string]any{"databaseId": 9}, "path": path, "body": hunk, "diffHunk": hunk},
+		}}}
+		if line == 0 {
+			th["subjectType"], th["originalLine"] = "FILE", nil
+		}
+		return th
+	}
+	threads := []map[string]any{
+		thread("vendor", 3, "RIGHT", "@@ -0,0 +1,3 @@\n+x\n+y\n+z"),
+		thread("vendor", 1, "LEFT", "@@ -1 +1 @@\n-Subproject commit a"),
+		thread("vendor", 1, "RIGHT", "@@ -1 +1 @@\n-Subproject commit a\n+Subproject commit b"),
+		thread("vendor", 1, "RIGHT", "@@ -0,0 +1,3 @@\n+x"),
+		thread("vendor", 0, "RIGHT", "file-level"),
+		thread("solo", 1, "RIGHT", "@@ -1 +1 @@\n-Subproject commit c\n+Subproject commit d"),
+	}
+	fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) {
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"repository": map[string]any{"pullRequest": map[string]any{
+			"reviewThreads": map[string]any{"nodes": threads, "pageInfo": map[string]any{"hasNextPage": false}},
+		}}}}))
+	})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`[{"id":9,"state":"PENDING","commit_id":"sha"}]`))
+	}))
+	defer srv.Close()
+	base := srv.URL + "/"
+	client, err := github.NewClient(github.WithURLs(&base, nil))
+	require.NoError(t, err)
+	app := &App{
+		ctx: context.Background(), ghClient: client, prOwner: "o", prRepo: "r", prNumber: 1,
+		prCache: &model.PullRequestSummary{HeadSHA: "sha"},
+		prFilesCache: []*github.CommitFile{
+			{Filename: new("vendor"), Status: new("modified"), Patch: new("@@ -1 +1 @@\n-Subproject commit a\n+Subproject commit b")},
+			{Filename: new("vendor"), Status: new("added"), Patch: new("@@ -0,0 +1,3 @@\n+x\n+y\n+z")},
+			{Filename: new("solo"), Status: new("modified"), Patch: new("@@ -1 +1 @@\n-Subproject commit c\n+Subproject commit d")},
+		},
+		prSubmodules:  map[string]*prSubmodule{"vendor": {path: "vendor"}, "solo": {path: "solo"}},
+		prSubmoduleOf: map[*github.CommitFile]*prSubmodule{},
+	}
+
+	state, err := app.SyncPendingReview()
+	require.NoError(t, err)
+	var pointer []bool
+	for _, d := range state.Comments {
+		pointer = append(pointer, d.Pointer)
+		assert.Empty(t, d.Submodule, d.Body)
+	}
+	assert.Equal(t, []bool{false, true, true, false, false, true}, pointer,
+		"only the file's hunk holds RIGHT 3; only the pointer's LEFT 1; RIGHT 1 by its line; a file-level draft goes to the file; a lone row is itself")
 }

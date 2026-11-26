@@ -9,6 +9,10 @@ export interface CommentTarget {
   hunk: number
   line: number
   startLine?: number
+  /** The head the form was opened on, so a comment placed on older code is refused instead of landing on moved lines. */
+  headSha?: string
+  /** Likewise the submodule range shown, for a file inside a submodule. */
+  range?: string
 }
 
 /**
