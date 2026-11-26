@@ -585,6 +585,7 @@ func insertPointers(ctx context.Context, dir, rev string, files []File, ps []*po
 
 // deletedFiles diffs deleted submodule p's old commit against the empty tree, since git prints no files
 // under a deleted submodule; none when p wasn't deleted or its old commit is gone.
+// shortcut: a submodule nested in the deleted one shows as a plain row, not a group of its files; walk the old tree's gitlinks if needed.
 func deletedFiles(ctx context.Context, dir, rev string, ps []*pointer, p *pointer) ([]File, error) {
 	if p.new == "" || strings.Trim(p.new, "0") != "" || strings.Trim(p.old, "0") == "" {
 		return nil, nil
