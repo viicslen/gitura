@@ -81,6 +81,25 @@ func TestFetchSubmoduleChanges_BackwardsBump_ComparesReversedAndInverts(t *testi
 	assert.Equal(t, "@@ -1 +0,0 @@\n-a", ch.Files[0].GetPatch())
 }
 
+func TestFetchSubmoduleChanges_RepoNamedTree_ReadsOwnerAndRepoFromHTMLURL(t *testing.T) {
+	client := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/o/r/contents/lib":
+			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://ghe.example.com/acme/tree/tree/new"}`))
+		case "/repos/acme/tree/compare/old...new":
+			_, _ = w.Write([]byte(`{"status":"ahead","files":[]}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	ch, err := FetchSubmoduleChanges(context.Background(), client, "o", "r", "head", "lib", "old", "new")
+
+	require.NoError(t, err)
+	assert.Equal(t, "acme/tree", ch.Owner+"/"+ch.Repo)
+	assert.Empty(t, ch.Unavailable)
+}
+
 func TestFetchSubmoduleChanges_Gaps_ReportsUnavailable(t *testing.T) {
 	client := serve(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

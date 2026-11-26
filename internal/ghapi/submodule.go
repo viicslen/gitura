@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -14,8 +15,6 @@ import (
 
 	"github.com/aymanbagabas/go-udiff"
 	"github.com/google/go-github/v93/github"
-
-	"gitura/internal/gitlocal"
 )
 
 // compareFileCap is the most files GitHub's compare API returns; it drops the rest without saying so.
@@ -494,12 +493,17 @@ func submoduleRepo(ctx context.Context, client *github.Client, owner, repo, ref,
 	if entry.GetType() != "submodule" {
 		return "", "", fmt.Errorf("github: %s at %s is a %s: %w", path, ref, entry.GetType(), ErrNotSubmodule)
 	}
-	// GitHub resolves relative .gitmodules URLs (../lib.git) into html_url, and leaves it empty off GitHub.
-	subOwner, subRepo, ok := gitlocal.ParseRemoteURL(strings.Split(entry.GetHTMLURL(), "/tree/")[0])
-	if !ok {
+	// GitHub resolves relative .gitmodules URLs (../lib.git) into html_url, https://host/owner/repo/tree/sha,
+	// and leaves it empty off GitHub.
+	u, err := url.Parse(entry.GetHTMLURL())
+	if err != nil {
+		return "", "", fmt.Errorf("github: submodule %s: %w", path, err)
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", nil
 	}
-	return subOwner, subRepo, nil
+	return parts[0], parts[1], nil
 }
 
 var hunkHeader = regexp.MustCompile(`^@@ -(\S+) \+(\S+) @@`)
