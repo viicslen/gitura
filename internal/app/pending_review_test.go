@@ -3,9 +3,9 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/google/go-github/v93/github"
@@ -96,14 +96,21 @@ func TestSubmitReview_PendingCreateAnswers5xx_RetryDeletesOnlyTheReviewItLeft(t 
 	for name, tc := range map[string]struct {
 		before                 bool
 		remotePath, remoteBody string
+		remoteLine             int
 		deleted                []string
 	}{
-		"left by the failed request":                       {false, "a.go", "line", []string{"/repos/o/r/pulls/1/reviews/9"}},
-		"started on github.com":                            {false, "a.go", "mine on the web", nil},
-		"started on github.com, same text on another file": {false, "b.go", "line", nil},
-		"there before, matching the drafts":                {true, "a.go", "line", nil},
+		"left by the failed request":                       {false, "a.go", "line", 3, []string{"/repos/o/r/pulls/1/reviews/9"}},
+		"started on github.com":                            {false, "a.go", "mine on the web", 3, nil},
+		"started on github.com, same text on another file": {false, "b.go", "line", 3, nil},
+		"started on github.com, same text on another line": {false, "a.go", "line", 4, nil},
+		"there before, matching the drafts":                {true, "a.go", "line", 3, nil},
 	} {
 		t.Run(name, func(t *testing.T) {
+			fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = fmt.Fprintf(w, `{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[
+					{"diffSide":"RIGHT","originalLine":%d,"subjectType":"LINE",
+					 "comments":{"nodes":[{"body":%q,"path":%q,"pullRequestReview":{"databaseId":9}}]}}]}}}}}`, tc.remoteLine, tc.remoteBody, tc.remotePath)
+			})
 			var deleted []string
 			created := false
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -111,8 +118,6 @@ func TestSubmitReview_PendingCreateAnswers5xx_RetryDeletesOnlyTheReviewItLeft(t 
 				case r.Method == http.MethodPost && !created:
 					created = true
 					w.WriteHeader(http.StatusBadGateway)
-				case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/reviews/9/comments"):
-					_, _ = w.Write([]byte(`[{"path":"` + tc.remotePath + `","body":"` + tc.remoteBody + `"}]`))
 				case r.Method == http.MethodGet && r.URL.Query().Get("page") == "":
 					w.Header().Set("Link", `<http://`+r.Host+r.URL.Path+`?page=2>; rel="next"`)
 					_, _ = w.Write([]byte(`[{"id":1,"state":"COMMENTED"}]`))

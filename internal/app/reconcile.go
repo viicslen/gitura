@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/go-github/v93/github"
 
+	"gitura/internal/ghapi"
 	"gitura/internal/logger"
 	"gitura/internal/model"
 )
@@ -292,7 +293,7 @@ func (a *App) postedReview(owner, repo string, number int, sent *github.PullRequ
 		if !reviewLike(r, sent, login, earliest) || a.claimed[claim{true, r.GetID()}] {
 			return false
 		}
-		same, err := a.sameReviewComments(owner, repo, number, r, sent, true)
+		same, err := a.sameReviewComments(owner, repo, number, r, sent)
 		commentsErr = cmp.Or(commentsErr, err)
 		return same
 	})
@@ -369,9 +370,21 @@ func (a *App) leftPending(at orphanReview, sent *github.PullRequestReviewRequest
 	if err != nil || r == nil || r.GetID() == at.id || r.GetCommitID() != sent.GetCommitID() {
 		return 0, err
 	}
-	if same, err := a.sameReviewComments(at.owner, at.repo, at.number, r, sent, false); !same {
-		logger.L.Warn("SubmitReview: pending review left unclaimed", "review_id", r.GetID(), "err", err)
-		return 0, err
+	// GitHub's REST API omits line and side on pending comments; its review threads carry them.
+	drafts, err := ghapi.FetchPendingReviewDrafts(a.ctx, ghapi.NewHTTPClient(a.authToken), at.owner, at.repo, at.number, r.GetID())
+	if errors.Is(err, ghapi.ErrUnheldComments) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read the comments of pending review %d: %w", r.GetID(), err)
+	}
+	got := make([]commentKey, len(drafts))
+	for i, d := range drafts {
+		got[i] = commentKey{d.Path, d.Line, d.Side, d.StartLine, d.StartSide, d.Body}
+	}
+	if !sameComments(got, sent) {
+		logger.L.Warn("SubmitReview: pending review left unclaimed", "review_id", r.GetID())
+		return 0, nil
 	}
 	logger.L.Info("SubmitReview: adopted pending review created by a failed request", "pr", fmt.Sprintf("%s/%s#%d", at.owner, at.repo, at.number), "review_id", r.GetID())
 	return r.GetID(), nil
@@ -478,31 +491,31 @@ type commentKey struct {
 	body      string
 }
 
-// sameReviewComments reports whether review r holds exactly sent's line comments, matched on their anchors
-// too when anchored, else on their paths and bodies.
-// Pass anchored false for a pending review: GitHub's REST API omits line and side on its comments.
-func (a *App) sameReviewComments(owner, repo string, number int, r *github.PullRequestReview, sent *github.PullRequestReviewRequest, anchored bool) (bool, error) {
-	count := map[commentKey]int{}
+// sameReviewComments reports whether submitted review r holds exactly sent's line comments.
+func (a *App) sameReviewComments(owner, repo string, number int, r *github.PullRequestReview, sent *github.PullRequestReviewRequest) (bool, error) {
+	var got []commentKey
 	for c, err := range a.ghClient.PullRequests.ListReviewCommentsIter(a.ctx, owner, repo, number, r.GetID(), &github.ListOptions{PerPage: 100}) {
 		if err != nil {
 			return false, fmt.Errorf("read the comments of review %d: %w", r.GetID(), err)
 		}
-		count[keyOf(commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()}, anchored)]++
+		got = append(got, commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()})
+	}
+	return sameComments(got, sent), nil
+}
+
+// sameComments reports whether got are exactly sent's line comments.
+func sameComments(got []commentKey, sent *github.PullRequestReviewRequest) bool {
+	count := map[commentKey]int{}
+	for _, k := range got {
+		count[k]++
 	}
 	for _, c := range sent.Comments {
-		count[keyOf(commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()}, anchored)]--
+		count[commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()}]--
 	}
 	for _, n := range count {
 		if n != 0 {
-			return false, nil
+			return false
 		}
 	}
-	return true, nil
-}
-
-func keyOf(k commentKey, anchored bool) commentKey {
-	if anchored {
-		return k
-	}
-	return commentKey{path: k.path, body: k.body}
+	return true
 }

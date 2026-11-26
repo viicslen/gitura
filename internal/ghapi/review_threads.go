@@ -2,7 +2,7 @@ package ghapi
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -145,10 +145,13 @@ func FetchReviewThreads(
 	return threads, nil
 }
 
+// ErrUnheldComments is a pending review holding comments a draft can't: replies to existing threads.
+var ErrUnheldComments = errors.New("conflict: your pending review on GitHub has replies gitura can't edit; submit or discard it on GitHub")
+
 // FetchPendingReviewDrafts returns the threads that the pending review reviewID starts, as drafts.
 // The REST review-comments endpoint omits line and side on pending comments, so threads are read instead.
 // Errors are prefixed with "github:" on API failures, "auth:" on HTTP 401, and "conflict:" when the
-// review holds comments a draft can't (replies to existing threads), since submitting would drop them.
+// review holds comments a draft can't (ErrUnheldComments), since submitting would drop them.
 func FetchPendingReviewDrafts(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -172,7 +175,7 @@ func FetchPendingReviewDrafts(
 		return nil, err
 	}
 	if unheld > 0 {
-		return nil, fmt.Errorf("conflict: your pending review on GitHub has replies gitura can't edit; submit or discard it on GitHub")
+		return nil, ErrUnheldComments
 	}
 	return drafts, nil
 }

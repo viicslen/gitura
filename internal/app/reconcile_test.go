@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -686,10 +687,10 @@ func TestSubmitReview_ParentReviewAnswers5xxAndLookupFails_FrozenThenSettledBefo
 }
 
 // pendingCreateApp is subApp whose first pending review create on so/sr#5 answers 502 yet leaves pending review
-// 9, and whose first look for it after that fails; deleted records the reviews deleted.
-func pendingCreateApp(t *testing.T, deleted *[]string, creates *int) *App {
+// 9, and whose first look for it after that fails; gql answers GraphQL, deleted records the reviews deleted.
+func pendingCreateApp(t *testing.T, gql http.HandlerFunc, deleted *[]string, creates *int) *App {
 	t.Helper()
-	fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"data":{}}`)) })
+	fakeGraphQL(t, gql)
 	left, lists := false, 0
 	return subApp(t, func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
@@ -726,6 +727,15 @@ func pendingCreateApp(t *testing.T, deleted *[]string, creates *int) *App {
 	})
 }
 
+// pendingThreadOn answers GraphQL with pending review 9's thread on line of a.txt, in fileReviewDrafts' words.
+func pendingThreadOn(line int) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[
+			{"diffSide":"RIGHT","originalLine":%d,"subjectType":"LINE",
+			 "comments":{"nodes":[{"body":"in PR diff","path":"a.txt","pullRequestReview":{"databaseId":9}}]}}]}}}}}`, line)
+	}
+}
+
 // fileReviewDrafts are a line and a file-level draft on so/sr#5's a.txt, which go there as a pending review.
 func fileReviewDrafts() []model.DraftCommentDTO {
 	return []model.DraftCommentDTO{
@@ -737,7 +747,7 @@ func fileReviewDrafts() []model.DraftCommentDTO {
 func TestSubmitReview_PendingSubmoduleCreateAnd5xxLookupFail_NextSubmitDeletesWhatItLeftAndRebuilds(t *testing.T) {
 	var deleted []string
 	creates := 0
-	app := pendingCreateApp(t, &deleted, &creates)
+	app := pendingCreateApp(t, pendingThreadOn(2), &deleted, &creates)
 	app.pendingComments = fileReviewDrafts()
 	req := model.ReviewSubmitRequest{Verdict: "COMMENT", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "review", Verdict: "COMMENT"}}}
 	_, err := app.SubmitReview(shown(t, app, req))
@@ -756,7 +766,7 @@ func TestSubmitReview_PendingSubmoduleCreateAnd5xxLookupFail_NextSubmitDeletesWh
 func TestDiscardPendingReview_PendingSubmoduleCreateAnd5xxLookupFail_DeletesWhatItLeft(t *testing.T) {
 	var deleted []string
 	creates := 0
-	app := pendingCreateApp(t, &deleted, &creates)
+	app := pendingCreateApp(t, pendingThreadOn(2), &deleted, &creates)
 	app.pendingComments = fileReviewDrafts()
 	req := model.ReviewSubmitRequest{Verdict: "COMMENT", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "review", Verdict: "COMMENT"}}}
 	_, err := app.SubmitReview(shown(t, app, req))
@@ -767,6 +777,40 @@ func TestDiscardPendingReview_PendingSubmoduleCreateAnd5xxLookupFail_DeletesWhat
 	assert.Equal(t, []string{"/repos/so/sr/pulls/5/reviews/9"}, deleted)
 	assert.Empty(t, app.pendingComments)
 	assert.Empty(t, app.rememberedPending())
+}
+
+func TestDiscardPendingReview_PendingReviewWithTheSameWordsOnAnotherLine_LeftAlone(t *testing.T) {
+	var deleted []string
+	creates := 0
+	app := pendingCreateApp(t, pendingThreadOn(3), &deleted, &creates)
+	app.pendingComments = fileReviewDrafts()
+	req := model.ReviewSubmitRequest{Verdict: "COMMENT", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "review", Verdict: "COMMENT"}}}
+	_, err := app.SubmitReview(shown(t, app, req))
+	require.ErrorContains(t, err, "so/sr#5")
+
+	require.NoError(t, app.DiscardPendingReview())
+
+	assert.Empty(t, deleted)
+	assert.Empty(t, app.rememberedPending())
+}
+
+func TestDiscardPendingReview_LeftPendingReviewsThreadsUnreadable_KeepsItUnresolved(t *testing.T) {
+	var deleted []string
+	creates := 0
+	app := pendingCreateApp(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadGateway) }, &deleted, &creates)
+	app.pendingComments = fileReviewDrafts()
+	req := model.ReviewSubmitRequest{Verdict: "COMMENT", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "review", Verdict: "COMMENT"}}}
+	_, err := app.SubmitReview(shown(t, app, req))
+	require.ErrorContains(t, err, "so/sr#5")
+
+	require.ErrorContains(t, app.DiscardPendingReview(), "earlier attempt")
+	_, err = app.SubmitReview(shown(t, app, req))
+
+	require.ErrorContains(t, err, "earlier attempt")
+	assert.Empty(t, deleted)
+	assert.Equal(t, 1, creates)
+	assert.NotEmpty(t, app.uncertain)
+	assert.Equal(t, fileReviewDrafts(), app.pendingComments)
 }
 
 func TestSubmitReview_SubmoduleCommentAnswers2xxWithTruncatedBody_LooksItUpInsteadOfFailing(t *testing.T) {
