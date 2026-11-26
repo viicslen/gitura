@@ -840,6 +840,42 @@ func TestSubmitReview_ParentReviewWithoutDraftsAnswers5xxAndLookupFails_LookedUp
 	}
 }
 
+func TestSubmitReview_ParentReviewWithFoldedDraftsConfirmedOnRetry_ReportsTheFoldedCount(t *testing.T) {
+	var sentBody json.RawMessage
+	posts, lookups := 0, 0
+	app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls/1/reviews":
+			posts++
+			var body struct{ Body json.RawMessage }
+			assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			sentBody = body.Body
+			w.WriteHeader(http.StatusBadGateway)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/1/reviews":
+			if lookups++; lookups == 1 {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			_, _ = w.Write([]byte(`[{"id":9,"user":{"login":"me"},"state":"COMMENTED","commit_id":"sha","body":` + string(sentBody) + `,"html_url":"https://parent/first","submitted_at":"` + stamp(0) + `"}]`))
+		case r.URL.Path == "/repos/o/r/pulls/1/reviews/9/comments":
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			w.WriteHeader(http.StatusTeapot)
+		}
+	})
+	app.pendingComments = subDrafts()[1:]
+	req := model.ReviewSubmitRequest{Verdict: "COMMENT", Body: "x", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "fold"}}}
+	_, err := app.SubmitReview(shown(t, app, req))
+	require.ErrorContains(t, err, "github: submit review")
+
+	res, err := app.SubmitReview(shown(t, app, req))
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, posts)
+	assert.Equal(t, "https://parent/first", res.HTMLURL)
+	assert.Equal(t, 1, res.FoldedComments)
+}
+
 func TestDiscardPendingReview_ParentReviewWithoutDraftsUncertain_ForgetsTheAttempt(t *testing.T) {
 	app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {

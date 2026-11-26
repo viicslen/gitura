@@ -58,6 +58,8 @@ type uncertainError struct {
 	pending *orphanReview
 	// unknownPending is set for a create of a pending review: one it left, of unknown ID, blocks the next.
 	unknownPending bool
+	// folded counts the submodule drafts the loaded PR's review quoted in its text.
+	folded int
 }
 
 func (e *uncertainError) Error() string { return e.err.Error() }
@@ -165,12 +167,12 @@ func (a *App) settle(drafts []model.DraftCommentDTO, err error, sent model.InFli
 // reconcileUncertain looks, for each pending draft whose last send may have gone through, and for the loaded
 // PR's review, for what that send posted, reading only. Drafts found posted leave the pending ones; the others
 // are free to go again. A lookup that fails again returns an error before anything is sent. parentURL is the
-// loaded PR's review, when found.
-func (a *App) reconcileUncertain() (parentURL string, err error) {
+// loaded PR's review, when found, and folded the submodule drafts its text quoted.
+func (a *App) reconcileUncertain() (parentURL string, folded int, err error) {
 	for u := a.nextUncertain(); u != nil; u = a.nextUncertain() {
 		url, found, err := u.find(u.start)
 		if err != nil {
-			return "", uncheckedError(u, err)
+			return "", 0, uncheckedError(u, err)
 		}
 		sent := a.forget(u)
 		if !found {
@@ -179,14 +181,14 @@ func (a *App) reconcileUncertain() (parentURL string, err error) {
 		a.pendingComments = slices.DeleteFunc(a.pendingComments, func(p model.DraftCommentDTO) bool { return sent[p.ID] })
 		switch {
 		case u.parent:
-			parentURL = url
+			parentURL, folded = url, u.folded
 		case u.review:
 			a.subReviewURLs = append(a.subReviewURLs, url)
 		default:
 			a.subCommentURLs = append(a.subCommentURLs, url)
 		}
 	}
-	return parentURL, nil
+	return parentURL, folded, nil
 }
 
 // nextUncertain is a send of unknown outcome still to look up: one a pending draft went with, else the loaded

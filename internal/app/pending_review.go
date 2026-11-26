@@ -416,12 +416,12 @@ func (a *App) SubmitReview(req model.ReviewSubmitRequest) (model.ReviewSubmitRes
 	if a.prCache == nil {
 		return model.ReviewSubmitResult{}, fmt.Errorf("notfound: no PR loaded; call LoadPR first")
 	}
-	parentURL, err := a.prepareSubmit(req)
+	parentURL, quoted, err := a.prepareSubmit(req)
 	if err != nil {
 		return model.ReviewSubmitResult{}, err
 	}
 	if parentURL != "" {
-		return a.reconciledParent(parentURL)
+		return a.reconciledParent(parentURL, quoted)
 	}
 
 	// A synced, half-built or still-pending review is recreated below from the local comments;
@@ -443,6 +443,9 @@ func (a *App) SubmitReview(req model.ReviewSubmitRequest) (model.ReviewSubmitRes
 	review, err := a.submitParentReview(model.ReviewSubmitRequest{Verdict: req.Verdict, Body: body}, comments)
 	// The body quotes the folded drafts, so they go with the review.
 	a.settle(a.pendingComments, err, model.InFlightReviewDTO{Verdict: req.Verdict, Body: req.Body}, nil)
+	if a.parentAttempt != nil {
+		a.parentAttempt.folded = len(folded)
+	}
 	if err != nil {
 		return model.ReviewSubmitResult{}, fmt.Errorf("github: submit review: %w", err)
 	}
@@ -454,30 +457,31 @@ func (a *App) SubmitReview(req model.ReviewSubmitRequest) (model.ReviewSubmitRes
 }
 
 // prepareSubmit checks req, settles earlier uncertain sends, then checks what is left to send, all without
-// writing; parentURL is set when an earlier attempt at the loaded PR's review turned out to have gone through.
-func (a *App) prepareSubmit(req model.ReviewSubmitRequest) (parentURL string, err error) {
+// writing; parentURL is set when an earlier attempt at the loaded PR's review turned out to have gone through,
+// folded to the submodule drafts its text quoted.
+func (a *App) prepareSubmit(req model.ReviewSubmitRequest) (parentURL string, folded int, err error) {
 	if err := a.loadPRFiles(); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if err := a.checkSubmit(req); err != nil {
-		return "", err
+		return "", 0, err
 	}
-	if parentURL, err = a.reconcileUncertain(); err != nil || parentURL != "" {
-		return parentURL, err
+	if parentURL, folded, err = a.reconcileUncertain(); err != nil || parentURL != "" {
+		return parentURL, folded, err
 	}
 	if err := a.revalidateTargets(req.Submodules); err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return "", a.checkParentReview(req)
+	return "", 0, a.checkParentReview(req)
 }
 
 // reconciledParent ends a submit whose earlier attempt at the loaded PR's review, at url, turned out to have
-// gone through; drafts added since stay pending for another submit.
-func (a *App) reconciledParent(url string) (model.ReviewSubmitResult, error) {
+// gone through, quoting folded submodule drafts; drafts added since stay pending for another submit.
+func (a *App) reconciledParent(url string, folded int) (model.ReviewSubmitResult, error) {
 	if n := len(a.pendingComments); n > 0 {
 		return model.ReviewSubmitResult{}, fmt.Errorf("conflict: your earlier review did go through (%s); the %d comments added since are still pending, submit again to post them", url, n)
 	}
-	result := model.ReviewSubmitResult{HTMLURL: url, SubmoduleReviewURLs: a.subReviewURLs, SubmoduleCommentURLs: a.subCommentURLs}
+	result := model.ReviewSubmitResult{HTMLURL: url, SubmoduleReviewURLs: a.subReviewURLs, SubmoduleCommentURLs: a.subCommentURLs, FoldedComments: folded}
 	a.resetDrafts()
 	return result, nil
 }
