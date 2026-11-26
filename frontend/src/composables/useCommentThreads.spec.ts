@@ -45,6 +45,13 @@ describe('useCommentThreads refresh', () => {
     expect(review.error.value).toBe('')
     expect(review.threads.value).toHaveLength(2)
   })
+
+  it('stays quiet when a newer load of another PR superseded this one', async () => {
+    const review = useCommentThreads({ owner: 'o', repo: 'r', number: 1 } as never)
+    LoadPR.mockRejectedValueOnce('conflict: a later load of a pull request superseded this one')
+    expect(await review.loadPR()).toBe(false)
+    expect(review.error.value).toBe('')
+  })
 })
 
 describe('useCommentThreads filter', () => {
