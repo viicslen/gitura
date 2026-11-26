@@ -177,6 +177,11 @@ const submoduleRange = computed(() => {
   const repo = shownRepo.value
   return repo ? files.value.find((f) => isPointer(f) && f.filename === repo)?.submodule_range : undefined
 })
+// The head and range the shown diff was loaded at: a refresh moves both before the diff it reloads arrives.
+const diffPin = ref<{ headSha: string; range?: string }>({ headSha: '' })
+watch([currentDiff, () => shownFile.value && fileKey(shownFile.value)], () => {
+  diffPin.value = { headSha: props.headSha, range: submoduleRange.value }
+}, { immediate: true })
 // Review threads are on the loaded PR's own files by path; a submodule file sharing their path has none.
 const threadsForFile = computed(() => props.threads.filter((t) => shownFile.value && !shownRepo.value && t.path === shownFile.value.filename))
 const currentFilePosition = computed(() => currentFileIndex.value + 1)
@@ -237,7 +242,7 @@ function snapshotReview(): void {
   dialog.comments = pendingReview.value?.comments ?? []
   dialog.staleSha = draftsStale.value ? pendingReview.value?.head_sha.slice(0, 7) ?? '' : ''
 }
-function openSubmitPanel(): void {
+async function openSubmitPanel(): Promise<void> {
   if (submitted) {
     submitted = submitLoading.value = false
     reviewBody.value = ''
@@ -246,7 +251,12 @@ function openSubmitPanel(): void {
   }
   snapshotReview()
   submitPanelOpen.value = true
-  if (!props.local) void loadSubmoduleDrafts()
+  if (props.local) return
+  // Opened before the first sync of the pending review: its drafts, and the choices they need, are still on the way.
+  submoduleDraftsLoading.value = true
+  await firstSync
+  snapshotReview()
+  void loadSubmoduleDrafts()
 }
 let draftsRequest = 0
 /** `retry` looks up again a submodule PR whose lookup failed, without waiting out the backend's backoff. */
@@ -348,9 +358,9 @@ function sendOff(from: DOMRect): void {
 const changedKeys = computed(() => new Set(files.value.map(fileKey)))
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
-onMounted(async () => {
-  await loadFiles()
-  await loadPendingReview()
+let firstSync: Promise<void> = Promise.resolve()
+onMounted(() => {
+  firstSync = loadFiles().then(loadPendingReview)
 })
 
 // ── Comment handlers ──────────────────────────────────────────────────────
@@ -398,7 +408,8 @@ async function handleSubmitReview(event: MouseEvent): Promise<void> {
     const before = pendingCount.value
     // Drafts already posted to a submodule PR before the failure leave the pending review; a submodule PR found
     // closed or moved on no longer takes comments or Viewed marks, which the file list shows too.
-    await Promise.all([loadPendingReview(), loadSubmoduleDrafts(), errorMessage(err).includes('conflict:') && loadFiles()])
+    await loadPendingReview()
+    await Promise.all([loadSubmoduleDrafts(), errorMessage(err).includes('conflict:') && loadFiles()])
     snapshotReview()
     toast.error(errorMessage(err), pendingCount.value < before ? { description: 'Some comments were already posted and are no longer pending.' } : {})
     submitLoading.value = false
@@ -411,7 +422,7 @@ const commandName = ref('')
 const localMarkdown = computed(() => formatLocalReview(pendingReview.value?.comments ?? []))
 
 async function openLocalPanel(): Promise<void> {
-  openSubmitPanel()
+  void openSubmitPanel()
   try {
     commands.value = await GetCommands()
     await loadDefaultCommands()
@@ -728,8 +739,8 @@ defineExpose({ canGoPrev, canGoNext, prevFile, nextFile, files, reload })
                 :show-threads="showThreads"
                 :wrap-lines="wrapLines"
                 :unsent-comments="unsentComments"
-                :head-sha="headSha"
-                :submodule-range="submoduleRange"
+                :head-sha="diffPin.headSha"
+                :submodule-range="diffPin.range"
                 class="flex-1 min-h-0 overflow-hidden"
                 :post-comment="postComment"
                 @resolve="emit('resolve', $event)"

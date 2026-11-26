@@ -42,10 +42,10 @@ function mountView(headSha = '', extra: { threads?: model.CommentThreadDTO[]; lo
   })
 }
 
-async function openDialog() {
+async function openDialog(label = 'Finish review') {
   const wrapper = mountView()
   await flushPromises()
-  await wrapper.findAll('button').find((b) => b.text().includes('Finish review'))?.trigger('click')
+  await wrapper.findAll('button').find((b) => b.text().includes(label))?.trigger('click')
   await flushPromises()
   const submit = () => [...document.body.querySelectorAll('button')].find((b) => b.textContent?.includes('Submit'))
   return { wrapper, submit }
@@ -81,6 +81,22 @@ describe('DiffReviewView submit dialog', () => {
     wrapper.unmount()
   })
 
+  it('waits for the first sync of the pending review before listing drafts and their submodule choices', async () => {
+    let sync!: (r: model.PendingReviewDTO) => void
+    api.SyncPendingReview.mockImplementationOnce(() => new Promise((resolve) => (sync = resolve)))
+    const { wrapper, submit } = await openDialog('Review changes')
+    expect(api.SubmoduleDrafts).not.toHaveBeenCalled()
+    expect(submit()?.disabled).toBe(true)
+
+    sync(pending(subDraft('lib/a.c'), draft('main.go')))
+    await flushPromises()
+    expect(api.SubmoduleDrafts).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).toContain('2 pending comments')
+    expect(document.body.querySelector('[data-submodule="lib"]')).not.toBeNull()
+    expect(submit()?.disabled).toBe(false)
+    wrapper.unmount()
+  })
+
   it('looks up a submodule PR again past the backoff when the user retries a failed lookup', async () => {
     api.SubmoduleDrafts.mockResolvedValueOnce([{ path: 'lib', to_pr: 0, folded: 1, pr_unknown: true }])
     const { wrapper } = await openDialog()
@@ -113,14 +129,14 @@ describe('DiffReviewView submit dialog', () => {
     const { wrapper, submit } = await openDialog()
     api.SubmitReview.mockRejectedValueOnce(new Error('github: 422'))
     api.SyncPendingReview.mockResolvedValueOnce(pending(draft('main.go')))
-    api.SubmoduleDrafts.mockResolvedValueOnce([])
 
     submit()?.click()
     await flushPromises()
     expect(api.SubmitReview).toHaveBeenCalledWith(expect.objectContaining({
       submodules: [{ path: 'lib', pr: 'o/lib#3', to_pr: 1, folded: 0, mode: 'review', verdict: 'COMMENT', body: '' }],
     }))
-    expect(api.SubmoduleDrafts).toHaveBeenCalledTimes(2)
+    // Read after the reload: the submodule drafts all went, so there is nothing left to look up.
+    expect(api.SubmoduleDrafts).toHaveBeenCalledTimes(1)
     expect(toastError).toHaveBeenCalledWith('github: 422', { description: expect.stringContaining('already posted') })
     expect(document.body.textContent).toContain('1 pending comment')
     expect(document.body.textContent).not.toContain('Comments on submodule files')
@@ -331,6 +347,29 @@ describe('DiffReviewView nested submodule pointer', () => {
     api.GetFileDiff.mockResolvedValue({ hunks: [] })
     api.SubmoduleDrafts.mockResolvedValue([])
     api.SyncPendingReview.mockResolvedValue(pending({ ...draft('lib/vendor'), submodule: 'lib', pointer: true }))
+  })
+
+  it('keeps forms pinned to the head and range the shown diff was loaded at until a refresh reloads it', async () => {
+    const wrapper = mountView('old')
+    await flushPromises()
+    wrapper.findComponent(DiffFileSidebar).vm.$emit('select', fileKey(vendor))
+    await flushPromises()
+    const pin = () => [wrapper.findComponent(FileViewStub).vm.$attrs['head-sha'], wrapper.findComponent(FileViewStub).vm.$attrs['submodule-range']]
+    expect(pin()).toEqual(['old', 'aaaaaaa..bbbbbbb'])
+
+    let diff!: (d: object) => void
+    api.GetFileDiff.mockImplementationOnce(() => new Promise((resolve) => (diff = resolve)))
+    api.GetPRFiles.mockResolvedValue([{ ...lib, submodule_range: 'aaaaaaa..eeeeeee' }, vendor])
+    await wrapper.setProps({ headSha: 'new' })
+    const reloading = wrapper.vm.reload()
+    await flushPromises()
+    expect(pin()).toEqual(['old', 'aaaaaaa..bbbbbbb'])
+
+    diff({ hunks: [] })
+    await reloading
+    await flushPromises()
+    expect(pin()).toEqual(['new', 'aaaaaaa..eeeeeee'])
+    wrapper.unmount()
   })
 
   it('pins comments on the pointer row to the range of the submodule holding it', async () => {
