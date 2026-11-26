@@ -31,7 +31,8 @@ export function groupSubmodules(files: File[], shown: File[] = files): { main: F
 }
 
 /** A group's folder key in the tree, apart from a main-repository folder at the same path so each folds on its own. */
-export const groupKey = (sub: string): string => `sub:${sub}`
+// The NUL keeps it out of reach of any real path, which cannot contain one.
+export const groupKey = (sub: string): string => `\u0000${sub}`
 
 /** One tree for both: each group becomes a folder keyed by `groupKey`. */
 export const groupedTree = ({ main, groups }: ReturnType<typeof groupSubmodules>): FileTreeNode<File>[] => [

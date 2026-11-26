@@ -34,6 +34,12 @@ describe('groupSubmodules', () => {
     ])
   })
 
+  it('keys a group apart from a main-repository folder whose name looks like a group key', () => {
+    const tree = groupedTree(groupSubmodules([file('sub:lib/x.go'), pointer('lib'), file('lib/a.c', { repo: 'lib', submodule: 'lib' })]))
+    const keys = tree.flatMap((n) => (n.type === 'dir' ? [n.key] : []))
+    expect(new Set(keys).size).toBe(2)
+  })
+
   it('never merges submodule folders into the parent tree', () => {
     const { main, groups } = groupSubmodules([file('vendor/other.go'), lib, file('vendor/lib/x.c', { repo: 'vendor/lib', submodule: 'vendor/lib' })])
     expect(main.map((n) => n.name)).toEqual(['vendor'])
