@@ -59,6 +59,8 @@ type App struct {
 	// the files it holds, and the pending review state; Wails runs bound calls concurrently, so each one
 	// using that state holds prMu throughout.
 	prMu sync.Mutex
+	// loadGen numbers LoadPR calls, so a load that a later one overtook leaves the loaded PR alone.
+	loadGen atomic.Int64
 	// prFilesCache holds the raw CommitFile list from the GitHub ListFiles API.
 	// Populated lazily by GetPRFiles; cleared on LoadPR.
 	prFilesCache []*github.CommitFile
