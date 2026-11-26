@@ -471,6 +471,27 @@ export class DraftCommentDTO {
      */
     "start_side"?: string;
 
+    /**
+     * Submodule is the PRFileDTO.Repo of the file commented on. It stays set if the bump later disappears,
+     * so the draft is folded into the review body.
+     */
+    "submodule"?: string;
+
+    /**
+     * Pointer is set on a comment on a submodule's pointer row, as FileKeyDTO.Pointer.
+     */
+    "pointer"?: boolean;
+
+    /**
+     * HeadSHA is the PR head the comment was written against; a mismatch means the PR changed meanwhile.
+     */
+    "head_sha"?: string;
+
+    /**
+     * Range is the submodule's "old..new" (SubmoduleRange) the comment was written against; a mismatch means the bump changed meanwhile.
+     */
+    "range"?: string;
+
     /** Creates a new DraftCommentDTO instance. */
     constructor($$source: Partial<DraftCommentDTO> = {}) {
         if (!("path" in $$source)) {
@@ -499,6 +520,40 @@ export class DraftCommentDTO {
 }
 
 /**
+ * FileKeyDTO identifies a file in the Files list: one path can be both a file of the loaded change
+ * and a file inside a submodule, e.g. when a tracked directory becomes a submodule.
+ */
+export class FileKeyDTO {
+    /**
+     * Submodule is the file's PRFileDTO.Repo.
+     */
+    "submodule"?: string;
+    "path": string;
+
+    /**
+     * Pointer marks a submodule's pointer row (Status "submodule"), apart from a regular file at its path.
+     */
+    "pointer"?: boolean;
+
+    /** Creates a new FileKeyDTO instance. */
+    constructor($$source: Partial<FileKeyDTO> = {}) {
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FileKeyDTO instance from a string or object.
+     */
+    static createFrom($$source: any = {}): FileKeyDTO {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new FileKeyDTO($$parsedSource as Partial<FileKeyDTO>);
+    }
+}
+
+/**
  * IgnoredCommenterDTO represents a persisted ignored-commenter entry.
  */
 export class IgnoredCommenterDTO {
@@ -519,6 +574,34 @@ export class IgnoredCommenterDTO {
     static createFrom($$source: any = {}): IgnoredCommenterDTO {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new IgnoredCommenterDTO($$parsedSource as Partial<IgnoredCommenterDTO>);
+    }
+}
+
+/**
+ * InFlightReviewDTO is the verdict and text of a review sent by a submit whose outcome is unknown.
+ */
+export class InFlightReviewDTO {
+    "verdict": string;
+    "body": string;
+
+    /** Creates a new InFlightReviewDTO instance. */
+    constructor($$source: Partial<InFlightReviewDTO> = {}) {
+        if (!("verdict" in $$source)) {
+            this["verdict"] = "";
+        }
+        if (!("body" in $$source)) {
+            this["body"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new InFlightReviewDTO instance from a string or object.
+     */
+    static createFrom($$source: any = {}): InFlightReviewDTO {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new InFlightReviewDTO($$parsedSource as Partial<InFlightReviewDTO>);
     }
 }
 
@@ -655,6 +738,65 @@ export class PRFileDTO {
      * marked as viewed by the user on GitHub
      */
     "viewed": boolean;
+
+    /**
+     * ViewedLocal means the Viewed mark of this submodule file is kept in gitura, not on a GitHub PR.
+     */
+    "viewed_local"?: boolean;
+
+    /**
+     * LinesUnknown means Additions/Deletions are not counted yet: the file's content loads when it is opened.
+     */
+    "lines_unknown"?: boolean;
+
+    /**
+     * Repo is the repository holding the row, which with Filename identifies it: "" for the loaded change,
+     * else a submodule's path. A pointer row's is the repository holding that submodule.
+     */
+    "repo"?: string;
+
+    /**
+     * Submodule is the path of the submodule a file belongs to. The submodule's own row
+     * (Filename == Submodule, Status "submodule") carries the fields below.
+     */
+    "submodule"?: string;
+
+    /**
+     * "old..new" short SHAs; new may end in "-dirty"
+     */
+    "submodule_range"?: string;
+
+    /**
+     * the bump rewinds to an ancestor
+     */
+    "submodule_backwards"?: boolean;
+
+    /**
+     * neither commit is an ancestor of the other
+     */
+    "submodule_diverged"?: boolean;
+
+    /**
+     * SubmodulePR names the submodule's open PR whose head is the bumped commit ("owner/repo#12");
+     * review comments and viewed marks on its files go there.
+     */
+    "submodule_pr"?: string;
+    "submodule_pr_url"?: string;
+
+    /**
+     * SubmodulePRUnknown means looking up the submodule's open PR failed, as opposed to finding none.
+     */
+    "submodule_pr_unknown"?: boolean;
+
+    /**
+     * SubmoduleViewedUnknown means reading the Viewed marks on the submodule's PR failed; its files may show unviewed wrongly.
+     */
+    "submodule_viewed_unknown"?: boolean;
+
+    /**
+     * SubmoduleUnavailable says why the submodule's files are missing, e.g. "no access".
+     */
+    "submodule_unavailable"?: string;
 
     /** Creates a new PRFileDTO instance. */
     constructor($$source: Partial<PRFileDTO> = {}) {
@@ -1122,6 +1264,12 @@ export class PendingReviewDTO {
      */
     "head_sha": string;
 
+    /**
+     * InFlightReview is the review an earlier submit whose outcome is unknown sent; SubmitReview refuses another
+     * verdict or text until a submit settles it.
+     */
+    "in_flight_review"?: InFlightReviewDTO | null;
+
     /** Creates a new PendingReviewDTO instance. */
     constructor($$source: Partial<PendingReviewDTO> = {}) {
         if (!("review_id" in $$source)) {
@@ -1145,9 +1293,13 @@ export class PendingReviewDTO {
      */
     static createFrom($$source: any = {}): PendingReviewDTO {
         const $$createField1_0 = $$createType17;
+        const $$createField4_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("comments" in $$parsedSource) {
             $$parsedSource["comments"] = $$createField1_0($$parsedSource["comments"]);
+        }
+        if ("in_flight_review" in $$parsedSource) {
+            $$parsedSource["in_flight_review"] = $$createField4_0($$parsedSource["in_flight_review"]);
         }
         return new PendingReviewDTO($$parsedSource as Partial<PendingReviewDTO>);
     }
@@ -1277,7 +1429,7 @@ export class PullRequestSummary {
      * Creates a new PullRequestSummary instance from a string or object.
      */
     static createFrom($$source: any = {}): PullRequestSummary {
-        const $$createField18_0 = $$createType19;
+        const $$createField18_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("labels" in $$parsedSource) {
             $$parsedSource["labels"] = $$createField18_0($$parsedSource["labels"]);
@@ -1305,6 +1457,7 @@ export class ReviewCommentDTO {
      */
     "created_at": string;
     "is_suggestion": boolean;
+    "html_url"?: string;
 
     /** Creates a new ReviewCommentDTO instance. */
     constructor($$source: Partial<ReviewCommentDTO> = {}) {
@@ -1426,6 +1579,12 @@ export class ReviewSubmitRequest {
      */
     "verdict": string;
 
+    /**
+     * Submodules says what to do with the drafts that can go to each submodule's PR, one per submodule
+     * with drafts; a "fold" choice has them added to Body.
+     */
+    "submodules"?: SubmoduleReviewChoice[];
+
     /** Creates a new ReviewSubmitRequest instance. */
     constructor($$source: Partial<ReviewSubmitRequest> = {}) {
         if (!("verdict" in $$source)) {
@@ -1439,7 +1598,11 @@ export class ReviewSubmitRequest {
      * Creates a new ReviewSubmitRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): ReviewSubmitRequest {
+        const $$createField2_0 = $$createType23;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("submodules" in $$parsedSource) {
+            $$parsedSource["submodules"] = $$createField2_0($$parsedSource["submodules"]);
+        }
         return new ReviewSubmitRequest($$parsedSource as Partial<ReviewSubmitRequest>);
     }
 }
@@ -1450,6 +1613,21 @@ export class ReviewSubmitRequest {
 export class ReviewSubmitResult {
     "review_id": number;
     "html_url": string;
+
+    /**
+     * SubmoduleReviewURLs links the reviews posted on submodule PRs for comments on submodule files.
+     */
+    "submodule_review_urls"?: string[];
+
+    /**
+     * SubmoduleCommentURLs links the single comments posted on submodule PRs instead of a review.
+     */
+    "submodule_comment_urls"?: string[];
+
+    /**
+     * FoldedComments counts submodule-file comments written into the review body instead.
+     */
+    "folded_comments"?: number;
 
     /** Creates a new ReviewSubmitResult instance. */
     constructor($$source: Partial<ReviewSubmitResult> = {}) {
@@ -1467,7 +1645,15 @@ export class ReviewSubmitResult {
      * Creates a new ReviewSubmitResult instance from a string or object.
      */
     static createFrom($$source: any = {}): ReviewSubmitResult {
+        const $$createField2_0 = $$createType24;
+        const $$createField3_0 = $$createType24;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("submodule_review_urls" in $$parsedSource) {
+            $$parsedSource["submodule_review_urls"] = $$createField2_0($$parsedSource["submodule_review_urls"]);
+        }
+        if ("submodule_comment_urls" in $$parsedSource) {
+            $$parsedSource["submodule_comment_urls"] = $$createField3_0($$parsedSource["submodule_comment_urls"]);
+        }
         return new ReviewSubmitResult($$parsedSource as Partial<ReviewSubmitResult>);
     }
 }
@@ -1605,6 +1791,147 @@ export class RunResult {
 }
 
 /**
+ * SubmoduleDraftsDTO says where SubmitReview would send the pending drafts on one submodule's files.
+ */
+export class SubmoduleDraftsDTO {
+    "path": string;
+
+    /**
+     * the submodule's open PR, "owner/repo#12"
+     */
+    "pr"?: string;
+    "pr_url"?: string;
+
+    /**
+     * drafts inside that PR's diff, which a SubmoduleReviewChoice routes
+     */
+    "to_pr": number;
+
+    /**
+     * drafts added to the review body whatever the choice
+     */
+    "folded": number;
+
+    /**
+     * the viewer wrote that PR, so GitHub refuses Approve and Request changes
+     */
+    "own_pr"?: boolean;
+
+    /**
+     * the open-PR lookup failed; its drafts fold unless a retry finds the PR
+     */
+    "pr_unknown"?: boolean;
+
+    /**
+     * InFlight is the mode, "review" or "comments", an earlier submit whose outcome is unknown sent drafts to
+     * the PR with; SubmitReview refuses another until a submit settles it.
+     */
+    "in_flight"?: string;
+
+    /**
+     * InFlightReview is what that submit sent in "review" mode, which the next one must send too.
+     */
+    "in_flight_review"?: InFlightReviewDTO | null;
+
+    /**
+     * Outdated counts the drafts written against another bump of the submodule than the loaded one, which fold.
+     */
+    "outdated"?: number;
+
+    /**
+     * Rerouted says looking the PR up again changed which files it takes viewed marks on, or their marks.
+     */
+    "rerouted"?: boolean;
+
+    /** Creates a new SubmoduleDraftsDTO instance. */
+    constructor($$source: Partial<SubmoduleDraftsDTO> = {}) {
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+        if (!("to_pr" in $$source)) {
+            this["to_pr"] = 0;
+        }
+        if (!("folded" in $$source)) {
+            this["folded"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SubmoduleDraftsDTO instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SubmoduleDraftsDTO {
+        const $$createField8_0 = $$createType19;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("in_flight_review" in $$parsedSource) {
+            $$parsedSource["in_flight_review"] = $$createField8_0($$parsedSource["in_flight_review"]);
+        }
+        return new SubmoduleDraftsDTO($$parsedSource as Partial<SubmoduleDraftsDTO>);
+    }
+}
+
+/**
+ * SubmoduleReviewChoice is what SubmitReview does with the drafts on one submodule's files that
+ * fall inside its PR's diff; the others are always added to the review body.
+ */
+export class SubmoduleReviewChoice {
+    /**
+     * the submodule's path in the loaded PR
+     */
+    "path": string;
+
+    /**
+     * "review" — a review on the submodule PR | "comments" — single comments there | "fold" — into the review body
+     */
+    "mode": string;
+
+    /**
+     * "review" mode: "APPROVE" | "REQUEST_CHANGES" | "COMMENT"
+     */
+    "verdict"?: string;
+
+    /**
+     * "review" mode: the review's text
+     */
+    "body"?: string;
+
+    /**
+     * PR, ToPR and Folded are the routing the dialog showed for the submodule, as SubmoduleDrafts reported it;
+     * every submodule with drafts needs a choice, "fold" for one shown without any.
+     */
+    "pr"?: string;
+    "to_pr": number;
+    "folded": number;
+
+    /** Creates a new SubmoduleReviewChoice instance. */
+    constructor($$source: Partial<SubmoduleReviewChoice> = {}) {
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+        if (!("mode" in $$source)) {
+            this["mode"] = "";
+        }
+        if (!("to_pr" in $$source)) {
+            this["to_pr"] = 0;
+        }
+        if (!("folded" in $$source)) {
+            this["folded"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SubmoduleReviewChoice instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SubmoduleReviewChoice {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SubmoduleReviewChoice($$parsedSource as Partial<SubmoduleReviewChoice>);
+    }
+}
+
+/**
  * SuggestionCommitResult holds the outcome of committing a suggestion.
  */
 export class SuggestionCommitResult {
@@ -1632,6 +1959,43 @@ export class SuggestionCommitResult {
     }
 }
 
+/**
+ * ViewedFilesDTO is what GetViewedFiles reports.
+ */
+export class ViewedFilesDTO {
+    "files": FileKeyDTO[];
+
+    /**
+     * UnknownSubmodules are the submodules whose PR's Viewed marks couldn't be read; see PRFileDTO.SubmoduleViewedUnknown.
+     */
+    "unknown_submodules"?: string[];
+
+    /** Creates a new ViewedFilesDTO instance. */
+    constructor($$source: Partial<ViewedFilesDTO> = {}) {
+        if (!("files" in $$source)) {
+            this["files"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ViewedFilesDTO instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ViewedFilesDTO {
+        const $$createField0_0 = $$createType26;
+        const $$createField1_0 = $$createType24;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("files" in $$parsedSource) {
+            $$parsedSource["files"] = $$createField0_0($$parsedSource["files"]);
+        }
+        if ("unknown_submodules" in $$parsedSource) {
+            $$parsedSource["unknown_submodules"] = $$createField1_0($$parsedSource["unknown_submodules"]);
+        }
+        return new ViewedFilesDTO($$parsedSource as Partial<ViewedFilesDTO>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = ReviewCommentDTO.createFrom;
 const $$createType1 = $Create.Array($$createType0);
@@ -1651,5 +2015,12 @@ const $$createType14 = DiffHunkDTO.createFrom;
 const $$createType15 = $Create.Array($$createType14);
 const $$createType16 = DraftCommentDTO.createFrom;
 const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = LabelDTO.createFrom;
-const $$createType19 = $Create.Array($$createType18);
+const $$createType18 = InFlightReviewDTO.createFrom;
+const $$createType19 = $Create.Nullable($$createType18);
+const $$createType20 = LabelDTO.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = SubmoduleReviewChoice.createFrom;
+const $$createType23 = $Create.Array($$createType22);
+const $$createType24 = $Create.Array($Create.Any);
+const $$createType25 = FileKeyDTO.createFrom;
+const $$createType26 = $Create.Array($$createType25);

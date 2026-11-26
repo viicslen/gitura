@@ -104,6 +104,29 @@ func TestFingerprint_UntrackedFileEdited_Changes(t *testing.T) {
 	}
 }
 
+func TestFingerprint_SymlinkToRepository_DoesNotFollowIt(t *testing.T) {
+	ctx := context.Background()
+	dir, other := t.TempDir(), t.TempDir()
+	run(t, dir, "init", "-q")
+	run(t, other, "init", "-q")
+	write(t, other, "f.txt", "a\n")
+	if err := os.Symlink(other, filepath.Join(dir, "link")); err != nil {
+		t.Fatal(err)
+	}
+	before, err := Fingerprint(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, other, "f.txt", "a\nb\n")
+	after, err := Fingerprint(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before != after {
+		t.Error("fingerprint followed a symlink into another repository")
+	}
+}
+
 func TestPushedBranch_TracksLocalState(t *testing.T) {
 	ctx := context.Background()
 	remote, dir := t.TempDir(), t.TempDir()

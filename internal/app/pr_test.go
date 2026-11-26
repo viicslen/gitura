@@ -1,12 +1,16 @@
 package app
 
 import (
+	"net/http"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"gitura/internal/model"
+	"gitura/internal/settings"
 )
 
 func TestGetPROverview_ResolvedAndEmptyReviews_FiltersThemOut(t *testing.T) {
@@ -58,4 +62,110 @@ func TestIsLoadedPR_OwnerRepoNumber_MatchesOnlyLoadedPR(t *testing.T) {
 	assert.True(t, app.isLoadedPR("o", "r", 7))
 	assert.False(t, app.isLoadedPR("o", "r", 8))
 	assert.False(t, app.isLoadedPR("o", "x", 7))
+}
+
+func TestLoadPR_DraftForPRAAroundSwitchToPRB_NeverLandsOnPRB(t *testing.T) {
+	fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}}}`))
+	})
+	// loadB is an App on PR A (head "sha") whose fetch of PR B (head "shaB") waits for release once fetching is closed.
+	loadB := func(t *testing.T) (app *App, fetching chan struct{}, release chan struct{}) {
+		fetching, release = make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		app = subAppRaw(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/repos/o/r/pulls/2" {
+				once.Do(func() { close(fetching) })
+				<-release
+				_, _ = w.Write([]byte(`{"number":2,"head":{"sha":"shaB"}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`[]`))
+		})
+		app.cfg.Store(&settings.Config{})
+		return app, fetching, release
+	}
+	draftOnA := model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "x", HeadSHA: "sha"}
+
+	t.Run("draft added while PR B loads", func(t *testing.T) {
+		app, fetching, release := loadB(t)
+		loaded := make(chan error, 1)
+		go func() {
+			_, err := app.LoadPR("o", "r", 2)
+			loaded <- err
+		}()
+		select {
+		case <-fetching:
+		case err := <-loaded:
+			t.Fatalf("LoadPR returned before fetching PR B: %v", err)
+		case <-time.After(10 * time.Second):
+			t.Fatal("LoadPR never fetched PR B")
+		}
+		_, err := app.AddDraftComment(draftOnA)
+		assert.NoError(t, err, "PR A is still loaded")
+		close(release)
+		require.NoError(t, <-loaded)
+
+		assert.Equal(t, 2, app.prNumber)
+		assert.Empty(t, app.pendingComments)
+		assert.Empty(t, app.pendingHeadSHA)
+	})
+
+	t.Run("draft added after PR B loaded", func(t *testing.T) {
+		app, _, release := loadB(t)
+		close(release)
+		_, err := app.LoadPR("o", "r", 2)
+		require.NoError(t, err)
+
+		_, err = app.AddDraftComment(draftOnA)
+		require.ErrorContains(t, err, "conflict:")
+		assert.Empty(t, app.pendingComments)
+
+		_, err = app.AddDraftComment(model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "y"})
+		require.NoError(t, err)
+		assert.Equal(t, "shaB", app.pendingHeadSHA, "a draft on PR B is pinned to PR B's head")
+	})
+}
+
+func TestLoadPR_OlderLoadFinishesAfterNewerOne_KeepsTheNewerPRAndItsDraft(t *testing.T) {
+	fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}}}`))
+	})
+	fetching, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	app := subAppRaw(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/o/r/pulls/3":
+			close(fetching)
+			<-release
+			_, _ = w.Write([]byte(`{"number":3,"head":{"sha":"shaA"}}`))
+		case "/repos/o/r/pulls/2":
+			_, _ = w.Write([]byte(`{"number":2,"head":{"sha":"shaB"}}`))
+		default:
+			_, _ = w.Write([]byte(`[]`))
+		}
+	})
+	t.Cleanup(unblock)
+	app.cfg.Store(&settings.Config{})
+	older := make(chan error, 1)
+	go func() {
+		_, err := app.LoadPR("o", "r", 3)
+		older <- err
+	}()
+	select {
+	case <-fetching:
+	case <-time.After(10 * time.Second):
+		t.Fatal("LoadPR never fetched PR 3")
+	}
+	_, err := app.LoadPR("o", "r", 2)
+	require.NoError(t, err)
+	_, err = app.AddDraftComment(model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "x"})
+	require.NoError(t, err)
+
+	unblock()
+
+	require.ErrorContains(t, <-older, "conflict:")
+	assert.Equal(t, 2, app.prNumber)
+	assert.Equal(t, "shaB", app.prCache.HeadSHA)
+	assert.Len(t, app.pendingComments, 1)
 }

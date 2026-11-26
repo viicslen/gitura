@@ -77,6 +77,8 @@ export function useCommentThreads(prItem: PRRef) {
       if (index >= 0) currentIndex.value = index
       return true
     } catch (err) {
+      // A newer load (another PR opened meanwhile) won; that page reports its own outcome.
+      if (errorMessage(err).includes('superseded')) return false
       if (refreshing) toast.error('Could not refresh pull request: ' + errorMessage(err))
       else error.value = errorMessage(err)
       return false

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { ListFilter } from '@lucide/vue'
+import { ChevronRight, FolderGit2, ListFilter, ShieldOff } from '@lucide/vue'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,7 +11,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { isTestFile } from '@/lib/testFiles'
 import type * as model from '@/bindings/gitura/internal/model'
-import { buildFileTree, flattenFileTree, treeKey } from '@/lib/fileTree'
+import { fileKey, flattenFileTree, keyOf, repoOf, treeKey } from '@/lib/fileTree'
+import { DIVERGED_NOTICE, groupedTree, groupKey, groupSubmodules, noticeText, submoduleChange, submoduleRouting } from '@/lib/submodules'
 import DiffFileTree from './DiffFileTree.vue'
 import Reveal from '@/components/motion/Reveal.vue'
 import CountUp from '@/components/motion/CountUp.vue'
@@ -22,14 +24,17 @@ const props = defineProps<{
   visibleFiles?: model.PRFileDTO[]
   /** Why GitHub's viewed state couldn't be loaded, if it couldn't. */
   viewedError?: string
-  selectedPath: string | null
+  /** `fileKey` of the open file. */
+  selectedKey: string | null
   loading?: boolean
-  /** Unresolved thread count per file path. */
+  /** Unresolved thread count per `fileKey`. */
   commentCounts?: Record<string, number>
   /** The Files view is on screen; the open file is scrolled into view when it appears. */
   active?: boolean
-  /** Files the user marked viewed a moment ago. */
+  /** `fileKey`s of the files the user marked viewed a moment ago. */
   justViewed?: Set<string>
+  /** Reviewing a local working tree, where comments on submodule files need no routing. */
+  local?: boolean
 }>()
 
 const hideViewed = defineModel<boolean>('hideViewed', { default: false })
@@ -37,13 +42,26 @@ const hideTests = defineModel<boolean>('hideTests', { default: false })
 const autoViewTests = defineModel<boolean>('autoViewTests', { default: false })
 
 const emit = defineEmits<{
-  (e: 'select', path: string): void
+  (e: 'select', key: string): void
   (e: 'retry-viewed'): void
-  (e: 'set-viewed', paths: string[], viewed: boolean): void
+  (e: 'set-viewed', keys: string[], viewed: boolean): void
 }>()
 
 const shownFiles = computed(() => props.visibleFiles ?? props.files)
-const tree = computed(() => buildFileTree(shownFiles.value))
+const grouped = computed(() => groupSubmodules(props.files, shownFiles.value))
+const mainFiles = computed(() => props.files.filter((f) => !f.submodule))
+const groups = computed(() => grouped.value.groups.map((g) => {
+  const key = groupKey(g.pointer.filename)
+  const routing = g.files.length ? submoduleRouting(g.pointer, !!props.local) : null
+  const linesUnknown = g.files.some((f) => f.lines_unknown)
+  const change = submoduleChange(g.pointer)
+  return { ...g, key, rowKey: treeKey({ type: 'dir', key }), change, routing, linesUnknown, additions: sum(g.files, 'additions'), deletions: sum(g.files, 'deletions') }
+}))
+// Other reasons (added, removed, failed to load) are not access problems.
+const ACCESS_PROBLEMS = new Set(['no access', 'not on GitHub'])
+const tree = computed(() => groupedTree(grouped.value))
+const sum = (files: model.PRFileDTO[], key: 'additions' | 'deletions') => files.reduce((n, f) => (f.lines_unknown ? n : n + f[key]), 0)
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const testCount = computed(() => props.files.filter((f) => isTestFile(f.filename)).length)
 const hiddenCount = computed(() => props.files.length - shownFiles.value.length)
 const filtering = computed(() => hideViewed.value || hideTests.value)
@@ -86,12 +104,15 @@ watch(() => !!props.active && !props.loading && rows.value.length > 0, (shown) =
   if (shown) rise(rows.value.map(treeKey))
 }, { immediate: true })
 
-function toggle(path: string): void {
+function toggle(key: string): void {
   const next = new Set(collapsed.value)
-  const opening = next.delete(path)
-  if (!opening) next.add(path)
+  const opening = next.delete(key)
+  if (!opening) next.add(key)
   collapsed.value = next
-  if (opening) rise(rows.value.filter((r) => (r.type === 'dir' ? r.path : r.file.filename).startsWith(`${path}/`)).map(treeKey))
+  const at = rows.value.findIndex((r) => r.type === 'dir' && r.key === key)
+  if (!opening || at < 0) return
+  const end = rows.value.findIndex((r, i) => i > at && r.depth <= rows.value[at].depth)
+  rise(rows.value.slice(at + 1, end < 0 ? undefined : end).map(treeKey))
 }
 
 const listEl = ref<HTMLElement | null>(null)
@@ -109,9 +130,15 @@ function revealSelected(): void {
 }
 
 // Keep the selected file visible when it is reached with next/previous file.
-watch(() => props.selectedPath, (path) => {
-  if (!path) return
-  const next = new Set([...collapsed.value].filter((dir) => !path.startsWith(`${dir}/`)))
+watch(() => props.selectedKey, (key) => {
+  const file = props.files.find((f) => fileKey(f) === key)
+  if (!file) return
+  const sub = file.submodule
+  const repo = repoOf(file)
+  // The file's path keyed as its tree keys folders.
+  const path = repo ? keyOf(groupKey(repo), file.filename) : file.filename
+  const holds = (dir: string) => (sub !== undefined && dir === groupKey(sub)) || path === dir || path.startsWith(`${dir}/`)
+  const next = new Set([...collapsed.value].filter((dir) => !holds(dir)))
   if (next.size !== collapsed.value.size) collapsed.value = next
   revealSelected()
 }, { immediate: true })
@@ -121,9 +148,14 @@ watch(() => props.active, (active) => {
 
 // One tab stop for the whole tree (the open file, else the first row); arrows move within it.
 const tabStop = computed(() => {
-  const row = rows.value.find((r) => r.type === 'file' && r.file.filename === props.selectedPath) ?? rows.value[0]
+  const row = rows.value.find((r) => r.type === 'file' && fileKey(r.file) === props.selectedKey) ?? rows.value[0]
   return row ? treeKey(row) : ''
 })
+
+// A link in a submodule header opens on its own instead of folding the group.
+function onHeaderClick(event: MouseEvent, key: string): void {
+  if (!(event.target instanceof Element && event.target.closest('a'))) toggle(key)
+}
 
 function onTreeKeydown(event: KeyboardEvent): void {
   // A collapsed folder keeps its rows mounted but inert.
@@ -240,11 +272,11 @@ function onTreeKeydown(event: KeyboardEvent): void {
         <div v-else ref="listEl" class="flex-1 overflow-y-auto min-h-0">
           <ul role="tree" aria-label="Changed files list" class="p-1" :class="bulkViewed && '**:transition-none'" @keydown="onTreeKeydown">
             <DiffFileTree
-              :nodes="tree"
+              :nodes="grouped.main"
               :depth="0"
-              :files="files"
+              :files="mainFiles"
               :collapsed="collapsed"
-              :selected-path="selectedPath"
+              :selected-key="selectedKey"
               :tab-stop="tabStop"
               :comment-counts="commentCounts"
               :cascade="cascade"
@@ -253,6 +285,71 @@ function onTreeKeydown(event: KeyboardEvent): void {
               @toggle="toggle"
               @set-viewed="(paths, viewed) => emit('set-viewed', paths, viewed)"
             />
+            <li v-if="grouped.groups.length" role="none" class="mx-2 mt-3 border-t border-border pb-1 pt-2 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground" :class="{ 'mt-0 border-t-0': !grouped.main.length }">
+              Submodules
+            </li>
+            <li v-for="g in groups" :key="g.pointer.filename" role="none" class="mb-1 grid grid-cols-1">
+              <div
+                role="treeitem"
+                aria-level="1"
+                :aria-expanded="!collapsed.has(g.key)"
+                :tabindex="tabStop === g.rowKey ? 0 : -1"
+                :title="g.pointer.filename"
+                class="flex cursor-pointer select-none flex-col gap-0.5 rounded-md px-1 py-1.5 text-xs outline-none transition-colors duration-faster hover:bg-accent hover:duration-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                :class="{ 'wow-rise': cascade.has(g.rowKey) }"
+                :style="{ '--i': cascade.get(g.rowKey) }"
+                @click="onHeaderClick($event, g.key)"
+                @keydown.enter.space.self.prevent="toggle(g.key)"
+              >
+                <span class="flex items-center gap-1">
+                  <ChevronRight class="h-3.5 w-3.5 shrink-0 transition-transform duration-slower ease-spring" :class="{ 'rotate-90': !collapsed.has(g.key) }" />
+                  <FolderGit2 class="h-3.5 w-3.5 shrink-0 text-primary" aria-label="Submodule" />
+                  <span class="min-w-0 flex-1 truncate font-medium">{{ g.pointer.filename }}</span>
+                  <template v-if="g.files.length || !g.pointer.submodule_unavailable">
+                    <span class="shrink-0 text-[0.625rem] text-muted-foreground tabular-nums">{{ g.files.length }} {{ g.files.length === 1 ? 'file' : 'files' }}</span>
+                    <span v-if="g.additions || g.deletions" class="flex shrink-0 gap-1 text-[0.625rem] tabular-nums" :title="g.linesUnknown ? 'Counted from the files opened so far' : undefined">
+                      <span v-if="g.additions" class="text-green-600 dark:text-green-400">+{{ g.additions }}</span>
+                      <span v-if="g.deletions" class="text-red-500 dark:text-red-400">-{{ g.deletions }}</span>
+                      <span v-if="g.linesUnknown" class="text-muted-foreground">so far</span>
+                    </span>
+                  </template>
+                </span>
+                <span v-if="g.pointer.submodule_range || g.pointer.submodule_backwards || g.pointer.submodule_diverged" class="flex min-w-0 flex-wrap items-center gap-1.5 pl-4.5 text-[0.625rem] text-muted-foreground">
+                  <span v-if="g.pointer.submodule_range" class="min-w-0 truncate rounded bg-muted px-1 font-mono">{{ g.pointer.submodule_range }}</span>
+                  <Badge v-if="g.change" variant="outline" class="shrink-0 px-1 py-0 text-[0.625rem]">{{ g.change }}</Badge>
+                  <Badge v-if="g.pointer.submodule_backwards" variant="outline" class="shrink-0 border-amber-500/60 px-1 py-0 text-[0.625rem] text-amber-700 dark:text-amber-300">Moved backwards</Badge>
+                  <Badge v-if="g.pointer.submodule_diverged" variant="outline" class="shrink-0 border-amber-500/60 px-1 py-0 text-[0.625rem] text-amber-700 dark:text-amber-300" :title="DIVERGED_NOTICE">Diverged</Badge>
+                </span>
+                <span v-if="g.pointer.submodule_unavailable" class="flex min-w-0 items-center gap-1 pl-4.5 text-[0.625rem] text-muted-foreground" :title="capitalize(g.pointer.submodule_unavailable)">
+                  <ShieldOff v-if="ACCESS_PROBLEMS.has(g.pointer.submodule_unavailable)" class="h-3 w-3 shrink-0" /><span class="truncate">{{ capitalize(g.pointer.submodule_unavailable) }}</span>
+                </span>
+                <span v-if="g.routing" class="line-clamp-2 min-w-0 pl-4.5 text-[0.625rem] text-muted-foreground" :title="noticeText(g.routing)">
+                  {{ g.routing.text }}
+                  <a v-if="g.routing.pr" :href="g.routing.url" class="text-foreground underline underline-offset-2">{{ g.routing.pr }}</a>{{ g.routing.after }}
+                </span>
+                <span v-if="g.pointer.submodule_viewed_unknown" class="min-w-0 truncate pl-4.5 text-[0.625rem] text-amber-700 dark:text-amber-300" :title="`Couldn't read the Viewed marks on ${g.pointer.submodule_pr}; its files may show as not viewed. Refreshing tries again.`">
+                  Couldn't read Viewed marks from {{ g.pointer.submodule_pr }}
+                </span>
+              </div>
+              <Reveal axis="y" :open="!collapsed.has(g.key)">
+                <ul role="group">
+                  <DiffFileTree
+                    :nodes="g.nodes"
+                    :depth="1"
+                    :files="g.files"
+                    :collapsed="collapsed"
+                    :selected-key="selectedKey"
+                    :tab-stop="tabStop"
+                    :comment-counts="commentCounts"
+                    :cascade="cascade"
+                    :just-viewed="justViewed"
+                    @select="emit('select', $event)"
+                    @toggle="toggle"
+                    @set-viewed="(paths, viewed) => emit('set-viewed', paths, viewed)"
+                  />
+                </ul>
+              </Reveal>
+            </li>
           </ul>
         </div>
       </Transition>

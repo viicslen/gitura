@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -27,6 +28,15 @@ const (
 type File struct {
 	Diff  model.ParsedDiffDTO
 	Patch string
+	// Submodule is the submodule whose diff holds the file: the innermost one holding it, unless that one
+	// replaced a directory its parent tracked, whose files stay the parent's. The fields below are set only on its
+	// pointer row (Diff.Status "submodule"): SubmoduleRange is "old..new", new suffixed "-dirty" for a
+	// dirty work tree; SubmoduleUnavailable says why the files inside are missing; SubmoduleIn is the
+	// submodule holding it, "" for the top level.
+	Submodule, SubmoduleRange, SubmoduleUnavailable, SubmoduleIn string
+	SubmoduleBackwards, SubmoduleDiverged                        bool
+	// own is set on a file a repository's own diff listing placed, which may share its path with a nested submodule's.
+	own bool
 }
 
 func git(ctx context.Context, dir string, args ...string) (string, error) {
@@ -75,38 +85,55 @@ func Diff(ctx context.Context, dir, base string) ([]File, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := git(ctx, dir, "diff", "--no-color", "--no-ext-diff", "-M", rev, "--")
+	// Nested submodules are recursed into; one whose commits are missing prints "(diff failed)" and exits 0.
+	out, err := git(ctx, dir, "diff", "--no-color", "--no-ext-diff", "--submodule=diff", "-M", rev, "--")
 	if err != nil {
 		return nil, err
 	}
-	files := splitPatch(out)
+	files, headers := splitPatch(out)
+	if files, err = withSubmodules(ctx, dir, rev, files, headers); err != nil {
+		return nil, err
+	}
+	untracked, err := untrackedFiles(ctx, dir, "")
+	return append(files, untracked...), err
+}
 
-	untracked, err := git(ctx, dir, "ls-files", "--others", "--exclude-standard", "-z")
+// untrackedFiles diffs the untracked files in the repository at sub ("" for dir itself) against nothing.
+func untrackedFiles(ctx context.Context, dir, sub string) ([]File, error) {
+	untracked, err := git(ctx, filepath.Join(dir, sub), "ls-files", "--others", "--exclude-standard", "-z")
 	if err != nil {
 		return nil, err
 	}
-	for path := range strings.SplitSeq(untracked, "\x00") {
-		if path == "" {
+	var files []File
+	for p := range strings.SplitSeq(untracked, "\x00") {
+		if p == "" {
 			continue
 		}
-		out, err := git(ctx, dir, "diff", "--no-color", "--no-ext-diff", "--no-index", "--", os.DevNull, path)
+		out, err := git(ctx, dir, "diff", "--no-color", "--no-ext-diff", "--no-index", "--", os.DevNull, path.Join(sub, p))
 		// --no-index exits 1 whenever the files differ, which they always do here.
 		var exitErr *exec.ExitError
 		if err != nil && (!errors.As(err, &exitErr) || exitErr.ExitCode() != 1) {
 			return nil, err
 		}
-		files = append(files, splitPatch(out)...)
+		f, _ := splitPatch(out)
+		files = append(files, f...)
 	}
 	return files, nil
 }
 
-func splitPatch(out string) []File {
+// splitPatch also returns the "Submodule ..." lines --submodule=diff puts before each submodule's
+// files, so they don't trail onto the previous file's patch.
+func splitPatch(out string) ([]File, []subHeader) {
 	var files []File
-	// Hunk body lines start with a space, + or -, so this header can't appear inside one.
-	for _, chunk := range strings.Split("\n"+out, "\ndiff --git ")[1:] {
-		files = append(files, parseFile("diff --git "+strings.TrimSuffix(chunk, "\n")))
+	// Hunk body lines start with a space, + or -, so neither header can appear inside one.
+	chunks := strings.Split("\n"+out, "\ndiff --git ")
+	headers := collectHeaders(chunks[0], 0)
+	for _, chunk := range chunks[1:] {
+		patch, tail, _ := strings.Cut("diff --git "+strings.TrimSuffix(chunk, "\n"), "\nSubmodule ")
+		files = append(files, parseFile(patch))
+		headers = append(headers, collectHeaders("Submodule "+tail, len(files))...)
 	}
-	return files
+	return files, headers
 }
 
 func parseFile(patch string) File {
@@ -114,7 +141,8 @@ func parseFile(patch string) File {
 	lines := strings.Split(patch, "\n")
 	// "diff --git a/P b/P": without a rename both halves are equal, so P is the second half.
 	// shortcut: paths git C-quotes (tabs, newlines, quotes) come out quoted; fine until someone has such a file.
-	if ab := strings.TrimPrefix(lines[0], "diff --git "); len(ab) >= 5 {
+	ab := strings.TrimPrefix(lines[0], "diff --git ")
+	if len(ab) >= 5 {
 		d.Filename = ab[(len(ab)-5)/2+5:]
 	}
 	for _, line := range lines[1:] {
@@ -122,6 +150,9 @@ func parseFile(patch string) File {
 			break
 		}
 		applyHeaderLine(&d, line)
+	}
+	if d.Status == "renamed" {
+		prefixRename(&d, ab)
 	}
 	d.Hunks = unidiff.ParseHunks(patch)
 	for _, h := range d.Hunks {
@@ -135,6 +166,16 @@ func parseFile(patch string) File {
 		}
 	}
 	return File{Diff: d, Patch: patch}
+}
+
+// prefixRename restores the submodule path that --submodule=diff puts on "diff --git a/<pre><from> b/<pre><to>"
+// but leaves off the "rename from"/"rename to" lines.
+func prefixRename(d *model.ParsedDiffDTO, ab string) {
+	rest := strings.TrimPrefix(ab, "a/")
+	pre, to, ok := strings.Cut(rest, d.PreviousFilename+" b/")
+	if ok && (pre == "" || strings.HasSuffix(pre, "/")) && strings.HasPrefix(to, pre) {
+		d.Filename, d.PreviousFilename = to, pre+d.PreviousFilename
+	}
 }
 
 func applyHeaderLine(d *model.ParsedDiffDTO, line string) {
@@ -162,7 +203,8 @@ func applyHeaderLine(d *model.ParsedDiffDTO, line string) {
 // stage, or edit to a changed or untracked file. Cheaper than recomputing the diff.
 func Fingerprint(ctx context.Context, dir string) (string, error) {
 	head, _ := git(ctx, dir, "rev-parse", "HEAD")
-	status, err := git(ctx, dir, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	// -c, unlike --untracked-files, also reaches the status git runs inside each submodule.
+	status, err := git(ctx, dir, "-c", "status.showUntrackedFiles=all", "status", "--porcelain=v1", "-z")
 	if err != nil {
 		return "", err
 	}
@@ -174,8 +216,18 @@ func Fingerprint(ctx context.Context, dir string) (string, error) {
 		if len(entry) < 4 {
 			continue
 		}
-		if info, err := os.Stat(filepath.Join(dir, entry[3:])); err == nil {
-			fmt.Fprintf(&b, "\x00%d:%d", info.ModTime().UnixNano(), info.Size())
+		p := filepath.Join(dir, entry[3:])
+		info, err := os.Lstat(p)
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(&b, "\x00%d:%d", info.ModTime().UnixNano(), info.Size())
+		// With status.showUntrackedFiles=all a directory entry is a submodule (or embedded repo), whose status
+		// line stays " M" however much more changes inside it.
+		if info.IsDir() {
+			if sub, err := Fingerprint(ctx, p); err == nil {
+				b.WriteString(sub)
+			}
 		}
 	}
 	return b.String(), nil

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { ChevronRight, MessageSquare } from '@lucide/vue'
+import { ChevronRight, FolderGit2, MessageSquare } from '@lucide/vue'
 import { Badge } from '@/components/ui/badge'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import type * as model from '@/bindings/gitura/internal/model'
-import { treeKey, type FileTreeNode } from '@/lib/fileTree'
+import { fileKey, treeKey, type FileTreeNode } from '@/lib/fileTree'
 import GlideList from '@/components/motion/GlideList.vue'
 import Reveal from '@/components/motion/Reveal.vue'
 
@@ -12,23 +12,26 @@ import Reveal from '@/components/motion/Reveal.vue'
 const props = defineProps<{
   nodes: FileTreeNode<model.PRFileDTO>[]
   depth: number
-  /** Every changed file, including ones the filters hide; a folder's menu acts on all of them. */
+  /** Every changed file in this tree, including ones the filters hide; a folder's menu acts on all of them. */
   files: model.PRFileDTO[]
   collapsed: Set<string>
-  selectedPath: string | null
+  /** `fileKey` of the open file. */
+  selectedKey: string | null
   /** `treeKey` of the row that holds the tree's single tab stop. */
   tabStop: string
+  /** Unresolved thread count per `fileKey`. */
   commentCounts?: Record<string, number>
   /** Rows springing in now (`treeKey` to stagger index): the tree opening, or a folder being expanded. */
   cascade?: Map<string, number>
-  /** Files the user marked viewed a moment ago. */
+  /** `fileKey`s of the files the user marked viewed a moment ago. */
   justViewed?: Set<string>
 }>()
 
 const emit = defineEmits<{
-  (e: 'select', path: string): void
-  (e: 'toggle', path: string): void
-  (e: 'set-viewed', paths: string[], viewed: boolean): void
+  (e: 'select', key: string): void
+  /** `key` of the folder. */
+  (e: 'toggle', key: string): void
+  (e: 'set-viewed', keys: string[], viewed: boolean): void
 }>()
 
 const STATUS: Record<string, { label: string; name: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -40,8 +43,8 @@ const STATUS: Record<string, { label: string; name: string; variant: 'default' |
 const statusOf = (status: string) => STATUS[status] ?? { label: 'M', name: 'Modified', variant: 'outline' as const }
 
 const filesIn = (dir: string) => props.files.filter((f) => f.filename.startsWith(`${dir}/`))
-const setFolderViewed = (dir: string, viewed: boolean) => emit('set-viewed', filesIn(dir).map((f) => f.filename), viewed)
-const countOf = (path: string) => props.commentCounts?.[path] ?? 0
+const setFolderViewed = (dir: string, viewed: boolean) => emit('set-viewed', filesIn(dir).map(fileKey), viewed)
+const countOf = (f: model.PRFileDTO) => props.commentCounts?.[fileKey(f)] ?? 0
 
 function onKey(event: KeyboardEvent, action: () => void): void {
   if (event.key === 'Enter' || event.key === ' ') {
@@ -60,23 +63,23 @@ const ROW = 'flex items-center rounded-md pr-2 transition-colors duration-faster
 
 <template>
   <GlideList v-slot="{ item: node }" :items="nodes" :item-key="treeKey" :appear="settled">
-    <li v-if="node.type === 'dir'" role="none" class="grid">
+    <li v-if="node.type === 'dir'" role="none" class="grid grid-cols-1">
       <div class="min-h-0">
         <ContextMenu>
           <ContextMenuTrigger as-child>
             <div
               role="treeitem"
               :aria-level="depth + 1"
-              :aria-expanded="!collapsed.has(node.path)"
+              :aria-expanded="!collapsed.has(node.key)"
               :tabindex="tabStop === treeKey(node) ? 0 : -1"
               :title="node.path"
               class="cursor-pointer select-none gap-1 py-1 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[state=open]:bg-accent"
               :class="[ROW, { 'wow-rise': cascade?.has(treeKey(node)) }]"
               :style="{ paddingLeft: `${depth * 12 + 4}px`, '--i': cascade?.get(treeKey(node)) }"
-              @click="emit('toggle', node.path)"
-              @keydown="onKey($event, () => emit('toggle', node.path))"
+              @click="emit('toggle', node.key)"
+              @keydown="onKey($event, () => emit('toggle', node.key))"
             >
-              <ChevronRight class="h-3.5 w-3.5 shrink-0 transition-transform duration-slower ease-spring" :class="{ 'rotate-90': !collapsed.has(node.path) }" />
+              <ChevronRight class="h-3.5 w-3.5 shrink-0 transition-transform duration-slower ease-spring" :class="{ 'rotate-90': !collapsed.has(node.key) }" />
               <span class="min-w-0 truncate">{{ node.name }}</span>
             </div>
           </ContextMenuTrigger>
@@ -89,14 +92,14 @@ const ROW = 'flex items-center rounded-md pr-2 transition-colors duration-faster
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
-        <Reveal axis="y" :open="!collapsed.has(node.path)">
+        <Reveal axis="y" :open="!collapsed.has(node.key)">
           <ul role="group">
             <DiffFileTree
               :nodes="node.children"
               :depth="depth + 1"
               :files="files"
               :collapsed="collapsed"
-              :selected-path="selectedPath"
+              :selected-key="selectedKey"
               :tab-stop="tabStop"
               :comment-counts="commentCounts"
               :cascade="cascade"
@@ -113,21 +116,23 @@ const ROW = 'flex items-center rounded-md pr-2 transition-colors duration-faster
       v-else
       role="treeitem"
       :aria-level="depth + 1"
-      :aria-selected="node.file.filename === selectedPath"
+      :aria-selected="treeKey(node) === selectedKey"
       :tabindex="tabStop === treeKey(node) ? 0 : -1"
       :title="node.file.filename"
-      class="group/row grid cursor-pointer select-none text-xs outline-none"
-      :data-selected="node.file.filename === selectedPath"
-      @click="emit('select', node.file.filename)"
-      @keydown="onKey($event, () => emit('select', node.file.filename))"
+      class="group/row grid grid-cols-1 cursor-pointer select-none text-xs outline-none"
+      :data-selected="treeKey(node) === selectedKey"
+      @click="emit('select', treeKey(node))"
+      @keydown="onKey($event, () => emit('select', treeKey(node)))"
     >
       <!-- The look sits here so the row has no transition of its own; line height, not padding, so it can close to nothing. -->
       <div
         class="relative min-h-0 gap-2 leading-7 hover:text-accent-foreground group-focus-visible/row:ring-2 group-focus-visible/row:ring-inset group-focus-visible/row:ring-ring group-data-[selected=true]/row:bg-accent group-data-[selected=true]/row:text-accent-foreground group-data-[selected=true]/row:duration-0"
-        :class="[ROW, { 'wow-rise': cascade?.has(treeKey(node)), 'wow-sheen': justViewed?.has(node.file.filename) }]"
+        :class="[ROW, { 'wow-rise': cascade?.has(treeKey(node)), 'wow-sheen': justViewed?.has(treeKey(node)) }]"
         :style="{ paddingLeft: `${depth * 12 + 8}px`, '--i': cascade?.get(treeKey(node)) }"
       >
+        <FolderGit2 v-if="node.file.status === 'submodule'" class="h-4 w-4 shrink-0 text-primary" aria-label="Submodule pointer" />
         <Badge
+          v-else
           :variant="statusOf(node.file.status).variant"
           class="shrink-0 w-4 h-4 p-0 flex items-center justify-center text-[0.625rem] font-bold"
           :aria-label="statusOf(node.file.status).name"
@@ -139,25 +144,25 @@ const ROW = 'flex items-center rounded-md pr-2 transition-colors duration-faster
 
         <Reveal axis="x" :open="node.file.viewed" class="shrink-0" :class="{ '-ml-2': !node.file.viewed }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5 text-muted-foreground" role="img" aria-label="Viewed">
-            <path d="M4 12l5 5L20 6" pathLength="1" :class="{ 'wow-draw': justViewed?.has(node.file.filename) }" />
+            <path d="M4 12l5 5L20 6" pathLength="1" :class="{ 'wow-draw': justViewed?.has(treeKey(node)) }" />
           </svg>
         </Reveal>
 
         <Reveal
           axis="x"
-          :open="countOf(node.file.filename) > 0"
+          :open="countOf(node.file) > 0"
           class="shrink-0 text-[0.625rem] text-muted-foreground"
-          :class="{ '-ml-2': !countOf(node.file.filename) }"
-          :aria-label="`${countOf(node.file.filename)} unresolved comments`"
+          :class="{ '-ml-2': !countOf(node.file) }"
+          :aria-label="`${countOf(node.file)} unresolved comments`"
         >
-          <MessageSquare class="mr-0.5 h-3 w-3" />{{ countOf(node.file.filename) }}
+          <MessageSquare class="mr-0.5 h-3 w-3" />{{ countOf(node.file) }}
         </Reveal>
 
-        <span v-if="!node.file.is_binary" class="shrink-0 flex gap-1 text-[0.625rem]">
+        <span v-if="!node.file.is_binary && !node.file.lines_unknown && node.file.status !== 'submodule'" class="shrink-0 flex gap-1 text-[0.625rem]">
           <span v-if="node.file.additions > 0" class="text-green-600 dark:text-green-400">+{{ node.file.additions }}</span>
           <span v-if="node.file.deletions > 0" class="text-red-500 dark:text-red-400">-{{ node.file.deletions }}</span>
         </span>
-        <span v-else class="text-[0.625rem] text-muted-foreground shrink-0">bin</span>
+        <span v-else-if="node.file.is_binary" class="text-[0.625rem] text-muted-foreground shrink-0">bin</span>
       </div>
     </li>
   </GlideList>

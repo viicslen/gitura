@@ -10,3 +10,13 @@ type PRState struct {
 	Number    int64
 	LocalPath string
 }
+
+type SubmoduleFileViewed struct {
+	Owner       string
+	Repo        string
+	Number      int64
+	Submodule   string
+	Path        string
+	Pointer     bool
+	Fingerprint string
+}

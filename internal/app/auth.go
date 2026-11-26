@@ -88,6 +88,7 @@ func (a *App) GetAuthState() (model.AuthState, error) {
 			a.ghClient = nil
 			a.authToken = ""
 		} else {
+			a.login = ghUser.GetLogin()
 			logger.L.Info("GetAuthState: authenticated via memory", "login", ghUser.GetLogin())
 			return model.AuthState{
 				IsAuthenticated: true,
@@ -121,7 +122,7 @@ func (a *App) GetAuthState() (model.AuthState, error) {
 		return model.AuthState{IsAuthenticated: false}, nil
 	}
 
-	a.authToken, a.ghClient = token, client
+	a.authToken, a.ghClient, a.login = token, client, ghUser.GetLogin()
 	logger.L.Debug("github client initialised")
 	logger.L.Info("GetAuthState: authenticated via keyring", "login", ghUser.GetLogin())
 	return model.AuthState{
@@ -140,6 +141,7 @@ func (a *App) Logout() error {
 	}
 	a.ghClient = nil
 	a.authToken = ""
+	a.login = ""
 	a.deviceCode = ""
 	logger.L.Info("logged out")
 	return nil

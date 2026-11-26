@@ -34,8 +34,8 @@ func (a *App) RunCommands(commandNames []string, input string, runCtx model.RunC
 	}
 
 	localPath := ""
-	if a.local != nil {
-		localPath = a.local.dir
+	if l := a.local.Load(); l != nil {
+		localPath = l.dir
 	} else if a.prNumber > 0 {
 		localPath = a.prLocalPath(a.prOwner, a.prRepo, a.prNumber)
 	}

@@ -9,6 +9,32 @@ import (
 	"context"
 )
 
+const deleteSubmoduleViewed = `-- name: DeleteSubmoduleViewed :exec
+DELETE FROM submodule_file_viewed
+WHERE owner = ? AND repo = ? AND number = ? AND submodule = ? AND path = ? AND pointer = ?
+`
+
+type DeleteSubmoduleViewedParams struct {
+	Owner     string
+	Repo      string
+	Number    int64
+	Submodule string
+	Path      string
+	Pointer   bool
+}
+
+func (q *Queries) DeleteSubmoduleViewed(ctx context.Context, arg DeleteSubmoduleViewedParams) error {
+	_, err := q.db.ExecContext(ctx, deleteSubmoduleViewed,
+		arg.Owner,
+		arg.Repo,
+		arg.Number,
+		arg.Submodule,
+		arg.Path,
+		arg.Pointer,
+	)
+	return err
+}
+
 const getPRState = `-- name: GetPRState :one
 SELECT owner, repo, number, local_path
 FROM pr_state
@@ -53,6 +79,53 @@ func (q *Queries) GetRepoLocalPath(ctx context.Context, arg GetRepoLocalPathPara
 	return local_path, err
 }
 
+const listSubmoduleViewed = `-- name: ListSubmoduleViewed :many
+SELECT submodule, path, pointer, fingerprint
+FROM submodule_file_viewed
+WHERE owner = ? AND repo = ? AND number = ?
+`
+
+type ListSubmoduleViewedParams struct {
+	Owner  string
+	Repo   string
+	Number int64
+}
+
+type ListSubmoduleViewedRow struct {
+	Submodule   string
+	Path        string
+	Pointer     bool
+	Fingerprint string
+}
+
+func (q *Queries) ListSubmoduleViewed(ctx context.Context, arg ListSubmoduleViewedParams) ([]ListSubmoduleViewedRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSubmoduleViewed, arg.Owner, arg.Repo, arg.Number)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSubmoduleViewedRow
+	for rows.Next() {
+		var i ListSubmoduleViewedRow
+		if err := rows.Scan(
+			&i.Submodule,
+			&i.Path,
+			&i.Pointer,
+			&i.Fingerprint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertPRLocalPath = `-- name: UpsertPRLocalPath :exec
 INSERT INTO pr_state (owner, repo, number, local_path)
 VALUES (?, ?, ?, ?)
@@ -72,6 +145,35 @@ func (q *Queries) UpsertPRLocalPath(ctx context.Context, arg UpsertPRLocalPathPa
 		arg.Repo,
 		arg.Number,
 		arg.LocalPath,
+	)
+	return err
+}
+
+const upsertSubmoduleViewed = `-- name: UpsertSubmoduleViewed :exec
+INSERT INTO submodule_file_viewed (owner, repo, number, submodule, path, pointer, fingerprint)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (owner, repo, number, submodule, path, pointer) DO UPDATE SET fingerprint = excluded.fingerprint
+`
+
+type UpsertSubmoduleViewedParams struct {
+	Owner       string
+	Repo        string
+	Number      int64
+	Submodule   string
+	Path        string
+	Pointer     bool
+	Fingerprint string
+}
+
+func (q *Queries) UpsertSubmoduleViewed(ctx context.Context, arg UpsertSubmoduleViewedParams) error {
+	_, err := q.db.ExecContext(ctx, upsertSubmoduleViewed,
+		arg.Owner,
+		arg.Repo,
+		arg.Number,
+		arg.Submodule,
+		arg.Path,
+		arg.Pointer,
+		arg.Fingerprint,
 	)
 	return err
 }

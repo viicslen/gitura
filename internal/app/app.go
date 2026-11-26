@@ -55,11 +55,43 @@ type App struct {
 	// commits is filled lazily by GetPRTimeline; cleared on LoadPR.
 	commits []model.CommitDTO
 
+	// prMu guards the loaded PR's identity above, its file state below from prFilesCache to subViewed and
+	// the files it holds, and the pending review state; Wails runs bound calls concurrently, so each one
+	// using that state holds prMu throughout.
+	prMu sync.Mutex
+	// loadGen numbers LoadPR calls, so a load that a later one overtook leaves the loaded PR alone.
+	loadGen atomic.Int64
 	// prFilesCache holds the raw CommitFile list from the GitHub ListFiles API.
 	// Populated lazily by GetPRFiles; cleared on LoadPR.
 	prFilesCache []*github.CommitFile
-	// viewedFiles holds the paths the user marked as viewed on GitHub; filled by GetViewedFiles.
-	viewedFiles map[string]bool
+	// viewedFiles holds the files the user marked as viewed on GitHub; filled by GetViewedFiles.
+	viewedFiles map[fileID]bool
+	// prSubmodules holds the PR's submodule bumps by path, and prSubmoduleOf the bump each file
+	// inside one belongs to; both are rebuilt with prFilesCache.
+	prSubmodules  map[string]*prSubmodule
+	prSubmoduleOf map[*github.CommitFile]*prSubmodule
+	// prFilesTruncated is set when the parent PR's file list hit prFileListCap, so bumps may be missing from it.
+	prFilesTruncated bool
+	// subViewed caches the loaded PR's viewed marks kept in the database (submodule files no
+	// submodule PR can hold): file to the fingerprint of the change marked.
+	subViewed map[fileID]string
+	// subReviewURLs are reviews SubmitReview already posted on submodule PRs while the parent
+	// review has yet to go through.
+	subReviewURLs []string
+	// subCommentURLs are single comments SubmitReview already posted on submodule PRs, likewise.
+	subCommentURLs []string
+	// orphans are pending reviews failed submits left, on submodule PRs or the loaded one; the next submit deletes them first.
+	orphans []orphanReview
+	// claimed are the comments and reviews submits already count as posted, so no other draft's reconciliation adopts them.
+	claimed map[claim]bool
+	// uncertain maps the ID of each draft whose last send may have gone through, unconfirmed because the lookup failed,
+	// to that send; the next submit looks for it where it went before doing anything else with the draft.
+	uncertain map[int64]*uncertainError
+	// parentAttempt is the loaded PR's review whose last send may have gone through, unconfirmed likewise, kept
+	// even when it carried no drafts; the next submit looks for it before sending it again.
+	parentAttempt *uncertainError
+	// draftSeq numbers pending drafts for DraftCommentDTO.ID.
+	draftSeq int64
 
 	// Pending review state. pendingReviewID is 0 when no pending review exists.
 	pendingReviewID int64
@@ -88,7 +120,7 @@ type App struct {
 	queries *db.Queries
 
 	// local is set while reviewing a local checkout instead of a PR; see StartLocalReview.
-	local *localReview
+	local atomic.Pointer[localReview]
 
 	// launch is the PR or local checkout to open once signed in; a second launch sets it from another goroutine.
 	launch atomic.Pointer[launchTarget]
@@ -98,6 +130,8 @@ type App struct {
 	// Device-flow state, held in memory only during the OAuth flow.
 	deviceCode string
 	authToken  string
+	// login is the authenticated user's login, "" until viewerLogin or GetAuthState reads it.
+	login string
 }
 
 // New creates an App that authenticates with the given GitHub OAuth app client ID.
@@ -205,8 +239,21 @@ func (a *App) initGHClient(token string) error {
 	}
 	a.authToken = token
 	a.ghClient = client
+	a.login = ""
 	logger.L.Debug("github client initialised")
 	return nil
+}
+
+// viewerLogin returns the authenticated user's login, fetched once per client.
+func (a *App) viewerLogin() (string, error) {
+	if a.login == "" {
+		u, _, err := a.ghClient.Users.Get(a.ctx, "")
+		if err != nil {
+			return "", fmt.Errorf("github: get authenticated user: %w", err)
+		}
+		a.login = u.GetLogin()
+	}
+	return a.login, nil
 }
 
 // emit sends a named Wails event to the frontend; data must match the type registered in init.

@@ -16,9 +16,11 @@ import (
 // Progress events ("pr:load-progress") are emitted during the paginated GraphQL fetch.
 // Ignored-commenter threads are filtered out before caching.
 //
-// Error prefixes: "auth:" — no client; "notfound:" — PR absent; "github:" — API error.
+// Error prefixes: "auth:" — no client; "notfound:" — PR absent; "github:" — API error;
+// "conflict:" — a later LoadPR started before this one finished, so this one changed nothing.
 func (a *App) LoadPR(owner, repo string, number int) (model.PullRequestSummary, error) {
 	logger.L.Info("LoadPR called", "owner", owner, "repo", repo, "number", number)
+	gen := a.loadGen.Add(1)
 
 	if a.ghClient == nil {
 		return model.PullRequestSummary{}, fmt.Errorf("auth: not authenticated")
@@ -74,9 +76,15 @@ func (a *App) LoadPR(owner, repo string, number int) (model.PullRequestSummary, 
 	pr.Owner = owner
 	pr.Repo = repo
 
-	samePR := a.isLoadedPR(owner, repo, number)
-
-	// Cache for subsequent GetCommentThreads calls.
+	a.prMu.Lock()
+	if a.loadGen.Load() != gen {
+		a.prMu.Unlock()
+		return model.PullRequestSummary{}, fmt.Errorf("conflict: a later load of a pull request superseded this one")
+	}
+	// Draft comments live only in memory; a refresh of the same PR must not drop them.
+	if !a.isLoadedPR(owner, repo, number) {
+		a.resetDrafts()
+	}
 	a.prOwner = owner
 	a.prRepo = repo
 	a.prNumber = number
@@ -84,16 +92,11 @@ func (a *App) LoadPR(owner, repo string, number int) (model.PullRequestSummary, 
 	a.threads = filtered
 	a.issueComments = filteredComments
 	a.reviews = decoratedReviews
-	a.prFilesCache = nil
+	a.prFilesCache, a.prSubmodules, a.prSubmoduleOf = nil, nil, nil
 	a.commits = nil
 	a.viewedFiles = nil
+	a.prMu.Unlock()
 	a.StopLocalReview()
-	// Draft comments live only in memory; a refresh of the same PR must not drop them.
-	if !samePR {
-		a.pendingReviewID = 0
-		a.pendingComments = nil
-		a.pendingHeadSHA = ""
-	}
 
 	logger.L.Info("LoadPR complete",
 		"threads", len(filtered),
