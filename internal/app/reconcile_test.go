@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +93,35 @@ func TestSubmitReview_SubmoduleCommentAnswers5xxWithOnlyALookAlike_KeepsDraftAnd
 			assert.Equal(t, 1, posts)
 			assert.Equal(t, subDrafts(), app.pendingComments)
 			assert.Empty(t, app.subCommentURLs)
+		})
+	}
+}
+
+func TestSubmitReview_RangeAnswers5xxWithLookAlikeStartingOnTheOtherSide_KeepsDraftAndReturnsError(t *testing.T) {
+	const lookAlike = `"path":"a.txt","start_line":1,"start_side":"RIGHT","line":2,"side":"RIGHT","body":"range"`
+	for _, mode := range []string{"review", "comments"} {
+		t.Run(mode, func(t *testing.T) {
+			app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodPost:
+					w.WriteHeader(http.StatusBadGateway)
+				case r.URL.Path == "/repos/so/sr/pulls/5/reviews":
+					_, _ = w.Write([]byte(`[{"id":7,"user":{"login":"me"},"state":"COMMENTED","commit_id":"new","body":"","submitted_at":"` + stamp(0) + `"}]`))
+				case r.URL.Path == "/repos/so/sr/pulls/5/reviews/7/comments":
+					_, _ = w.Write([]byte(`[{` + lookAlike + `}]`))
+				case r.URL.Path == "/repos/so/sr/pulls/5/comments":
+					_, _ = w.Write([]byte(`[{"id":100,"user":{"login":"me"},"commit_id":"new","created_at":"` + stamp(0) + `",` + lookAlike + `}]`))
+				default:
+					w.WriteHeader(http.StatusTeapot)
+				}
+			})
+			drafts := []model.DraftCommentDTO{{Submodule: "lib", Bump: "..new", Path: "lib/a.txt", StartLine: 1, StartSide: "LEFT", Line: 2, Side: "RIGHT", Body: "range"}}
+			app.pendingComments = slices.Clone(drafts)
+
+			_, err := app.SubmitReview(shown(t, app, model.ReviewSubmitRequest{Verdict: "COMMENT", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: mode, Verdict: "COMMENT"}}}))
+
+			require.ErrorContains(t, err, "so/sr#5")
+			assert.Equal(t, drafts, app.pendingComments)
 		})
 	}
 }

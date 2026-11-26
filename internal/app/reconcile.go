@@ -246,7 +246,8 @@ func sameReviewComment(c *github.PullRequestComment, sent github.CreatePullReque
 	if sent.Line == nil {
 		return c.GetSubjectType() == "file"
 	}
-	return c.GetLine() == *sent.Line && c.GetSide() == *sent.Side && c.GetStartLine() == sent.GetStartLine()
+	return c.GetLine() == *sent.Line && c.GetSide() == *sent.Side && c.GetStartLine() == sent.GetStartLine() &&
+		c.GetStartSide() == sent.GetStartSide()
 }
 
 // postedIssueComment returns the viewer's conversation comment on owner/repo#number reading body and
@@ -454,6 +455,7 @@ type commentKey struct {
 	line      int
 	side      string
 	startLine int
+	startSide string
 	body      string
 }
 
@@ -466,10 +468,10 @@ func (a *App) sameReviewComments(owner, repo string, number int, r *github.PullR
 		if err != nil {
 			return false, fmt.Errorf("read the comments of review %d: %w", r.GetID(), err)
 		}
-		count[keyOf(commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetBody()}, anchored)]++
+		count[keyOf(commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()}, anchored)]++
 	}
 	for _, c := range sent.Comments {
-		count[keyOf(commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetBody()}, anchored)]--
+		count[keyOf(commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()}, anchored)]--
 	}
 	for _, n := range count {
 		if n != 0 {
