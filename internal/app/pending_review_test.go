@@ -40,7 +40,10 @@ func TestUpdateAndDeleteDraftComment_StaleOrBlankThenValid_RejectsThenApplies(t 
 func TestPostImmediateComment_WholeFile_SendsFileSubjectWithoutLine(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&got)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"id": 1}`))
 	}))
@@ -65,7 +68,10 @@ func TestSubmitReview_WithFileComment_CreatesPendingReviewWithLineCommentsOnly(t
 			return
 		}
 		if r.Method == http.MethodPost {
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+			if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&got)) {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 		}
 		w.WriteHeader(http.StatusInternalServerError)
 	}))

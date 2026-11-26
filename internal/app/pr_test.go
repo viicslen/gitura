@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,12 +88,18 @@ func TestLoadPR_DraftForPRAAroundSwitchToPRB_NeverLandsOnPRB(t *testing.T) {
 
 	t.Run("draft added while PR B loads", func(t *testing.T) {
 		app, fetching, release := loadB(t)
-		loaded := make(chan error)
+		loaded := make(chan error, 1)
 		go func() {
 			_, err := app.LoadPR("o", "r", 2)
 			loaded <- err
 		}()
-		<-fetching
+		select {
+		case <-fetching:
+		case err := <-loaded:
+			t.Fatalf("LoadPR returned before fetching PR B: %v", err)
+		case <-time.After(10 * time.Second):
+			t.Fatal("LoadPR never fetched PR B")
+		}
 		_, err := app.AddDraftComment(draftOnA)
 		assert.NoError(t, err, "PR A is still loaded")
 		close(release)

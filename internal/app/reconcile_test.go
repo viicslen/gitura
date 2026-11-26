@@ -391,7 +391,10 @@ func TestSubmitReview_UncertainSubmoduleFileReviewStillPending_RebuiltOnlyWithTh
 					_, _ = w.Write([]byte(`{"id":10,"node_id":"PRR_10"}`))
 				case p == "/repos/so/sr/pulls/5/reviews/10/events":
 					var body map[string]any
-					require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+					if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+						w.WriteHeader(http.StatusBadRequest)
+						return
+					}
 					if submitted = append(submitted, body); len(submitted) == 1 {
 						w.WriteHeader(http.StatusBadGateway)
 						return
@@ -448,7 +451,10 @@ func TestSubmitReview_ParentFileReviewStillPendingAfterUncertainSubmit_OtherVerd
 			_, _ = w.Write([]byte(`{"id":10,"node_id":"PRR_10"}`))
 		case p == "/repos/o/r/pulls/1/reviews/10/events":
 			var body map[string]any
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 			if submitted = append(submitted, body); len(submitted) == 1 {
 				w.WriteHeader(http.StatusBadGateway)
 				return
@@ -594,7 +600,10 @@ func TestSubmitReview_UncertainSubmoduleCommentThenParentHeadMoved_FoldAllowedAf
 					_, _ = w.Write([]byte(tc.lookup))
 				case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls/1/reviews":
 					var body map[string]any
-					require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+					if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+						w.WriteHeader(http.StatusBadRequest)
+						return
+					}
 					parentBodies = append(parentBodies, body["body"].(string))
 					_, _ = w.Write([]byte(`{"id":9,"html_url":"https://parent/review"}`))
 				default:

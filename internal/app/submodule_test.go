@@ -151,7 +151,10 @@ func TestSubmitReview_SubmoduleDrafts_PostsToSubmodulePROnceAndFoldsTheRest(t *t
 			return
 		}
 		var body map[string]any
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		switch r.URL.Path {
 		case "/repos/so/sr/pulls/5/reviews":
 			subReviews = append(subReviews, body)
@@ -203,7 +206,10 @@ func TestPostImmediateComment_SubmoduleFileOutsidePRDiff_PostsFoldedConversation
 	var body map[string]any
 	app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
 		path = r.URL.Path
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"id":1}`))
 	})
@@ -270,7 +276,10 @@ func TestSetFileViewed_DirectoryTurnedNestedSubmodule_MarksKeptPerRepoAcrossRelo
 func recordReviews(t *testing.T, got map[string][]map[string]any) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		got[r.URL.Path] = append(got[r.URL.Path], body)
 		_, _ = w.Write([]byte(`{"id":7,"html_url":"https://review"}`))
 	}
@@ -390,7 +399,10 @@ func TestSubmitReview_SubmoduleCommentsFailPartWay_RetryPostsOnlyTheRest(t *test
 			return
 		}
 		var body map[string]any
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		switch {
 		case r.URL.Path == "/repos/so/sr/pulls/5/comments" && body["body"] == failBody:
 			failBody = ""
@@ -491,7 +503,10 @@ func TestSubmitReview_MixedSubmoduleModesFailPartWay_RetryPostsEachOnceAndFoldsO
 			return
 		}
 		var body map[string]any
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		switch {
 		case r.URL.Path == "/repos/so2/sr2/pulls/6/comments" && body["body"] == failBody:
 			failBody = ""
@@ -552,7 +567,10 @@ func TestSubmitReview_SubmoduleFileDraftWithVerdict_SubmitsVerdictAndBodyAfterFi
 			var created, submitted map[string]any
 			var thread map[string]any
 			fakeGraphQL(t, func(w http.ResponseWriter, r *http.Request) {
-				require.NoError(t, json.NewDecoder(r.Body).Decode(&thread))
+				if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&thread)) {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
 				_, _ = w.Write([]byte(`{"data":{}}`))
 			})
 			app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
@@ -561,7 +579,10 @@ func TestSubmitReview_SubmoduleFileDraftWithVerdict_SubmitsVerdictAndBodyAfterFi
 					return
 				}
 				var body map[string]any
-				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
 				switch r.URL.Path {
 				case "/repos/so/sr/pulls/5/reviews":
 					created = body
@@ -1316,7 +1337,10 @@ func TestGetViewedFiles_ParentAndSubmoduleFileShareAPath_ReportsEachMarkOnItsOwn
 	require.NoError(t, err)
 	fakeGraphQL(t, func(w http.ResponseWriter, r *http.Request) {
 		var req struct{ Variables map[string]any }
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&req)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		nodes := `[]`
 		if req.Variables["repo"] == "r" {
 			nodes = `[{"path":"lib/a.txt","viewerViewedState":"VIEWED"}]`
@@ -1397,7 +1421,10 @@ func TestGetPRFiles_SubmodulePRLookupFailed_RetriedAndMovesAppMarksToFoundPR(t *
 			Query     string
 			Variables map[string]any
 		}
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&req)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		if strings.Contains(req.Query, "markFileAsViewed") {
 			marked = append(marked, fmt.Sprint(req.Variables["id"], " ", req.Variables["path"]))
 		}
@@ -1636,7 +1663,10 @@ func TestGetViewedFiles_SubmodulePRMarksReadFails_FlagsPointerAndRetriesAfterBac
 	subFails := true
 	fakeGraphQL(t, func(w http.ResponseWriter, r *http.Request) {
 		var req struct{ Variables map[string]any }
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&req)) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		nodes := `[]`
 		if req.Variables["repo"] == "sr" {
 			if subFails {
