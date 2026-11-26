@@ -61,7 +61,7 @@ export const submoduleRequest = (drafts: model.SubmoduleDraftsDTO[], choices: Re
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import Reveal from '@/components/motion/Reveal.vue'
 import VerdictPicker from './VerdictPicker.vue'
@@ -79,7 +79,15 @@ function foldReason(d: model.SubmoduleDraftsDTO, pr = `${d.pr}'s`): string {
   return d.pr && d.outdated < d.folded ? `written on an earlier version of the submodule or outside ${pr} diff` : 'written on an earlier version of the submodule'
 }
 
-function setMode(path: string, mode: string | number): void {
+const MODES: { value: SubmoduleChoice['mode']; label: string }[] = [
+  { value: 'review', label: 'Review' },
+  { value: 'comments', label: 'Single comments' },
+  { value: 'fold', label: "Add to this review's text" },
+]
+const SEGMENT =
+  'aspect-auto size-auto h-full flex-1 rounded-md border-transparent px-2 text-xs font-medium whitespace-nowrap text-foreground shadow-none transition-[background-color,box-shadow] duration-fast dark:bg-transparent dark:text-muted-foreground data-[state=checked]:bg-background data-[state=checked]:shadow-sm dark:data-[state=checked]:bg-background dark:data-[state=checked]:text-foreground'
+
+function setMode(path: string, mode: unknown): void {
   if (isMode(mode)) choices.value[path].mode = mode
 }
 const held = (d: model.SubmoduleDraftsDTO, mode: SubmoduleChoice['mode']) => !!d.in_flight && d.in_flight !== mode
@@ -95,13 +103,15 @@ const held = (d: model.SubmoduleDraftsDTO, mode: SubmoduleChoice['mode']) => !!d
           <a :href="d.pr_url" class="shrink-0 underline underline-offset-2">{{ d.pr }}</a>
           <span class="ml-auto shrink-0 text-muted-foreground">{{ comments(d.to_pr + d.folded) }}</span>
         </div>
-        <Tabs :model-value="choices[d.path].mode" @update:model-value="setMode(d.path, $event)">
-          <TabsList class="w-full" :aria-label="`Where the comments on ${d.path} go`">
-            <TabsTrigger value="review" class="text-xs" :disabled="held(d, 'review')">Review</TabsTrigger>
-            <TabsTrigger value="comments" class="text-xs" :disabled="held(d, 'comments')">Single comments</TabsTrigger>
-            <TabsTrigger value="fold" class="text-xs" :disabled="held(d, 'fold')">Add to this review's text</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <RadioGroup
+          :model-value="choices[d.path].mode"
+          orientation="horizontal"
+          class="flex h-9 w-full gap-0 rounded-lg bg-muted p-[3px]"
+          :aria-label="`Where the comments on ${d.path} go`"
+          @update:model-value="setMode(d.path, $event)"
+        >
+          <RadioGroupItem v-for="m in MODES" :key="m.value" :value="m.value" :disabled="held(d, m.value)" :class="SEGMENT">{{ m.label }}</RadioGroupItem>
+        </RadioGroup>
         <p v-if="d.in_flight" class="text-xs text-muted-foreground">An earlier submit may have reached {{ d.pr }}; submit again to settle it.</p>
         <Reveal axis="y" :open="choices[d.path].mode === 'review'" :class="{ '-mt-2': choices[d.path].mode !== 'review' }">
           <div class="flex flex-col gap-2">
