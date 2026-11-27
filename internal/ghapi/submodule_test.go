@@ -66,6 +66,8 @@ func TestFetchSubmoduleChanges_BackwardsBump_ComparesReversedAndInverts(t *testi
 			_, _ = w.Write([]byte(`{"status":"behind","files":[]}`))
 		case "/repos/so/sr/compare/new...old":
 			_, _ = w.Write([]byte(`{"status":"ahead","files":[{"filename":"a.txt","status":"added","additions":1,"patch":"@@ -0,0 +1 @@\n+a"}]}`))
+		case "/repos/so/sr/git/trees/old", "/repos/so/sr/git/trees/new":
+			_, _ = w.Write([]byte(`{"tree":[{"path":"a.txt","type":"blob","mode":"100644"}]}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -131,8 +133,8 @@ func TestFetchSubmoduleChanges_AddedOrRemovedSubmodule_ListsWholeTree(t *testing
 			assert.Equal(t, "1", r.URL.Query().Get("recursive"))
 			_, _ = w.Write([]byte(`{"truncated":` + truncated + `,"tree":[
 				{"path":"src","type":"tree"},
-				{"path":"src/a.txt","type":"blob","sha":"b1"},
-				{"path":"vendor","type":"commit","sha":"c1"}]}`))
+				{"path":"src/a.txt","type":"blob","mode":"100755","sha":"b1"},
+				{"path":"vendor","type":"commit","mode":"160000","sha":"c1"}]}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -142,12 +144,18 @@ func TestFetchSubmoduleChanges_AddedOrRemovedSubmodule_ListsWholeTree(t *testing
 		from := map[string]string{"new": "", "": "old"}[to]
 		ch, err := FetchSubmoduleChanges(context.Background(), client, "o", "r", "head", "lib", from, to)
 		require.NoError(t, err)
-		require.Len(t, ch.Files, 1, status)
+		require.Len(t, ch.Files, 2, status)
 		assert.Equal(t, "lib/src/a.txt", ch.Files[0].GetFilename())
 		assert.Equal(t, status, ch.Files[0].GetStatus())
 		assert.Equal(t, "b1", ch.Files[0].GetSHA())
+		assert.Nil(t, ch.Files[0].Patch)
 		assert.Equal(t, from+to, ch.TreeRef)
 		assert.Empty(t, ch.Unavailable)
+		ptrFrom, ptrTo, isBump := SubmoduleBump(ch.Files[1])
+		assert.Equal(t, []any{"lib/vendor", status, map[string]string{"new": "c1"}[to], map[string]string{"": "c1"}[to], true},
+			[]any{ch.Files[1].GetFilename(), ch.Files[1].GetStatus(), ptrTo, ptrFrom, isBump}, "a nested submodule lists as its pointer")
+		modes := map[string][2]string{"new": {"", "100755"}, "": {"100755", ""}}[to]
+		assert.Equal(t, modes, ch.Modes["lib/src/a.txt"])
 	}
 
 	truncated = "true"
@@ -263,6 +271,7 @@ func TestFetchSubmoduleChanges_DivergedBump_MergesBothSidesIntoOldToNewDiff(t *t
 	assert.Equal(t, "removed", got["lib/old-only.txt"].GetStatus())
 	assert.Equal(t, "@@ -1 +0,0 @@\n-o", got["lib/old-only.txt"].GetPatch())
 	assert.True(t, ParseCommitFileDiff(got["lib/big.bin"]).IsBinary)
+	assert.Equal(t, [2]string{"100644", "100755"}, ch.Modes["lib/run.sh"])
 }
 
 func TestFetchSubmoduleChanges_DivergedNestedGitlinkMovedOnBothSides_PointerChange(t *testing.T) {
@@ -361,4 +370,37 @@ func TestFetchSubmoduleChanges_DivergedGitlinkSwappedWithFile_ListsPointerAndFil
 			assert.Equal(t, append([]string{"lib/vendor"}, tc.file...), []string{file.GetFilename(), file.GetStatus(), file.GetPatch(), file.GetSHA()})
 		})
 	}
+}
+
+func TestFetchSubmoduleChanges_OneWayBump_RecordsOldAndNewModeOfEachFile(t *testing.T) {
+	newTree := `{"tree":[{"path":"run.sh","type":"blob","mode":"100755","sha":"r"},{"path":"b.txt","type":"blob","mode":"100644","sha":"b"},
+		{"path":"c.txt","type":"blob","mode":"100644","sha":"c"}]}`
+	client := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/o/r/contents/lib":
+			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
+		case "/repos/so/sr/compare/old...new":
+			_, _ = w.Write([]byte(`{"status":"ahead","files":[{"filename":"run.sh","status":"changed","sha":"r"},
+				{"filename":"b.txt","previous_filename":"a.txt","status":"renamed","patch":"@@ -1 +1 @@\n-x\n+y"},
+				{"filename":"c.txt","status":"added","patch":"@@ -0,0 +1 @@\n+c"}]}`))
+		case "/repos/so/sr/git/trees/old":
+			_, _ = w.Write([]byte(`{"tree":[{"path":"run.sh","type":"blob","mode":"100644","sha":"r"},{"path":"a.txt","type":"blob","mode":"100755","sha":"a"}]}`))
+		case "/repos/so/sr/git/trees/new":
+			_, _ = w.Write([]byte(newTree))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	ch, err := FetchSubmoduleChanges(context.Background(), client, "o", "r", "head", "lib", "old", "new")
+	require.NoError(t, err)
+	assert.Equal(t, map[string][2]string{"lib/run.sh": {"100644", "100755"}, "lib/b.txt": {"100755", "100644"}, "lib/c.txt": {"", "100644"}}, ch.Modes)
+	assert.Equal(t, "r", ch.OldSHAs["lib/run.sh"])
+	assert.False(t, ch.BlobsTruncated)
+
+	newTree = `{"truncated":true,"tree":[{"path":"run.sh","type":"blob","mode":"100755","sha":"r"}]}`
+	ch, err = FetchSubmoduleChanges(context.Background(), client, "o", "r", "head", "lib", "old", "new")
+	require.NoError(t, err)
+	assert.Equal(t, [2]string{"100755", ""}, ch.Modes["lib/b.txt"], "b.txt is missing from the truncated tree")
+	assert.True(t, ch.BlobsTruncated)
 }

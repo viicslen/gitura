@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -27,6 +28,10 @@ import (
 )
 
 const subPatch = "@@ -1,3 +1,4 @@\n a\n+b\n c\n d"
+
+// flatTree is the tree of a commit holding regular files a.txt, b.txt, x.txt and y.txt and submodule deps/core.
+const flatTree = `{"tree":[{"path":"a.txt","type":"blob","mode":"100644"},{"path":"b.txt","type":"blob","mode":"100644"},
+	{"path":"deps/core","type":"commit","mode":"160000"},{"path":"x.txt","type":"blob","mode":"100644"},{"path":"y.txt","type":"blob","mode":"100644"}]}`
 
 // subApp is an App on PR o/r#1 that bumps submodule lib (so/sr), whose open PR #5 changes a.txt but not b.txt.
 // Reading a pull request again finds it still open at "new"; subAppRaw leaves that to h.
@@ -443,9 +448,15 @@ func TestSubmitReview_SubmoduleCommentsFailPartWay_RetryPostsOnlyTheRest(t *test
 func TestSubmitReview_SubmodulePendingCreateAnswers5xx_RetryDeletesTheOrphanAndPostsOnce(t *testing.T) {
 	var deleted []string
 	threads, submits, orphan, failed := 0, 0, false, false
-	fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) {
-		threads++
-		_, _ = w.Write([]byte(`{"data":{}}`))
+	fakeGraphQL(t, func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		if strings.Contains(string(body), "addPullRequestReviewThread") {
+			threads++
+			_, _ = w.Write([]byte(`{"data":{}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[{"diffSide":"RIGHT","originalLine":2,"subjectType":"LINE","comments":{"nodes":[{"body":"in PR diff","path":"a.txt","pullRequestReview":{"databaseId":9}}]}}]}}}}}`))
 	})
 	app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -463,8 +474,6 @@ func TestSubmitReview_SubmodulePendingCreateAnswers5xx_RetryDeletesTheOrphanAndP
 			_, _ = w.Write([]byte(`[]`))
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/so/sr/pulls/5/reviews":
 			_, _ = w.Write([]byte(`[{"id":9,"state":"PENDING","commit_id":"new"}]`))
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/so/sr/pulls/5/reviews/9/comments":
-			_, _ = w.Write([]byte(`[{"path":"a.txt","body":"in PR diff"}]`))
 		case r.Method == http.MethodDelete && r.URL.Path == "/repos/so/sr/pulls/5/reviews/9":
 			deleted, orphan = append(deleted, r.URL.Path), false
 			_, _ = w.Write([]byte(`{}`))
@@ -628,6 +637,8 @@ func TestLoadSubmodule_PRLookupFails_MarksPRUnknownAndExplicitRetryBypassesBacko
 		switch r.URL.Path {
 		case "/repos/o/r/contents/lib":
 			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
+		case "/repos/so/sr/git/trees/old", "/repos/so/sr/git/trees/new", "/repos/no/nr/git/trees/cold", "/repos/no/nr/git/trees/cnew":
+			_, _ = w.Write([]byte(flatTree))
 		case "/repos/so/sr/compare/old...new":
 			_, _ = w.Write([]byte(`{"status":"ahead","files":[{"filename":"a.txt","status":"modified","patch":"@@ -1 +1 @@\n-x\n+y"}]}`))
 		case "/repos/so/sr/commits/new/pulls":
@@ -996,6 +1007,8 @@ func TestGetPRFiles_TextFileWhosePatchReadsAsPointerChange_StaysARegularFile(t *
 			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
 		case "/repos/o/r/contents/x.txt", "/repos/so/sr/contents/y.txt":
 			_, _ = w.Write([]byte(`{"type":"file"}`))
+		case "/repos/so/sr/git/trees/old", "/repos/so/sr/git/trees/new", "/repos/no/nr/git/trees/cold", "/repos/no/nr/git/trees/cnew":
+			_, _ = w.Write([]byte(flatTree))
 		case "/repos/so/sr/compare/old...new":
 			_, _ = w.Write([]byte(`{"status":"ahead","files":[{"filename":"y.txt","status":"added","patch":"` + strings.ReplaceAll(look, "\n", `\n`) + `"}]}`))
 		case "/repos/so/sr/commits/new/pulls":
@@ -1130,6 +1143,8 @@ func TestGetPRFiles_SubmoduleFilesFailedToLoad_RetriedOnlyOnceBackoffPassed(t *t
 			_, _ = w.Write([]byte(`[{"filename":"lib","status":"modified","patch":"@@ -1 +1 @@\n-Subproject commit old\n+Subproject commit new"}]`))
 		case "/repos/o/r/contents/lib":
 			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
+		case "/repos/so/sr/git/trees/old", "/repos/so/sr/git/trees/new", "/repos/no/nr/git/trees/cold", "/repos/no/nr/git/trees/cnew":
+			_, _ = w.Write([]byte(flatTree))
 		case "/repos/so/sr/compare/old...new":
 			compares++
 			if compareFails {
@@ -1202,11 +1217,12 @@ const binFile = `{"status":"ahead","files":[{"filename":"c.bin","status":"modifi
 func TestSetFileViewed_BackwardsBinaryBumpWhoseNewSideChangesAgain_MarkClears(t *testing.T) {
 	app := binApp(t, map[string]string{
 		"/repos/so/sr/compare/O...N1": `{"status":"behind"}`,
+		"/repos/so/sr/git/trees/O":    `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binO"}]}`,
 		"/repos/so/sr/compare/N1...O": binFile,
-		"/repos/so/sr/git/trees/N1":   `{"tree":[{"path":"c.bin","type":"blob","sha":"binN1"}]}`,
+		"/repos/so/sr/git/trees/N1":   `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binN1"}]}`,
 		"/repos/so/sr/compare/O...N2": `{"status":"behind"}`,
 		"/repos/so/sr/compare/N2...O": binFile,
-		"/repos/so/sr/git/trees/N2":   `{"tree":[{"path":"c.bin","type":"blob","sha":"binN2"}]}`,
+		"/repos/so/sr/git/trees/N2":   `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binN2"}]}`,
 	})
 
 	assert.False(t, markBin(t, app, "O", "N1", "O", "N2"))
@@ -1218,9 +1234,10 @@ func TestSetFileViewed_BackwardsBinaryBumpWhoseNewSideChangesAgain_MarkClears(t 
 func TestSetFileViewed_BinaryBumpWhoseOldCommitAdvancesUnrelated_MarkKept(t *testing.T) {
 	app := binApp(t, map[string]string{
 		"/repos/so/sr/compare/O1...N": `{"status":"ahead","files":[{"filename":"c.bin","status":"modified","changes":1,"sha":"binN"}]}`,
-		"/repos/so/sr/git/trees/O1":   `{"tree":[{"path":"c.bin","type":"blob","sha":"binO"}]}`,
+		"/repos/so/sr/git/trees/N":    `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binN"}]}`,
+		"/repos/so/sr/git/trees/O1":   `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binO"}]}`,
 		"/repos/so/sr/compare/O2...N": `{"status":"ahead","files":[{"filename":"c.bin","status":"modified","changes":1,"sha":"binN"}]}`,
-		"/repos/so/sr/git/trees/O2":   `{"tree":[{"path":"c.bin","type":"blob","sha":"binO"},{"path":"other.txt","type":"blob","sha":"x"}]}`,
+		"/repos/so/sr/git/trees/O2":   `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binO"},{"path":"other.txt","type":"blob","sha":"x"}]}`,
 	})
 
 	assert.True(t, markBin(t, app, "O1", "N", "O2", "N"))
@@ -1229,12 +1246,102 @@ func TestSetFileViewed_BinaryBumpWhoseOldCommitAdvancesUnrelated_MarkKept(t *tes
 func TestSetFileViewed_BinaryBumpWhoseOldBlobChanges_MarkClears(t *testing.T) {
 	app := binApp(t, map[string]string{
 		"/repos/so/sr/compare/O1...N": `{"status":"ahead","files":[{"filename":"c.bin","status":"modified","changes":1,"sha":"binN"}]}`,
-		"/repos/so/sr/git/trees/O1":   `{"tree":[{"path":"c.bin","type":"blob","sha":"binO1"}]}`,
+		"/repos/so/sr/git/trees/N":    `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binN"}]}`,
+		"/repos/so/sr/git/trees/O1":   `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binO1"}]}`,
 		"/repos/so/sr/compare/O2...N": `{"status":"ahead","files":[{"filename":"c.bin","status":"modified","changes":1,"sha":"binN"}]}`,
-		"/repos/so/sr/git/trees/O2":   `{"tree":[{"path":"c.bin","type":"blob","sha":"binO2"}]}`,
+		"/repos/so/sr/git/trees/O2":   `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binO2"}]}`,
 	})
 
 	assert.False(t, markBin(t, app, "O1", "N", "O2", "N"))
+}
+
+// modeBump answers the bump O..to of so/sr changing binary c.bin from binO to binN, with c.bin's mode at to.
+func modeBump(bump map[string]string, to, mode string) {
+	bump["/repos/so/sr/compare/O..."+to] = `{"status":"ahead","files":[{"filename":"c.bin","status":"modified","changes":1,"sha":"binN"}]}`
+	bump["/repos/so/sr/git/trees/O"] = `{"tree":[{"path":"c.bin","type":"blob","mode":"100644","sha":"binO"}]}`
+	bump["/repos/so/sr/git/trees/"+to] = `{"tree":[{"path":"c.bin","type":"blob","mode":"` + mode + `","sha":"binN"}]}`
+}
+
+func TestSetFileViewed_BumpThatAlsoChangesTheFilesMode_MarkClears(t *testing.T) {
+	bump := map[string]string{}
+	modeBump(bump, "N1", "100644")
+	modeBump(bump, "N2", "100755")
+	app := binApp(t, bump)
+
+	assert.False(t, markBin(t, app, "O", "N1", "O", "N2"))
+}
+
+func TestLoadSubViewed_ModeChangeMarkedThenTreeTruncated_KeepsTheMark(t *testing.T) {
+	bump := map[string]string{}
+	modeBump(bump, "N1", "100755")
+	modeBump(bump, "N2", "100755")
+	bump["/repos/so/sr/git/trees/N2"] = `{"truncated":true,"tree":[]}`
+	app := binApp(t, bump)
+
+	assert.False(t, markBin(t, app, "O", "N1", "O", "N2"), "without its mode the change can't be matched")
+	s := app.loadSubmodule(nil, "lib", "O", "N2")
+	app.prSubmodules["lib"] = s
+	app.loadSubViewed()
+	rows, err := app.queries.ListSubmoduleViewed(app.ctx, db.ListSubmoduleViewedParams{Owner: "o", Repo: "r", Number: 1})
+	require.NoError(t, err)
+	assert.Len(t, rows, 1, "a mark is kept while a mode it was made on is unknown")
+}
+
+func TestFingerprint_ModesThatDoNotChange_AddNothing(t *testing.T) {
+	modified := &github.CommitFile{Filename: new("lib/a.txt"), Status: new("modified"), Patch: new(subPatch)}
+	added := &github.CommitFile{Filename: new("lib/b.txt"), Status: new("added"), SHA: new("b1")}
+	without := &prSubmodule{}
+	with := func(a, b [2]string) *prSubmodule {
+		return &prSubmodule{SubmoduleChanges: ghapi.SubmoduleChanges{Modes: map[string][2]string{"lib/a.txt": a, "lib/b.txt": b}}}
+	}
+
+	same := with([2]string{"100644", "100644"}, [2]string{"", "100644"})
+	assert.Equal(t, without.fingerprint(modified), same.fingerprint(modified), "a mark stored without modes still matches")
+	assert.Equal(t, without.fingerprint(added), same.fingerprint(added))
+	unknown := with([2]string{"100644", ""}, [2]string{"", ""})
+	assert.Equal(t, without.fingerprint(modified), unknown.fingerprint(modified), "an unknown mode counts as unchanged")
+	changed := with([2]string{"100644", "100755"}, [2]string{"", "100755"})
+	assert.NotEqual(t, without.fingerprint(modified), changed.fingerprint(modified))
+	assert.NotEqual(t, without.fingerprint(added), changed.fingerprint(added), "an executable file added differs from a regular one")
+	gitlink := with([2]string{}, [2]string{"", "160000"})
+	assert.Equal(t, without.fingerprint(added), gitlink.fingerprint(added), "an added nested submodule's pointer keeps its mark")
+}
+
+func TestGetPRFiles_AddedSubmoduleHoldingASubmodule_ExpandsItAsAddedNested(t *testing.T) {
+	app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/o/r/pulls/1/files":
+			_, _ = w.Write([]byte(`[{"filename":"lib","status":"added","patch":"@@ -0,0 +1 @@\n+Subproject commit new"}]`))
+		case "/repos/o/r/contents/lib":
+			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
+		case "/repos/so/sr/git/trees/new":
+			_, _ = w.Write([]byte(`{"tree":[{"path":"a.txt","type":"blob","mode":"100644","sha":"a1"},{"path":"deps","type":"tree"},
+				{"path":"deps/core","type":"commit","mode":"160000","sha":"cnew"}]}`))
+		case "/repos/so/sr/contents/deps/core":
+			assert.Equal(t, "new", r.URL.Query().Get("ref"))
+			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/no/nr/tree/cnew"}`))
+		case "/repos/no/nr/git/trees/cnew":
+			_, _ = w.Write([]byte(`{"tree":[{"path":"x.txt","type":"blob","mode":"100644","sha":"x1"}]}`))
+		case "/repos/so/sr/commits/new/pulls", "/repos/no/nr/commits/cnew/pulls":
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			w.WriteHeader(http.StatusTeapot)
+		}
+	})
+	app.prFilesCache, app.prSubmodules, app.prSubmoduleOf = nil, nil, nil
+
+	files, err := app.GetPRFiles()
+	require.NoError(t, err)
+	var rows []string
+	for _, f := range files {
+		rows = append(rows, f.Filename+" "+f.Status+" "+f.Repo+" "+f.SubmoduleRange)
+	}
+	assert.Equal(t, []string{
+		"lib submodule  0000000..new",
+		"lib/a.txt added lib ",
+		"lib/deps/core submodule lib 0000000..cnew",
+		"lib/deps/core/x.txt added lib/deps/core ",
+	}, rows)
 }
 
 func TestLoadSubmodule_RemovedSubmodule_ResolvesItAtMergeBaseAndListsOldTree(t *testing.T) {
@@ -1296,6 +1403,8 @@ func TestGetPRFilesAndSubmoduleDrafts_CalledConcurrentlyOnEmptyCache_LoadOnce(t 
 			_, _ = w.Write([]byte(`[{"filename":"lib","status":"modified","patch":"@@ -1 +1 @@\n-Subproject commit old\n+Subproject commit new"}]`))
 		case "/repos/o/r/contents/lib":
 			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
+		case "/repos/so/sr/git/trees/old", "/repos/so/sr/git/trees/new", "/repos/no/nr/git/trees/cold", "/repos/no/nr/git/trees/cnew":
+			_, _ = w.Write([]byte(flatTree))
 		case "/repos/so/sr/compare/old...new":
 			_, _ = w.Write([]byte(`{"status":"ahead","files":[{"filename":"a.txt","status":"modified","patch":"@@ -1 +1 @@\n-x\n+y"}]}`))
 		case "/repos/so/sr/commits/new/pulls":
@@ -1436,6 +1545,8 @@ func TestGetPRFiles_SubmodulePRLookupFailed_RetriedAndMovesAppMarksToFoundPR(t *
 			_, _ = w.Write([]byte(`[{"filename":"lib","status":"modified","patch":"@@ -1 +1 @@\n-Subproject commit old\n+Subproject commit new"}]`))
 		case "/repos/o/r/contents/lib":
 			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
+		case "/repos/so/sr/git/trees/old", "/repos/so/sr/git/trees/new", "/repos/no/nr/git/trees/cold", "/repos/no/nr/git/trees/cnew":
+			_, _ = w.Write([]byte(flatTree))
 		case "/repos/so/sr/compare/old...new":
 			_, _ = w.Write([]byte(`{"status":"ahead","files":[{"filename":"a.txt","status":"modified","patch":"@@ -1 +1 @@\n-x\n+y"},{"filename":"b.txt","status":"modified","patch":"@@ -1 +1 @@\n-p\n+q"}]}`))
 		case "/repos/so/sr/commits/new/pulls":
@@ -1683,6 +1794,8 @@ func TestGetViewedFiles_SubmodulePRMarksReadFails_FlagsPointerAndRetriesAfterBac
 			_, _ = w.Write([]byte(`[{"filename":"lib","status":"modified","patch":"@@ -1 +1 @@\n-Subproject commit old\n+Subproject commit new"}]`))
 		case "/repos/o/r/contents/lib":
 			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
+		case "/repos/so/sr/git/trees/old", "/repos/so/sr/git/trees/new", "/repos/no/nr/git/trees/cold", "/repos/no/nr/git/trees/cnew":
+			_, _ = w.Write([]byte(flatTree))
 		case "/repos/so/sr/compare/old...new":
 			_, _ = w.Write([]byte(`{"status":"ahead","files":[{"filename":"a.txt","status":"modified","patch":"@@ -1 +1 @@\n-x\n+y"}]}`))
 		case "/repos/so/sr/commits/new/pulls":
@@ -1861,6 +1974,8 @@ func TestGetPRFiles_BumpComparesANestedGitlinkBump_ExpandsItAsItsOwnSubmodule(t 
 			_, _ = w.Write([]byte(`[{"filename":"lib","status":"modified","patch":"@@ -1 +1 @@\n-Subproject commit old\n+Subproject commit new"}]`))
 		case "/repos/o/r/contents/lib":
 			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
+		case "/repos/so/sr/git/trees/old", "/repos/so/sr/git/trees/new", "/repos/no/nr/git/trees/cold", "/repos/no/nr/git/trees/cnew":
+			_, _ = w.Write([]byte(flatTree))
 		case "/repos/so/sr/compare/old...new":
 			_, _ = w.Write([]byte(`{"status":"ahead","files":[{"filename":"a.txt","status":"modified","patch":"@@ -1 +1 @@\n-x\n+y"},
 				{"filename":"deps/core","status":"modified","patch":"@@ -1 +1 @@\n-Subproject commit cold\n+Subproject commit cnew"}]}`))
@@ -1918,6 +2033,8 @@ func TestLoadSubViewed_OuterSubmoduleFailsToLoad_KeepsNestedMarksUntilItLoadsAga
 			_, _ = w.Write([]byte(`[{"filename":"lib","status":"modified","patch":"@@ -1 +1 @@\n-Subproject commit old\n+Subproject commit new"}]`))
 		case "/repos/o/r/contents/lib":
 			_, _ = w.Write([]byte(`{"type":"submodule","html_url":"https://github.com/so/sr/tree/new"}`))
+		case "/repos/so/sr/git/trees/old", "/repos/so/sr/git/trees/new", "/repos/no/nr/git/trees/cold", "/repos/no/nr/git/trees/cnew":
+			_, _ = w.Write([]byte(flatTree))
 		case "/repos/so/sr/compare/old...new":
 			if compareFails.Load() {
 				w.WriteHeader(http.StatusBadGateway)

@@ -424,8 +424,7 @@ func (a *App) subViewedNow(s *prSubmodule, f *github.CommitFile) bool {
 }
 
 // fingerprint identifies the change to f, a file of s: its patch, or without one (a binary file) its old
-// and new blobs.
-// shortcut: a mode-only change keeps the mark, as the compare API gives no modes; fetch both trees if that matters.
+// and new blobs, and its modes when they change.
 func (s *prSubmodule) fingerprint(f *github.CommitFile) string {
 	parts := []string{f.GetSHA(), f.GetStatus(), f.GetPreviousFilename()}
 	switch {
@@ -436,8 +435,31 @@ func (s *prSubmodule) fingerprint(f *github.CommitFile) string {
 	default:
 		parts = append(parts, s.OldSHAs[f.GetFilename()])
 	}
+	if m := s.modeChange(f); m != "" {
+		parts = append(parts, m)
+	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(sum[:])
+}
+
+// regularMode is a regular file's git mode.
+const regularMode = "100644"
+
+// modeChange is f's old and new modes when they differ, a side where f is absent counting as a regular file:
+// adding nothing otherwise keeps the fingerprints of marks stored before modes counted. An unknown mode, as
+// off a truncated tree, counts as unchanged; a gitlink's pointer patch already tells it apart.
+func (s *prSubmodule) modeChange(f *github.CommitFile) string {
+	m := s.Modes[f.GetFilename()]
+	switch f.GetStatus() {
+	case "added":
+		m[0] = regularMode
+	case "removed":
+		m[1] = regularMode
+	}
+	if m[0] == "" || m[1] == "" || m[0] == m[1] || slices.Contains(m[:], "160000") {
+		return ""
+	}
+	return m[0] + " " + m[1]
 }
 
 // loadSubViewed reads the loaded PR's viewed marks kept in the app, deleting those whose file changed since
