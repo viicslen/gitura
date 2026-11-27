@@ -13,6 +13,8 @@ static char *gitura_decoration_layout(void) {
 	return layout;
 }
 
+static void gitura_free(char *s) { g_free(s); }
+
 // Both stay 1 when unknown: the window is not realized yet, or GTK predates the capabilities API (4.20).
 static void gitura_toplevel_can(void *window, int *minimize, int *maximize) {
 	*minimize = *maximize = 1;
@@ -27,11 +29,7 @@ static void gitura_toplevel_can(void *window, int *minimize, int *maximize) {
 */
 import "C"
 
-import (
-	"unsafe"
-
-	"github.com/wailsapp/wails/v3/pkg/application"
-)
+import "github.com/wailsapp/wails/v3/pkg/application"
 
 // ponytail: read once when the strip mounts; listen for notify::capabilities / notify::gtk-decoration-layout if WMs change them live.
 func wmWindowButtons() []string {
@@ -44,7 +42,7 @@ func wmWindowButtons() []string {
 	application.InvokeSync(func() {
 		if l := C.gitura_decoration_layout(); l != nil {
 			layout = C.GoString(l)
-			C.g_free(C.gpointer(unsafe.Pointer(l)))
+			C.gitura_free(l)
 		}
 		if p := w.NativeWindow(); p != nil {
 			C.gitura_toplevel_can(p, &canMinimize, &canMaximize)
