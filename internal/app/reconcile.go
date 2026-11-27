@@ -139,6 +139,43 @@ func sendUnlessPosted(find finder, send func() (*github.Response, error)) error 
 	return err
 }
 
+// sender sends with send, and after a send that fails ambiguously looks with find for what it posted.
+type sender func(find finder, send func() (*github.Response, error)) error
+
+// immediateKey is a single comment PostImmediateComment sends to where's pull request: a line comment at commit,
+// or a conversation comment when commit is "".
+type immediateKey struct {
+	where, commit string
+	comment       commentKey
+}
+
+// sendOnce is sendUnlessPosted for the single comment key, which a retry sends again: an earlier send of it of
+// unknown outcome is looked for first, and when found nothing is sent.
+func (a *App) sendOnce(key immediateKey) sender {
+	return func(find finder, send func() (*github.Response, error)) error {
+		if u := a.immediate[key]; u != nil {
+			_, found, err := find(u.start)
+			if err != nil {
+				return uncheckedError(u, err)
+			}
+			delete(a.immediate, key)
+			if found {
+				return nil
+			}
+		}
+		err := sendUnlessPosted(find, send)
+		var u *uncertainError
+		if errors.As(err, &u) {
+			u.where = key.where
+			if a.immediate == nil {
+				a.immediate = map[immediateKey]*uncertainError{}
+			}
+			a.immediate[key] = u
+		}
+		return err
+	}
+}
+
 // settle records, for drafts just sent as review sent (or single comments, when sent has no verdict) to s's PR,
 // or the loaded PR's when s is nil, whether err leaves it unknown if they went through.
 func (a *App) settle(drafts []model.DraftCommentDTO, err error, sent model.InFlightReviewDTO, s *prSubmodule) {
@@ -258,26 +295,24 @@ func sameReviewComment(c *github.PullRequestComment, sent github.CreatePullReque
 }
 
 // postedIssueComment returns the viewer's conversation comment on owner/repo#number reading body and
-// created since start, nil when there is none or the lookup fails.
-func (a *App) postedIssueComment(owner, repo string, number int, body string, start time.Time) *github.IssueComment {
+// created since start, nil when there is none.
+func (a *App) postedIssueComment(owner, repo string, number int, body string, start time.Time) (*github.IssueComment, error) {
 	login, err := a.viewerLogin()
 	if err != nil {
-		logger.L.Warn("could not check whether a failed comment was posted", "err", err)
-		return nil
+		return nil, err
 	}
 	since := start.Add(-clockSkew)
 	opts := &github.IssueListCommentsOptions{Since: &since, ListOptions: github.ListOptions{PerPage: 100}}
 	for c, err := range a.ghClient.Issues.ListCommentsIter(a.ctx, owner, repo, number, opts) {
 		if err != nil {
-			logger.L.Warn("could not check whether a failed comment was posted", "err", err)
-			return nil
+			return nil, err
 		}
 		if c.GetUser().GetLogin() == login && c.GetBody() == body && !c.GetCreatedAt().Before(since) {
 			logger.L.Info("adopted a comment a failed request posted", "pr", fmt.Sprintf("%s/%s#%d", owner, repo, number), "id", c.GetID())
-			return c
+			return c, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // postedReview returns, and claims, the unclaimed review on owner/repo#number the viewer submitted since start
@@ -380,7 +415,7 @@ func (a *App) leftPending(at orphanReview, sent *github.PullRequestReviewRequest
 	}
 	got := make([]commentKey, len(drafts))
 	for i, d := range drafts {
-		got[i] = commentKey{d.Path, d.Line, d.Side, d.StartLine, d.StartSide, d.Body}
+		got[i] = draftKey(d)
 	}
 	if !sameComments(got, sent) {
 		logger.L.Warn("SubmitReview: pending review left unclaimed", "review_id", r.GetID())
@@ -489,6 +524,10 @@ type commentKey struct {
 	startLine int
 	startSide string
 	body      string
+}
+
+func draftKey(d model.DraftCommentDTO) commentKey {
+	return commentKey{d.Path, d.Line, d.Side, d.StartLine, d.StartSide, d.Body}
 }
 
 // sameReviewComments reports whether submitted review r holds exactly sent's line comments.

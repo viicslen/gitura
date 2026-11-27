@@ -90,6 +90,9 @@ type App struct {
 	// parentAttempt is the loaded PR's review whose last send may have gone through, unconfirmed likewise, kept
 	// even when it carried no drafts; the next submit looks for it before sending it again.
 	parentAttempt *uncertainError
+	// immediate maps each single comment PostImmediateComment sent whose outcome is unknown to that send; posting
+	// the same comment again looks for it first.
+	immediate map[immediateKey]*uncertainError
 	// draftSeq numbers pending drafts for DraftCommentDTO.ID.
 	draftSeq int64
 

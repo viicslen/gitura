@@ -295,7 +295,8 @@ func (a *App) PostImmediateComment(comment model.DraftCommentDTO) (model.ReviewC
 		owner, repo, number, commit = s.Owner, s.Repo, s.pr.GetNumber(), s.pr.GetHead().GetSHA()
 		comment.Path = s.rel(comment.Path)
 	}
-	created, err := a.postReviewComment(owner, repo, number, commit, comment)
+	key := immediateKey{fmt.Sprintf("%s/%s#%d", owner, repo, number), commit, draftKey(comment)}
+	created, err := a.postReviewComment(owner, repo, number, commit, comment, a.sendOnce(key))
 	if s != nil && hasPendingReview(err) {
 		return model.ReviewCommentDTO{}, pendingReviewError(s)
 	}
@@ -339,8 +340,8 @@ func (a *App) immediateSubmodule(comment model.DraftCommentDTO) (*prSubmodule, e
 	return a.commentSubmodule(comment)
 }
 
-// postReviewComment posts comment on its own, outside any review, on PR owner/repo#number at commit.
-func (a *App) postReviewComment(owner, repo string, number int, commit string, comment model.DraftCommentDTO) (*github.PullRequestComment, error) {
+// postReviewComment posts comment on its own, outside any review, on PR owner/repo#number at commit, through post.
+func (a *App) postReviewComment(owner, repo string, number int, commit string, comment model.DraftCommentDTO, post sender) (*github.PullRequestComment, error) {
 	prComment := github.CreatePullRequestCommentRequest{
 		Path:     comment.Path,
 		Body:     comment.Body,
@@ -357,7 +358,7 @@ func (a *App) postReviewComment(owner, repo string, number int, commit string, c
 	}
 
 	var created *github.PullRequestComment
-	err := sendUnlessPosted(func(start time.Time) (string, bool, error) {
+	err := post(func(start time.Time) (string, bool, error) {
 		c, err := a.postedReviewComment(owner, repo, number, prComment, start)
 		created = c
 		return c.GetHTMLURL(), c != nil, err
@@ -375,13 +376,19 @@ func (a *App) postReviewComment(owner, repo string, number int, commit string, c
 // postFoldedComment posts a comment on a submodule file as a conversation comment on the loaded PR.
 func (a *App) postFoldedComment(comment model.DraftCommentDTO) (model.ReviewCommentDTO, error) {
 	body := foldComments([]model.DraftCommentDTO{comment})
-	start := time.Now()
-	created, resp, err := a.ghClient.Issues.CreateComment(a.ctx, a.prOwner, a.prRepo, a.prNumber, github.IssueCommentRequest{Body: body})
-	if err != nil && ambiguous(resp) {
-		if c := a.postedIssueComment(a.prOwner, a.prRepo, a.prNumber, body, start); c != nil {
-			created, err = c, nil
+	key := immediateKey{where: fmt.Sprintf("%s/%s#%d", a.prOwner, a.prRepo, a.prNumber), comment: commentKey{body: body}}
+	var created *github.IssueComment
+	err := a.sendOnce(key)(func(start time.Time) (string, bool, error) {
+		c, err := a.postedIssueComment(a.prOwner, a.prRepo, a.prNumber, body, start)
+		created = c
+		return c.GetHTMLURL(), c != nil, err
+	}, func() (*github.Response, error) {
+		c, resp, err := a.ghClient.Issues.CreateComment(a.ctx, a.prOwner, a.prRepo, a.prNumber, github.IssueCommentRequest{Body: body})
+		if err == nil {
+			created = c
 		}
-	}
+		return resp, err
+	})
 	if err != nil {
 		return model.ReviewCommentDTO{}, fmt.Errorf("github: post comment: %w", err)
 	}
@@ -676,7 +683,7 @@ func (a *App) postSubmoduleComments(g draftGroup) error {
 	for _, d := range g.drafts {
 		rel := d
 		rel.Path = s.rel(d.Path)
-		created, err := a.postReviewComment(s.Owner, s.Repo, s.pr.GetNumber(), s.pr.GetHead().GetSHA(), rel)
+		created, err := a.postReviewComment(s.Owner, s.Repo, s.pr.GetNumber(), s.pr.GetHead().GetSHA(), rel, sendUnlessPosted)
 		a.settle([]model.DraftCommentDTO{d}, err, model.InFlightReviewDTO{}, s)
 		if err != nil {
 			return submoduleError(s, "comment", err)

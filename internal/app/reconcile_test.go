@@ -145,6 +145,67 @@ func TestPostImmediateComment_FoldedCommentAnswers5xxWithOnlyAnOlderLookAlike_Re
 	assert.Equal(t, 1, posts)
 }
 
+func TestPostImmediateComment_5xxThenLookupFails_RetryLooksForTheEarlierPostBeforePosting(t *testing.T) {
+	inline := model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "hm"}
+	folded := model.DraftCommentDTO{Submodule: "lib", Bump: "..new", Path: "lib/b.txt", Line: 1, Side: "RIGHT", Body: "hm"}
+	foldedBody, err := json.Marshal(foldComments([]model.DraftCommentDTO{folded}))
+	require.NoError(t, err)
+	kinds := map[string]struct {
+		comment       model.DraftCommentDTO
+		path, earlier string
+	}{
+		"inline": {inline, "/repos/o/r/pulls/1/comments", `{"path":"a.go","line":1,"side":"RIGHT","commit_id":"sha","body":"hm"`},
+		"folded": {folded, "/repos/o/r/issues/1/comments", `{"body":` + string(foldedBody)},
+	}
+	for kind, k := range kinds {
+		for name, tc := range map[string]struct {
+			second string
+			posts  int
+			url    string
+		}{
+			"it went through":    {`[` + k.earlier + `,"id":3,"user":{"login":"me"},"html_url":"https://first","created_at":"` + stamp(0) + `"}]`, 1, "https://first"},
+			"it did not":         {`[]`, 2, "https://resent"},
+			"lookup fails again": {"", 1, ""},
+		} {
+			t.Run(kind+"/"+name, func(t *testing.T) {
+				posts, lookups := 0, 0
+				app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
+					switch {
+					case r.URL.Path != k.path:
+						w.WriteHeader(http.StatusTeapot)
+					case r.Method == http.MethodPost:
+						if posts++; posts == 1 {
+							w.WriteHeader(http.StatusBadGateway)
+							return
+						}
+						_, _ = w.Write([]byte(`{"id":4,"html_url":"https://resent"}`))
+					default:
+						if lookups++; lookups == 1 || tc.second == "" {
+							w.WriteHeader(http.StatusServiceUnavailable)
+							return
+						}
+						_, _ = w.Write([]byte(tc.second))
+					}
+				})
+				_, err := app.PostImmediateComment(k.comment)
+				require.Error(t, err)
+
+				got, err := app.PostImmediateComment(k.comment)
+
+				assert.Equal(t, tc.posts, posts)
+				if tc.url == "" {
+					require.ErrorContains(t, err, "earlier attempt")
+					assert.Len(t, app.immediate, 1)
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, tc.url, got.HTMLURL)
+				assert.Empty(t, app.immediate)
+			})
+		}
+	}
+}
+
 func TestSubmitReview_TwoIdenticalDraftsSecondAnswers5xx_DoesNotAdoptTheFirstOnesComment(t *testing.T) {
 	posts := 0
 	app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
