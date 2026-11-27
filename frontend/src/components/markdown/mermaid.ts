@@ -1,4 +1,5 @@
 import { onMounted, onUpdated, watch, type Ref } from 'vue'
+import DOMPurify from 'dompurify'
 import { isDark } from '@/composables/useAppearance'
 import { proxyMermaidImages } from '@/lib/markdown'
 
@@ -22,7 +23,12 @@ async function draw(container: HTMLElement | null, redraw: boolean): Promise<voi
     const source = (node.dataset.source ??= node.textContent ?? '')
     try {
       const { svg } = await mermaid.render(`mermaid-${++drawn}`, proxyMermaidImages(source))
-      node.innerHTML = svg
+      // Mermaid's strict mode sanitizes too, with these options; ours keeps that guarantee from riding on its config.
+      node.innerHTML = DOMPurify.sanitize(svg, {
+        ADD_TAGS: ['foreignobject'],
+        ADD_ATTR: ['dominant-baseline'],
+        HTML_INTEGRATION_POINTS: { foreignobject: true },
+      })
     } catch {
       // A diagram mermaid cannot parse or draw stays as its source text.
       node.textContent = source
