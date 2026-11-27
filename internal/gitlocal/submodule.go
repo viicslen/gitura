@@ -657,7 +657,7 @@ func goneNested(ctx context.Context, gitDir string, p *pointer, path, old string
 		return nil, err
 	}
 	for i := range inner {
-		if inner[i].SubmoduleRange == "" {
+		if inner[i].SubmoduleRange == "" && !inner[i].own {
 			inner[i].Submodule, inner[i].own = path, true
 		}
 	}

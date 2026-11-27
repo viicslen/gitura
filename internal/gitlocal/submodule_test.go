@@ -344,6 +344,38 @@ func TestDiff_SubmoduleHoldingASubmoduleDeleted_ListsNestedOneAsItsOwnGroup(t *t
 	}
 }
 
+func TestDiff_SubmoduleHoldingTwoLevelsOfSubmodulesDeleted_KeepsDeepestFilesInTheirOwnGroup(t *testing.T) {
+	root := t.TempDir()
+	deep, nest, lib, dir := filepath.Join(root, "deep"), filepath.Join(root, "nest"), filepath.Join(root, "lib"), filepath.Join(root, "parent")
+	for _, d := range []string{deep, nest, lib, dir} {
+		run(t, root, "init", "-q", "-b", "main", d)
+	}
+	write(t, deep, "d.txt", "d\n")
+	run(t, deep, "add", ".")
+	run(t, deep, "commit", "-q", "-m", "d")
+	run(t, nest, "-c", "protocol.file.allow=always", "submodule", "add", "-q", deep, "deep")
+	run(t, nest, "commit", "-q", "-m", "deep")
+	run(t, lib, "-c", "protocol.file.allow=always", "submodule", "add", "-q", nest, "nest")
+	run(t, lib, "commit", "-q", "-m", "nest")
+	run(t, dir, "-c", "protocol.file.allow=always", "submodule", "add", "-q", lib, "lib")
+	run(t, dir, "-c", "protocol.file.allow=always", "submodule", "update", "-q", "--init", "--recursive")
+	run(t, dir, "commit", "-q", "-m", "init")
+	run(t, dir, "rm", "-q", "lib")
+
+	want := []subRow{
+		{".gitmodules", ""},
+		{"lib", "lib"},
+		{"lib/.gitmodules", "lib"},
+		{"lib/nest", "lib/nest"},
+		{"lib/nest/.gitmodules", "lib/nest"},
+		{"lib/nest/deep", "lib/nest/deep"},
+		{"lib/nest/deep/d.txt", "lib/nest/deep"},
+	}
+	if got := subRows(t, dir); !slices.Equal(got, want) {
+		t.Fatalf("got %v\nwant %v", got, want)
+	}
+}
+
 func TestDiff_SubmoduleHoldingANeverCheckedOutSubmoduleDeleted_FlagsNestedPointerRow(t *testing.T) {
 	dir := subRepo(t)
 	run(t, filepath.Join(dir, "lib"), "submodule", "deinit", "-q", "-f", "nest")
