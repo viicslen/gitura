@@ -23,6 +23,8 @@
           nativeBuildInputs = [ pkgs.bun ];
 
           dontBuild = true;
+          # patchShebangs would bake /nix/store paths into a fixed-output derivation.
+          dontFixup = true;
 
           installPhase = ''
             export HOME=$(mktemp -d)
@@ -32,7 +34,7 @@
 
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
-          outputHash = "sha256-VBGEvzd4rbJjmt2drKBtM4LhK7ytmBpjgLsEqcnUgXc=";
+          outputHash = "sha256-RndNGGyAmgoR1+RoJpQ0G+DuCPdAYDEMnil9TN+GAR8=";
         };
 
         # Build the Vue/Vite frontend and expose the dist directory.
