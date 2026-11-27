@@ -23,6 +23,13 @@ describe('renderGitHubMarkdown', () => {
     expect(doc.querySelector('blockquote')).toBeNull()
   })
 
+  it('turns a mermaid fence into a diagram block holding its escaped source', () => {
+    const doc = render('```mermaid\nflowchart LR\n  A["<b>x</b>"] --> B\n```')
+    expect(doc.querySelector('pre')).toBeNull()
+    expect(doc.querySelector('div.mermaid')?.textContent).toBe('flowchart LR\n  A["<b>x</b>"] --> B')
+    expect(doc.querySelector('div.mermaid b')).toBeNull()
+  })
+
   it('leaves ordinary blockquotes alone', () => {
     const doc = render('> just a quote')
     expect(doc.querySelector('blockquote')?.textContent?.trim()).toBe('just a quote')

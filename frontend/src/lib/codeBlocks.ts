@@ -63,6 +63,14 @@ export function parseCodeBlocks(markdown: string): BodySegment[] {
       break
     }
 
+    const fenceEnd = afterOpen.slice(closeMatch.index + closeMatch[0].length)
+    if (langTag.toLowerCase() === 'mermaid') {
+      // Left in the text so MarkdownBody draws it as a diagram.
+      textBuffer += match[0] + afterOpen.slice(0, closeMatch.index + closeMatch[0].length)
+      remaining = fenceEnd
+      continue
+    }
+
     // Flush text buffer.
     if (textBuffer) {
       segments.push({ type: 'text', content: textBuffer })
@@ -77,7 +85,7 @@ export function parseCodeBlocks(markdown: string): BodySegment[] {
       isRun: langTag.toLowerCase() === 'run',
     })
 
-    remaining = afterOpen.slice(closeMatch.index + closeMatch[0].length)
+    remaining = fenceEnd
     // Consume the newline after the closing fence if present.
     if (remaining.startsWith('\n')) remaining = remaining.slice(1)
   }

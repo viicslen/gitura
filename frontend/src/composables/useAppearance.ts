@@ -1,4 +1,4 @@
-import { reactive, readonly, ref, watchEffect } from 'vue'
+import { computed, reactive, readonly, ref, watchEffect } from 'vue'
 import { useColorMode } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { GetAppearance, ListSystemFonts, SetAppearance } from '@/bindings/gitura/internal/app/app'
@@ -67,6 +67,9 @@ const colorMode = useColorMode({
   storageKey: 'gitura-color-mode',
   emitAuto: true,
 })
+
+/** Whether the dark theme is showing, after resolving "System". */
+export const isDark = computed(() => colorMode.state.value === 'dark')
 
 const state = reactive<model.AppearanceDTO>({ ...defaults, theme: colorMode.value })
 /** One save at a time, since each sends the whole set; guarded here because disabling the selects drops keyboard focus. */

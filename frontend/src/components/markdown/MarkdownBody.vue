@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { marked } from 'marked'
-import hljs from 'highlight.js/lib/common'
 import { renderGitHubMarkdown } from '@/lib/markdown'
 import { onTaskChange, type TaskToggle } from '@/lib/taskList'
 import { glideDetails, keepDetailsOpen, settleDetails } from './detailsGlide'
+import { renderMermaid } from './mermaid'
 import { defaultCommandFor } from '@/composables/useCommands'
 
 interface RunCommandEntry {
@@ -26,19 +25,9 @@ const props = defineProps<{
   taskIndexOffset?: number
 }>()
 
-// Configure marked once at module level with hljs renderer
-marked.use({
-  renderer: {
-    code({ text, lang }: { text: string; lang?: string }) {
-      const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext'
-      const highlighted = hljs.highlight(text, { language }).value
-      return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`
-    },
-  },
-})
-
 const containerRef = ref<HTMLElement | null>(null)
 keepDetailsOpen(containerRef)
+renderMermaid(containerRef)
 function closeOpenDropdowns(): void {
   const container = containerRef.value
   if (!container) return
@@ -428,5 +417,14 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
 }
 .markdown-body :deep(em) {
   font-style: italic;
+}
+.markdown-body :deep(.mermaid) {
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.markdown-body :deep(.mermaid > svg) {
+  display: block;
+  margin-inline: auto;
 }
 </style>

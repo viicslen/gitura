@@ -42,7 +42,7 @@ and hand a comment straight to your coding agent — without a browser tab in si
 - **Submodule changes** — a bumped submodule's own changed files are listed in Files under a group of their own, with its commit range and a warning when the bump moves backwards; in a PR, on submit you pick per submodule whether its comments go to the submodule's open PR as a review or as single comments, or into your review's text (where they always go when it has none); Viewed marks go to that PR when it has one, else stay in gitura. When a change turns a folder into a submodule, a path in both is listed twice, each row with its own diff, comments and Viewed mark
 - **Viewed files** — tick files as viewed (synced with GitHub), jump to the next one, and hide viewed or test files from the list
 - **Diff view options** — show or hide inline comments and toggle line wrapping; Vue and Svelte files are highlighted per template, script and style block
-- **GitHub-flavoured comments** — alerts, tables, `<picture>` images, and task lists you can tick straight from the app
+- **GitHub-flavoured comments** — alerts, tables, Mermaid diagrams, `<picture>` images, and task lists you can tick straight from the app
 - **Review in the diff** — click or drag line numbers (Shift+click extends) to comment on either side, or use the file header's comment button to comment on the whole file; threads, pending drafts, replies and resolve/unresolve sit inline under their lines
 - **Batch reviews** — draft comments, then submit them together as comment, approval, or changes requested (approve and request changes are off on your own PRs)
 - **Reply, resolve, unresolve** — posted straight to GitHub with optimistic UI updates

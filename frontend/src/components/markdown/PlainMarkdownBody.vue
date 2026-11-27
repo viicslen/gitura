@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { renderGitHubMarkdown } from '@/lib/markdown'
 import { onTaskChange, type TaskToggle } from '@/lib/taskList'
 import { glideDetails, keepDetailsOpen, settleDetails } from './detailsGlide'
+import { renderMermaid } from './mermaid'
 
 const props = defineProps<{
   content: string
@@ -15,6 +16,7 @@ const props = defineProps<{
 
 const container = ref<HTMLElement | null>(null)
 keepDetailsOpen(container)
+renderMermaid(container)
 
 const html = computed(() => renderGitHubMarkdown(props.content, { ...props, tasks: !!props.toggleTask }))
 </script>
@@ -114,5 +116,14 @@ const html = computed(() => renderGitHubMarkdown(props.content, { ...props, task
   border: 0;
   border-top: 1px solid var(--color-border);
   margin: 0.8em 0;
+}
+.markdown-body :deep(.mermaid) {
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.markdown-body :deep(.mermaid > svg) {
+  display: block;
+  margin-inline: auto;
 }
 </style>
