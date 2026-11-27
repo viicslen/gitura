@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.1](https://github.com/viicslen/gitura/compare/v1.15.0...v1.15.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **nix:** stop fixup from patching store paths into frontend deps ([3e28133](https://github.com/viicslen/gitura/commit/3e28133a76043b8f8e3e0fd673df3b3a7bc69e1a))
+* **nix:** stop fixup from patching store paths into frontend deps ([#112](https://github.com/viicslen/gitura/issues/112)) ([33f2e6a](https://github.com/viicslen/gitura/commit/33f2e6aff0284f0aaf5508d3a1423a0aee591682))
+
 ## [1.15.0](https://github.com/viicslen/gitura/compare/v1.14.0...v1.15.0) (2026-11-27)
 
 
