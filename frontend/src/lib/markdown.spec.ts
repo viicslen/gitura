@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import coderabbitRateLimit from './__fixtures__/coderabbit-rate-limit.md?raw'
-import { markdownPreview, renderGitHubMarkdown, setTaskListItem } from './markdown'
+import { markdownPreview, proxyMermaidImages, renderGitHubMarkdown, setTaskListItem } from './markdown'
 
 function render(md: string, opts = {}): Document {
   return new DOMParser().parseFromString(renderGitHubMarkdown(md, opts), 'text/html')
@@ -28,6 +28,13 @@ describe('renderGitHubMarkdown', () => {
     expect(doc.querySelector('pre')).toBeNull()
     expect(doc.querySelector('div.mermaid')?.textContent).toBe('flowchart LR\n  A["<b>x</b>"] --> B')
     expect(doc.querySelector('div.mermaid b')).toBeNull()
+  })
+
+  it('routes GitHub-hosted mermaid image nodes through the image proxy', () => {
+    const url = 'https://raw.githubusercontent.com/o/r/main/a.png'
+    expect(proxyMermaidImages(`A@{ img: "${url}", h: 60 } --> B@{ img: 'https://example.com/b.png' }`)).toBe(
+      `A@{ img: "/__markdown-image?url=${encodeURIComponent(url)}", h: 60 } --> B@{ img: 'https://example.com/b.png' }`,
+    )
   })
 
   it('leaves ordinary blockquotes alone', () => {

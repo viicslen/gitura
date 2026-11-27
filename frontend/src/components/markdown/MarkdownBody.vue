@@ -419,6 +419,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   font-style: italic;
 }
 .markdown-body :deep(.mermaid) {
+  font-family: var(--font-mono);
   white-space: pre;
   overflow-x: auto;
   margin: 0.5em 0;

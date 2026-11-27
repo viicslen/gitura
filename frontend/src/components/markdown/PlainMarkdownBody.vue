@@ -118,6 +118,7 @@ const html = computed(() => renderGitHubMarkdown(props.content, { ...props, task
   margin: 0.8em 0;
 }
 .markdown-body :deep(.mermaid) {
+  font-family: var(--font-mono);
   white-space: pre;
   overflow-x: auto;
   margin: 0.5em 0;

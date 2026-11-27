@@ -1,7 +1,9 @@
 import { onMounted, onUpdated, watch, type Ref } from 'vue'
 import { isDark } from '@/composables/useAppearance'
+import { proxyMermaidImages } from '@/lib/markdown'
 
 let queue = Promise.resolve()
+let drawn = 0
 
 async function draw(container: HTMLElement | null, redraw: boolean): Promise<void> {
   const nodes = Array.from(container?.querySelectorAll<HTMLElement>('div.mermaid') ?? []).filter(
@@ -10,14 +12,22 @@ async function draw(container: HTMLElement | null, redraw: boolean): Promise<voi
   if (!nodes.length) return
   // Loaded on first use: mermaid is large and most bodies have no diagram.
   const { default: mermaid } = await import('mermaid')
-  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: isDark.value ? 'dark' : 'default' })
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'strict',
+    suppressErrorRendering: true,
+    theme: isDark.value ? 'dark' : 'default',
+  })
   for (const node of nodes) {
-    node.dataset.source ??= node.textContent ?? ''
-    node.textContent = node.dataset.source
-    node.removeAttribute('data-processed')
+    const source = (node.dataset.source ??= node.textContent ?? '')
+    try {
+      const { svg } = await mermaid.render(`mermaid-${++drawn}`, proxyMermaidImages(source))
+      node.innerHTML = svg
+    } catch {
+      // A diagram mermaid cannot parse or draw stays as its source text.
+      node.textContent = source
+    }
   }
-  // A bad diagram stays as its source text.
-  await mermaid.run({ nodes, suppressErrors: true })
 }
 
 /** Draws the ```mermaid blocks that `v-html` puts in `container`, and redraws them when the theme changes. */

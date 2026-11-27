@@ -95,6 +95,13 @@ function imageURL(rawSrc: string, opts: MarkdownRenderOptions): string {
   return resolved
 }
 
+const IMAGE_NODE = /(\bimg:\s*)(["'])(.*?)\2/g
+
+/** Sends a mermaid diagram's image nodes through the same proxy as markdown images; the webview cannot load them directly. */
+export function proxyMermaidImages(source: string): string {
+  return source.replace(IMAGE_NODE, (_, key: string, quote: string, url: string) => `${key}${quote}${imageURL(url, {})}${quote}`)
+}
+
 function srcsetURLs(srcset: string, opts: MarkdownRenderOptions): string {
   return srcset
     .split(',')
