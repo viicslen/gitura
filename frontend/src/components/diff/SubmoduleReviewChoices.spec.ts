@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, type VueWrapper } from '@vue/test-utils'
 import { reactive } from 'vue'
 import ReviewSubmittedNote from './ReviewSubmittedNote.vue'
 import SubmoduleReviewChoices, { keepChoices, submitBlocker, submoduleRequest, type SubmoduleChoice } from './SubmoduleReviewChoices.vue'
@@ -8,6 +8,9 @@ import type * as model from '@/bindings/gitura/internal/model'
 const withPR: model.SubmoduleDraftsDTO = { path: 'vendor/lib', pr: 'so/lib#5', pr_url: 'https://github.com/so/lib/pull/5', to_pr: 2, folded: 1 }
 const noPR: model.SubmoduleDraftsDTO = { path: 'vendor/other', to_pr: 0, folded: 3 }
 const noDrafts: model.SubmoduleDraftsDTO = { path: 'vendor/idle', pr: 'so/idle#1', pr_url: 'https://github.com/so/idle/pull/1', to_pr: 0, folded: 0 }
+
+const MODE = '[role="radiogroup"][aria-label^="Where the comments"]'
+const modes = (w: VueWrapper) => w.findAll(`${MODE} [role="radio"]`)
 
 function render(drafts: model.SubmoduleDraftsDTO[]) {
   const choices = reactive<Record<string, SubmoduleChoice>>(keepChoices(drafts, {}))
@@ -23,7 +26,7 @@ describe('SubmoduleReviewChoices', () => {
     expect(rows[0].text()).toContain('so/lib#5')
     expect(rows[0].text()).toContain('3 comments')
     expect(rows[0].text()).toContain("1 comment outside its PR's diff goes into this review's text.")
-    expect(rows[1].find('[role="tablist"]').exists()).toBe(false)
+    expect(rows[1].find(MODE).exists()).toBe(false)
     expect(rows[1].text()).toContain("3 comments added to this review's text")
     wrapper.unmount()
   })
@@ -54,8 +57,7 @@ describe('SubmoduleReviewChoices', () => {
       noPRFolds,
     ])
 
-    const fold = wrapper.findAll('[role="tab"]').find((t) => t.text() === "Add to this review's text")
-    await fold?.trigger('mousedown', { button: 0 })
+    await modes(wrapper).find((t) => t.text() === "Add to this review's text")?.trigger('click')
     expect(choices['vendor/lib'].mode).toBe('fold')
     expect(wrapper.find('[data-submodule="vendor/lib"]').text()).toContain("All 3 comments go into this review's text.")
     expect(wrapper.find('[data-submodule="vendor/lib"]').text()).not.toContain("outside its PR's diff")
@@ -78,11 +80,14 @@ describe('SubmoduleReviewChoices', () => {
 
   it('sends single comments without a verdict or text to fill in', async () => {
     const { wrapper, choices } = render([withPR])
-    const tab = (label: string) => wrapper.findAll('[role="tab"]').find((t) => t.text() === label)
-    expect(wrapper.findAll('[role="tab"]').map((t) => t.text())).toEqual(['Review', 'Single comments', "Add to this review's text"])
+    const group = wrapper.find(MODE)
+    expect(group.attributes('aria-label')).toBe('Where the comments on vendor/lib go')
+    expect(modes(wrapper).map((t) => t.text())).toEqual(['Review', 'Single comments', "Add to this review's text"])
+    expect(modes(wrapper).map((t) => t.attributes('aria-checked'))).toEqual(['true', 'false', 'false'])
 
-    await tab('Single comments')?.trigger('mousedown', { button: 0 })
+    await modes(wrapper).find((t) => t.text() === 'Single comments')?.trigger('click')
     expect(choices['vendor/lib'].mode).toBe('comments')
+    expect(modes(wrapper).map((t) => t.attributes('aria-checked'))).toEqual(['false', 'true', 'false'])
     expect(wrapper.find('[inert] [role="radiogroup"]').exists()).toBe(true)
     expect(wrapper.find('[inert] textarea').exists()).toBe(true)
     expect(submoduleRequest([withPR], choices)[0].mode).toBe('comments')
@@ -103,7 +108,7 @@ describe('SubmoduleReviewChoices', () => {
     expect(keepChoices([held], { 'vendor/lib': { mode: 'fold', verdict: 'COMMENT', body: 'x' } })['vendor/lib']).toEqual({ mode: 'comments', verdict: 'COMMENT', body: 'x' })
     const { wrapper, choices } = render([held])
     expect(choices['vendor/lib'].mode).toBe('comments')
-    const disabled = wrapper.findAll('[role="tab"]').filter((t) => t.attributes('disabled') !== undefined).map((t) => t.text())
+    const disabled = modes(wrapper).filter((t) => t.attributes('disabled') !== undefined).map((t) => t.text())
     expect(disabled).toEqual(['Review', "Add to this review's text"])
     expect(wrapper.text()).toContain('An earlier submit may have reached so/lib#5; submit again to settle it.')
     wrapper.unmount()
@@ -131,7 +136,7 @@ describe('SubmoduleReviewChoices', () => {
     const { wrapper } = render([{ path: 'vendor/lib', to_pr: 0, folded: 2, pr_unknown: true }])
     const row = wrapper.find('[data-submodule="vendor/lib"]')
     expect(row.text()).toContain("Couldn't check vendor/lib for an open pull request — its comments will be added to this review's text")
-    expect(row.find('[role="tablist"]').exists()).toBe(false)
+    expect(row.find(MODE).exists()).toBe(false)
     await row.find('button').trigger('click')
     expect(wrapper.emitted('retry')).toHaveLength(1)
     wrapper.unmount()

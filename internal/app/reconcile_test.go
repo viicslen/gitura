@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -142,6 +143,96 @@ func TestPostImmediateComment_FoldedCommentAnswers5xxWithOnlyAnOlderLookAlike_Re
 	_, err = app.PostImmediateComment(model.DraftCommentDTO{Submodule: "lib", Bump: "..new", Path: "lib/b.txt", Line: 1, Side: "RIGHT", Body: "hm"})
 	require.ErrorContains(t, err, "github: post comment")
 	assert.Equal(t, 1, posts)
+}
+
+func TestPostImmediateComment_5xxThenLookupFails_RetryLooksForTheEarlierPostBeforePosting(t *testing.T) {
+	inline := model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "hm"}
+	folded := model.DraftCommentDTO{Submodule: "lib", Bump: "..new", Path: "lib/b.txt", Line: 1, Side: "RIGHT", Body: "hm"}
+	foldedBody, err := json.Marshal(foldComments([]model.DraftCommentDTO{folded}))
+	require.NoError(t, err)
+	kinds := map[string]struct {
+		comment       model.DraftCommentDTO
+		path, earlier string
+	}{
+		"inline": {inline, "/repos/o/r/pulls/1/comments", `{"path":"a.go","line":1,"side":"RIGHT","commit_id":"sha","body":"hm"`},
+		"folded": {folded, "/repos/o/r/issues/1/comments", `{"body":` + string(foldedBody)},
+	}
+	for kind, k := range kinds {
+		for name, tc := range map[string]struct {
+			second string
+			posts  int
+			url    string
+		}{
+			"it went through":    {`[` + k.earlier + `,"id":3,"user":{"login":"me"},"html_url":"https://first","created_at":"` + stamp(0) + `"}]`, 1, "https://first"},
+			"it did not":         {`[]`, 2, "https://resent"},
+			"lookup fails again": {"", 1, ""},
+		} {
+			t.Run(kind+"/"+name, func(t *testing.T) {
+				posts, lookups := 0, 0
+				app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
+					switch {
+					case r.URL.Path != k.path:
+						w.WriteHeader(http.StatusTeapot)
+					case r.Method == http.MethodPost:
+						if posts++; posts == 1 {
+							w.WriteHeader(http.StatusBadGateway)
+							return
+						}
+						_, _ = w.Write([]byte(`{"id":4,"html_url":"https://resent"}`))
+					default:
+						if lookups++; lookups == 1 || tc.second == "" {
+							w.WriteHeader(http.StatusServiceUnavailable)
+							return
+						}
+						_, _ = w.Write([]byte(tc.second))
+					}
+				})
+				_, err := app.PostImmediateComment(k.comment)
+				require.Error(t, err)
+
+				got, err := app.PostImmediateComment(k.comment)
+
+				assert.Equal(t, tc.posts, posts)
+				if tc.url == "" {
+					require.ErrorContains(t, err, "earlier attempt")
+					assert.Len(t, app.immediate, 1)
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, tc.url, got.HTMLURL)
+				assert.Empty(t, app.immediate)
+			})
+		}
+	}
+}
+
+func TestPostImmediateComment_5xxThenLookupFailsThenHeadMoves_RetryFindsThePostAtTheOldHeadAndSendsNothing(t *testing.T) {
+	posts, lookups := 0, 0
+	app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path != "/repos/o/r/pulls/1/comments":
+			w.WriteHeader(http.StatusTeapot)
+		case r.Method == http.MethodPost:
+			posts++
+			w.WriteHeader(http.StatusBadGateway)
+		default:
+			if lookups++; lookups == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			_, _ = w.Write([]byte(`[{"path":"a.go","line":1,"side":"RIGHT","commit_id":"sha","body":"hm","id":3,"user":{"login":"me"},"html_url":"https://first","created_at":"` + stamp(0) + `"}]`))
+		}
+	})
+	comment := model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "hm"}
+	_, err := app.PostImmediateComment(comment)
+	require.Error(t, err)
+	app.prCache.HeadSHA = "moved"
+
+	_, err = app.PostImmediateComment(comment)
+
+	require.ErrorIs(t, err, errPostedEarlier)
+	assert.Equal(t, 1, posts)
+	assert.Empty(t, app.immediate)
 }
 
 func TestSubmitReview_TwoIdenticalDraftsSecondAnswers5xx_DoesNotAdoptTheFirstOnesComment(t *testing.T) {
@@ -686,10 +777,10 @@ func TestSubmitReview_ParentReviewAnswers5xxAndLookupFails_FrozenThenSettledBefo
 }
 
 // pendingCreateApp is subApp whose first pending review create on so/sr#5 answers 502 yet leaves pending review
-// 9, and whose first look for it after that fails; deleted records the reviews deleted.
-func pendingCreateApp(t *testing.T, deleted *[]string, creates *int) *App {
+// 9, and whose first look for it after that fails; gql answers GraphQL, deleted records the reviews deleted.
+func pendingCreateApp(t *testing.T, gql http.HandlerFunc, deleted *[]string, creates *int) *App {
 	t.Helper()
-	fakeGraphQL(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"data":{}}`)) })
+	fakeGraphQL(t, gql)
 	left, lists := false, 0
 	return subApp(t, func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
@@ -726,6 +817,15 @@ func pendingCreateApp(t *testing.T, deleted *[]string, creates *int) *App {
 	})
 }
 
+// pendingThreadOn answers GraphQL with pending review 9's thread on line of a.txt, in fileReviewDrafts' words.
+func pendingThreadOn(line int) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[
+			{"diffSide":"RIGHT","originalLine":%d,"subjectType":"LINE",
+			 "comments":{"nodes":[{"body":"in PR diff","path":"a.txt","pullRequestReview":{"databaseId":9}}]}}]}}}}}`, line)
+	}
+}
+
 // fileReviewDrafts are a line and a file-level draft on so/sr#5's a.txt, which go there as a pending review.
 func fileReviewDrafts() []model.DraftCommentDTO {
 	return []model.DraftCommentDTO{
@@ -737,7 +837,7 @@ func fileReviewDrafts() []model.DraftCommentDTO {
 func TestSubmitReview_PendingSubmoduleCreateAnd5xxLookupFail_NextSubmitDeletesWhatItLeftAndRebuilds(t *testing.T) {
 	var deleted []string
 	creates := 0
-	app := pendingCreateApp(t, &deleted, &creates)
+	app := pendingCreateApp(t, pendingThreadOn(2), &deleted, &creates)
 	app.pendingComments = fileReviewDrafts()
 	req := model.ReviewSubmitRequest{Verdict: "COMMENT", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "review", Verdict: "COMMENT"}}}
 	_, err := app.SubmitReview(shown(t, app, req))
@@ -756,7 +856,7 @@ func TestSubmitReview_PendingSubmoduleCreateAnd5xxLookupFail_NextSubmitDeletesWh
 func TestDiscardPendingReview_PendingSubmoduleCreateAnd5xxLookupFail_DeletesWhatItLeft(t *testing.T) {
 	var deleted []string
 	creates := 0
-	app := pendingCreateApp(t, &deleted, &creates)
+	app := pendingCreateApp(t, pendingThreadOn(2), &deleted, &creates)
 	app.pendingComments = fileReviewDrafts()
 	req := model.ReviewSubmitRequest{Verdict: "COMMENT", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "review", Verdict: "COMMENT"}}}
 	_, err := app.SubmitReview(shown(t, app, req))
@@ -767,6 +867,40 @@ func TestDiscardPendingReview_PendingSubmoduleCreateAnd5xxLookupFail_DeletesWhat
 	assert.Equal(t, []string{"/repos/so/sr/pulls/5/reviews/9"}, deleted)
 	assert.Empty(t, app.pendingComments)
 	assert.Empty(t, app.rememberedPending())
+}
+
+func TestDiscardPendingReview_PendingReviewWithTheSameWordsOnAnotherLine_LeftAlone(t *testing.T) {
+	var deleted []string
+	creates := 0
+	app := pendingCreateApp(t, pendingThreadOn(3), &deleted, &creates)
+	app.pendingComments = fileReviewDrafts()
+	req := model.ReviewSubmitRequest{Verdict: "COMMENT", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "review", Verdict: "COMMENT"}}}
+	_, err := app.SubmitReview(shown(t, app, req))
+	require.ErrorContains(t, err, "so/sr#5")
+
+	require.NoError(t, app.DiscardPendingReview())
+
+	assert.Empty(t, deleted)
+	assert.Empty(t, app.rememberedPending())
+}
+
+func TestDiscardPendingReview_LeftPendingReviewsThreadsUnreadable_KeepsItUnresolved(t *testing.T) {
+	var deleted []string
+	creates := 0
+	app := pendingCreateApp(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadGateway) }, &deleted, &creates)
+	app.pendingComments = fileReviewDrafts()
+	req := model.ReviewSubmitRequest{Verdict: "COMMENT", Submodules: []model.SubmoduleReviewChoice{{Path: "lib", Mode: "review", Verdict: "COMMENT"}}}
+	_, err := app.SubmitReview(shown(t, app, req))
+	require.ErrorContains(t, err, "so/sr#5")
+
+	require.ErrorContains(t, app.DiscardPendingReview(), "earlier attempt")
+	_, err = app.SubmitReview(shown(t, app, req))
+
+	require.ErrorContains(t, err, "earlier attempt")
+	assert.Empty(t, deleted)
+	assert.Equal(t, 1, creates)
+	assert.NotEmpty(t, app.uncertain)
+	assert.Equal(t, fileReviewDrafts(), app.pendingComments)
 }
 
 func TestSubmitReview_SubmoduleCommentAnswers2xxWithTruncatedBody_LooksItUpInsteadOfFailing(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/go-github/v93/github"
 
+	"gitura/internal/ghapi"
 	"gitura/internal/logger"
 	"gitura/internal/model"
 )
@@ -138,6 +139,68 @@ func sendUnlessPosted(find finder, send func() (*github.Response, error)) error 
 	return err
 }
 
+// sender sends with send, and after a send that fails ambiguously looks with find for what it posted.
+type sender func(find finder, send func() (*github.Response, error)) error
+
+// immediateKey is a single comment PostImmediateComment sends to where's pull request: a line comment at commit,
+// or a conversation comment when commit is "".
+type immediateKey struct {
+	where, commit string
+	comment       commentKey
+}
+
+// errPostedEarlier is a retried comment found already posted by a send to an earlier commit of the pull request.
+var errPostedEarlier = errors.New("conflict: this comment was already posted on an earlier commit; reload to see it")
+
+// sendOnce is sendUnlessPosted for the single comment key, which a retry sends again: an earlier send of it of
+// unknown outcome is looked for first, and when found nothing is sent.
+func (a *App) sendOnce(key immediateKey) sender {
+	return func(find finder, send func() (*github.Response, error)) error {
+		if err := a.settleMoved(key); err != nil {
+			return err
+		}
+		if u := a.immediate[key]; u != nil {
+			_, found, err := find(u.start)
+			if err != nil {
+				return uncheckedError(u, err)
+			}
+			delete(a.immediate, key)
+			if found {
+				return nil
+			}
+		}
+		err := sendUnlessPosted(find, send)
+		var u *uncertainError
+		if errors.As(err, &u) {
+			u.where = key.where
+			if a.immediate == nil {
+				a.immediate = map[immediateKey]*uncertainError{}
+			}
+			a.immediate[key] = u
+		}
+		return err
+	}
+}
+
+// settleMoved looks, before key is sent, for an earlier send of the same comment of unknown outcome to another
+// commit, which only that send's own finder can match; found, the comment is not sent again.
+func (a *App) settleMoved(key immediateKey) error {
+	for k, u := range a.immediate {
+		if k.where != key.where || k.comment != key.comment || k.commit == key.commit {
+			continue
+		}
+		_, found, err := u.find(u.start)
+		if err != nil {
+			return uncheckedError(u, err)
+		}
+		delete(a.immediate, k)
+		if found {
+			return errPostedEarlier
+		}
+	}
+	return nil
+}
+
 // settle records, for drafts just sent as review sent (or single comments, when sent has no verdict) to s's PR,
 // or the loaded PR's when s is nil, whether err leaves it unknown if they went through.
 func (a *App) settle(drafts []model.DraftCommentDTO, err error, sent model.InFlightReviewDTO, s *prSubmodule) {
@@ -257,26 +320,24 @@ func sameReviewComment(c *github.PullRequestComment, sent github.CreatePullReque
 }
 
 // postedIssueComment returns the viewer's conversation comment on owner/repo#number reading body and
-// created since start, nil when there is none or the lookup fails.
-func (a *App) postedIssueComment(owner, repo string, number int, body string, start time.Time) *github.IssueComment {
+// created since start, nil when there is none.
+func (a *App) postedIssueComment(owner, repo string, number int, body string, start time.Time) (*github.IssueComment, error) {
 	login, err := a.viewerLogin()
 	if err != nil {
-		logger.L.Warn("could not check whether a failed comment was posted", "err", err)
-		return nil
+		return nil, err
 	}
 	since := start.Add(-clockSkew)
 	opts := &github.IssueListCommentsOptions{Since: &since, ListOptions: github.ListOptions{PerPage: 100}}
 	for c, err := range a.ghClient.Issues.ListCommentsIter(a.ctx, owner, repo, number, opts) {
 		if err != nil {
-			logger.L.Warn("could not check whether a failed comment was posted", "err", err)
-			return nil
+			return nil, err
 		}
 		if c.GetUser().GetLogin() == login && c.GetBody() == body && !c.GetCreatedAt().Before(since) {
 			logger.L.Info("adopted a comment a failed request posted", "pr", fmt.Sprintf("%s/%s#%d", owner, repo, number), "id", c.GetID())
-			return c
+			return c, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // postedReview returns, and claims, the unclaimed review on owner/repo#number the viewer submitted since start
@@ -292,7 +353,7 @@ func (a *App) postedReview(owner, repo string, number int, sent *github.PullRequ
 		if !reviewLike(r, sent, login, earliest) || a.claimed[claim{true, r.GetID()}] {
 			return false
 		}
-		same, err := a.sameReviewComments(owner, repo, number, r, sent, true)
+		same, err := a.sameReviewComments(owner, repo, number, r, sent)
 		commentsErr = cmp.Or(commentsErr, err)
 		return same
 	})
@@ -369,9 +430,21 @@ func (a *App) leftPending(at orphanReview, sent *github.PullRequestReviewRequest
 	if err != nil || r == nil || r.GetID() == at.id || r.GetCommitID() != sent.GetCommitID() {
 		return 0, err
 	}
-	if same, err := a.sameReviewComments(at.owner, at.repo, at.number, r, sent, false); !same {
-		logger.L.Warn("SubmitReview: pending review left unclaimed", "review_id", r.GetID(), "err", err)
-		return 0, err
+	// GitHub's REST API omits line and side on pending comments; its review threads carry them.
+	drafts, err := ghapi.FetchPendingReviewDrafts(a.ctx, ghapi.NewHTTPClient(a.authToken), at.owner, at.repo, at.number, r.GetID())
+	if errors.Is(err, ghapi.ErrUnheldComments) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read the comments of pending review %d: %w", r.GetID(), err)
+	}
+	got := make([]commentKey, len(drafts))
+	for i, d := range drafts {
+		got[i] = draftKey(d)
+	}
+	if !sameComments(got, sent) {
+		logger.L.Warn("SubmitReview: pending review left unclaimed", "review_id", r.GetID())
+		return 0, nil
 	}
 	logger.L.Info("SubmitReview: adopted pending review created by a failed request", "pr", fmt.Sprintf("%s/%s#%d", at.owner, at.repo, at.number), "review_id", r.GetID())
 	return r.GetID(), nil
@@ -478,31 +551,35 @@ type commentKey struct {
 	body      string
 }
 
-// sameReviewComments reports whether review r holds exactly sent's line comments, matched on their anchors
-// too when anchored, else on their paths and bodies.
-// Pass anchored false for a pending review: GitHub's REST API omits line and side on its comments.
-func (a *App) sameReviewComments(owner, repo string, number int, r *github.PullRequestReview, sent *github.PullRequestReviewRequest, anchored bool) (bool, error) {
-	count := map[commentKey]int{}
+func draftKey(d model.DraftCommentDTO) commentKey {
+	return commentKey{d.Path, d.Line, d.Side, d.StartLine, d.StartSide, d.Body}
+}
+
+// sameReviewComments reports whether submitted review r holds exactly sent's line comments.
+func (a *App) sameReviewComments(owner, repo string, number int, r *github.PullRequestReview, sent *github.PullRequestReviewRequest) (bool, error) {
+	var got []commentKey
 	for c, err := range a.ghClient.PullRequests.ListReviewCommentsIter(a.ctx, owner, repo, number, r.GetID(), &github.ListOptions{PerPage: 100}) {
 		if err != nil {
 			return false, fmt.Errorf("read the comments of review %d: %w", r.GetID(), err)
 		}
-		count[keyOf(commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()}, anchored)]++
+		got = append(got, commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()})
+	}
+	return sameComments(got, sent), nil
+}
+
+// sameComments reports whether got are exactly sent's line comments.
+func sameComments(got []commentKey, sent *github.PullRequestReviewRequest) bool {
+	count := map[commentKey]int{}
+	for _, k := range got {
+		count[k]++
 	}
 	for _, c := range sent.Comments {
-		count[keyOf(commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()}, anchored)]--
+		count[commentKey{c.GetPath(), c.GetLine(), c.GetSide(), c.GetStartLine(), c.GetStartSide(), c.GetBody()}]--
 	}
 	for _, n := range count {
 		if n != 0 {
-			return false, nil
+			return false
 		}
 	}
-	return true, nil
-}
-
-func keyOf(k commentKey, anchored bool) commentKey {
-	if anchored {
-		return k
-	}
-	return commentKey{path: k.path, body: k.body}
+	return true
 }

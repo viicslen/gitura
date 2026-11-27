@@ -79,6 +79,26 @@ func TestFetchPendingReviewDrafts_ReviewRepliesToThread_ReturnsConflict(t *testi
 	assert.Nil(t, drafts)
 }
 
+func TestFetchPendingReviewDrafts_ThreadCommentsHaveMorePages_ReturnsUnheldComments(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"repository":{"pullRequest":{"reviewThreads":{
+			"pageInfo":{"hasNextPage":false},
+			"nodes":[
+				{"diffSide":"RIGHT","originalLine":9,"subjectType":"LINE",
+				 "comments":{"pageInfo":{"hasNextPage":true,"endCursor":"c100"},
+				  "nodes":[{"body":"own","path":"a.go","pullRequestReview":{"databaseId":7}}]}}
+			]}}}}}`))
+	}))
+	defer srv.Close()
+	origURL := githubGraphQLURL
+	githubGraphQLURL = srv.URL
+	defer func() { githubGraphQLURL = origURL }()
+
+	drafts, err := FetchPendingReviewDrafts(context.Background(), srv.Client(), "o", "r", 1, 7)
+	require.ErrorIs(t, err, ErrUnheldComments)
+	assert.Nil(t, drafts)
+}
+
 func TestMapGraphQLThread_FileSubject_HasNoLine(t *testing.T) {
 	one := 1
 	dto := mapGraphQLThread(graphQLThread{

@@ -38,12 +38,14 @@ type SubmoduleChanges struct {
 	Diverged bool
 	// Unavailable says why Files is empty or incomplete, e.g. "no access".
 	Unavailable string
-	// TreeRef is the commit whose whole tree Files lists, for an added or removed submodule: their
-	// patches are left out, for FillWholeFile to load from there.
+	// TreeRef is the commit whose whole tree Files lists, for an added or removed submodule: the patches of
+	// its files, not of its nested submodules' pointers, are left out, for FillWholeFile to load from there.
 	TreeRef string
 	// OldSHAs holds, by file name, the old blob SHA of each file without a patch; its SHA is the new blob's.
 	OldSHAs map[string]string
-	// BlobsTruncated is set when the tree OldSHAs come from was truncated, so some may be missing.
+	// Modes holds, by file name, its mode at the old and at the new commit, "" where it is absent or unknown.
+	Modes map[string][2]string
+	// BlobsTruncated is set when a tree OldSHAs or Modes come from was truncated, so some may be missing.
 	BlobsTruncated bool
 }
 
@@ -106,36 +108,62 @@ func (ch *SubmoduleChanges) MoveUnder(path string) {
 			f.PreviousFilename = new(path + "/" + f.GetPreviousFilename())
 		}
 	}
-	old := ch.OldSHAs
-	ch.OldSHAs = make(map[string]string, len(old))
-	for name, sha := range old {
-		ch.OldSHAs[path+"/"+name] = sha
-	}
+	ch.OldSHAs = movedKeys(ch.OldSHAs, path)
+	ch.Modes = movedKeys(ch.Modes, path)
 }
 
-// treeFiles fills ch.Files with the files of commit sha, all given status and without patches.
-// shortcut: a nested submodule in the tree is left out, not listed as added or removed; list its tree too if needed.
+func movedKeys[V any](m map[string]V, path string) map[string]V {
+	out := make(map[string]V, len(m))
+	for name, v := range m {
+		out[path+"/"+name] = v
+	}
+	return out
+}
+
+// treeFiles fills ch.Files with the files of commit sha, all given status and without patches, and each
+// nested submodule's pointer entry.
 func treeFiles(ctx context.Context, client *github.Client, ch *SubmoduleChanges, sha, status string) error {
 	t, err := tree(ctx, client, ch, sha)
 	if err != nil {
 		return err
 	}
 	var files []*github.CommitFile
+	ch.Modes = map[string][2]string{}
 	for _, e := range t.Entries {
-		if e.GetType() != "blob" {
+		if e.GetType() == "tree" {
 			continue
 		}
 		if len(files) == compareFileCap {
 			t.Truncated = new(true)
 			break
 		}
-		files = append(files, &github.CommitFile{Filename: e.Path, SHA: e.SHA, Status: new(status)})
+		f, err := treeFile(e, status)
+		if err != nil {
+			return err
+		}
+		files = append(files, f)
+		ch.Modes[e.GetPath()] = [2]string{e.GetMode(), ""}
+		if status == "added" {
+			ch.Modes[e.GetPath()] = [2]string{"", e.GetMode()}
+		}
 	}
 	if t.GetTruncated() {
 		ch.Unavailable = "too many files"
 	}
 	ch.Files = files
 	return nil
+}
+
+// treeFile is tree entry e listed with status: a gitlink as its pointer change, for the bump inside to expand.
+func treeFile(e *github.TreeEntry, status string) (*github.CommitFile, error) {
+	f := &github.CommitFile{Filename: e.Path, SHA: e.SHA, Status: new(status)}
+	if !isGitlink(e) {
+		return f, nil
+	}
+	if status == "added" {
+		return f, setPatch(f, "", pointerText(e.GetSHA()))
+	}
+	return f, setPatch(f, pointerText(e.GetSHA()), "")
 }
 
 // tree returns commit sha's recursive tree.
@@ -210,36 +238,46 @@ func compareSubmodule(ctx context.Context, client *github.Client, ch *SubmoduleC
 	return nil
 }
 
-// recordBlobs fills ch.OldSHAs for the files of a one-way bump that have no patch, from one tree:
-// from's, or to's for a backwards bump, whose inverted files carry the old blob and get the new one.
+// recordBlobs fills, from the trees of from and to, ch.Modes for the files of a one-way bump, and ch.OldSHAs for
+// those without a patch: a backwards bump's inverted files carry the old blob and get the new one.
 // shortcut: a path missing from a truncated tree gets an empty blob, so a change on that side goes unseen; fetch the blob by path if that matters.
 func recordBlobs(ctx context.Context, client *github.Client, ch *SubmoduleChanges, files []*github.CommitFile, from, to string) error {
-	if !slices.ContainsFunc(files, func(f *github.CommitFile) bool { return f.GetPatch() == "" }) {
+	if len(files) == 0 {
 		return nil
 	}
-	ref := from
-	if ch.Backwards {
-		ref = to
-	}
-	blobs, complete, err := blobsAt(ctx, client, ch, ref)
+	oldTree, oldComplete, err := blobsAt(ctx, client, ch, from)
 	if err != nil {
 		return err
 	}
-	ch.BlobsTruncated = !complete
+	newTree, newComplete, err := blobsAt(ctx, client, ch, to)
+	if err != nil {
+		return err
+	}
+	recordModes(ch, files, oldTree, newTree)
 	ch.OldSHAs = map[string]string{}
 	for _, f := range files {
-		switch {
-		case f.GetPatch() != "":
-		case !ch.Backwards:
-			ch.OldSHAs[f.GetFilename()] = blobs[cmp.Or(f.GetPreviousFilename(), f.GetFilename())].GetSHA()
-		default:
-			if f.GetStatus() != "added" {
-				ch.OldSHAs[f.GetFilename()] = f.GetSHA()
-			}
-			f.SHA = new(blobs[f.GetFilename()].GetSHA())
+		if f.GetPatch() != "" {
+			continue
+		}
+		ch.BlobsTruncated = ch.BlobsTruncated || !oldComplete || (ch.Backwards && !newComplete)
+		ch.OldSHAs[f.GetFilename()] = oldTree[cmp.Or(f.GetPreviousFilename(), f.GetFilename())].GetSHA()
+		if ch.Backwards {
+			f.SHA = new(newTree[f.GetFilename()].GetSHA())
 		}
 	}
 	return nil
+}
+
+// recordModes fills ch.Modes for files from the entries at the old and new commits, flagging ch.BlobsTruncated
+// when a side where a file exists has no entry, as off a truncated tree.
+func recordModes(ch *SubmoduleChanges, files []*github.CommitFile, oldTree, newTree map[string]*github.TreeEntry) {
+	ch.Modes = make(map[string][2]string, len(files))
+	for _, f := range files {
+		m := [2]string{oldTree[cmp.Or(f.GetPreviousFilename(), f.GetFilename())].GetMode(), newTree[f.GetFilename()].GetMode()}
+		ch.Modes[f.GetFilename()] = m
+		missing := (f.GetStatus() != "added" && m[0] == "") || (f.GetStatus() != "removed" && m[1] == "")
+		ch.BlobsTruncated = ch.BlobsTruncated || missing
+	}
 }
 
 // capFiles returns files, noting in ch when the compare API cut the list short.
@@ -297,6 +335,7 @@ func divergedFiles(ctx context.Context, client *github.Client, ch *SubmoduleChan
 		}
 		files = append(files, fs...)
 	}
+	recordModes(ch, files, oldBlobs, newBlobs)
 	return files, nil
 }
 

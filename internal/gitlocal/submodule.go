@@ -583,9 +583,8 @@ func insertPointers(ctx context.Context, dir, rev string, files []File, ps []*po
 	return out, nil
 }
 
-// deletedFiles diffs deleted submodule p's old commit against the empty tree, since git prints no files
-// under a deleted submodule; none when p wasn't deleted or its old commit is gone.
-// shortcut: a submodule nested in the deleted one shows as a plain row, not a group of its files; walk the old tree's gitlinks if needed.
+// deletedFiles lists deleted submodule p's files from its old commit, since git prints none under a deleted
+// submodule; none when p wasn't deleted or its old commit is gone.
 func deletedFiles(ctx context.Context, dir, rev string, ps []*pointer, p *pointer) ([]File, error) {
 	if p.new == "" || strings.Trim(p.new, "0") != "" || strings.Trim(p.old, "0") == "" {
 		return nil, nil
@@ -594,18 +593,80 @@ func deletedFiles(ctx context.Context, dir, rev string, ps []*pointer, p *pointe
 	if gitDir == "" {
 		return nil, nil
 	}
+	return goneFiles(ctx, gitDir, p)
+}
+
+// goneFiles diffs deleted submodule p's old commit, held in gitDir, against the empty tree. Each submodule nested
+// in it becomes a pointer row followed by its own files.
+func goneFiles(ctx context.Context, gitDir string, p *pointer) ([]File, error) {
 	// --bare: a modules/<name> dir's core.worktree points at the deleted work tree, which git would chdir to.
 	empty, err := git(ctx, gitDir, "--bare", "hash-object", "-t", "tree", os.DevNull)
 	if err != nil {
 		return nil, err
 	}
-	out, err := git(ctx, gitDir, "--bare", "diff", "--no-color", "--no-ext-diff",
+	// --submodule=short overrides a diff.submodule setting, so a nested submodule reads as its gitlink.
+	out, err := git(ctx, gitDir, "--bare", "diff", "--no-color", "--no-ext-diff", "--submodule=short",
 		"--src-prefix=a/"+p.path+"/", "--dst-prefix=b/"+p.path+"/", p.old, strings.TrimSpace(empty), "--")
 	if err != nil {
 		return nil, err
 	}
 	gone, _ := splitPatch(out)
-	return gone, nil
+	var files []File
+	for _, f := range gone {
+		old, ok := goneGitlink(f)
+		if !ok {
+			files = append(files, f)
+			continue
+		}
+		nested, err := goneNested(ctx, gitDir, p, f.Diff.Filename, old)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, nested...)
+	}
+	return files, nil
+}
+
+// goneGitlink is the commit f, a row of a deleted submodule's diff, recorded when it is a nested submodule's gitlink.
+func goneGitlink(f File) (string, bool) {
+	if !strings.Contains(f.Patch, "\ndeleted file mode 160000\n") {
+		return "", false
+	}
+	_, sha, ok := strings.Cut(f.Patch, "\n-Subproject commit ")
+	sha, _, _ = strings.Cut(sha, "\n")
+	return sha, ok
+}
+
+// goneNested is the pointer row of the submodule at path, at commit old, nested in deleted submodule p whose git
+// dir is gitDir, followed by its files when its own git dir there still holds old.
+func goneNested(ctx context.Context, gitDir string, p *pointer, path, old string) ([]File, error) {
+	n := &pointer{path: path, in: p.path, old: old[:min(7, len(old))], new: "0000000"}
+	nestedDir := filepath.Join(gitDir, "modules", submoduleName(ctx, gitDir, p.old, strings.TrimPrefix(path, p.path+"/"), "--bare"))
+	switch {
+	case !isDir(nestedDir):
+		n.unavailable = "not checked out"
+	case !hasCommit(ctx, nestedDir, old):
+		n.unavailable = "commits not fetched"
+	}
+	files := []File{pointerFile(ctx, "", n)}
+	if n.unavailable != "" {
+		return files, nil
+	}
+	inner, err := goneFiles(ctx, nestedDir, &pointer{path: path, old: old})
+	if err != nil {
+		return nil, err
+	}
+	for i := range inner {
+		if inner[i].SubmoduleRange == "" && !inner[i].own {
+			inner[i].Submodule, inner[i].own = path, true
+		}
+	}
+	return append(files, inner...), nil
+}
+
+func hasCommit(ctx context.Context, gitDir, sha string) bool {
+	_, err := git(ctx, gitDir, "--bare", "cat-file", "-e", sha+"^{commit}")
+	return err == nil
 }
 
 // oldCommitGitDir is the git dir of p's work tree, while it still has one, or else its parent's
@@ -625,7 +686,7 @@ func oldCommitGitDir(ctx context.Context, dir, rev string, ps []*pointer, p *poi
 		cands = append(cands, strings.TrimSpace(out))
 	}
 	for _, c := range cands {
-		if _, err := git(ctx, c, "--bare", "cat-file", "-e", p.old+"^{commit}"); err == nil {
+		if hasCommit(ctx, c, p.old) {
 			return c
 		}
 	}
@@ -647,9 +708,9 @@ func parentOf(ps []*pointer, p *pointer, rev string) (path, old string) {
 }
 
 // submoduleName looks rel up in the .gitmodules of the repository at parentDir as of rev, falling back
-// to git's default name, the path.
-func submoduleName(ctx context.Context, parentDir, rev, rel string) string {
-	out, err := git(ctx, parentDir, "config", "--blob", rev+":.gitmodules", "-z", "--get-regexp", `^submodule\..*\.path$`)
+// to git's default name, the path. flags go before the git command, such as --bare for a git dir.
+func submoduleName(ctx context.Context, parentDir, rev, rel string, flags ...string) string {
+	out, err := git(ctx, parentDir, append(flags, "config", "--blob", rev+":.gitmodules", "-z", "--get-regexp", `^submodule\..*\.path$`)...)
 	if err != nil {
 		return rel
 	}

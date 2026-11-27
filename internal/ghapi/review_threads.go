@@ -2,7 +2,7 @@ package ghapi
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -45,7 +45,8 @@ type graphQLThread struct {
 }
 
 type graphQLCommentConnection struct {
-	Nodes []graphQLComment `json:"nodes"`
+	PageInfo graphQLPageInfo  `json:"pageInfo"`
+	Nodes    []graphQLComment `json:"nodes"`
 }
 
 type graphQLComment struct {
@@ -93,6 +94,7 @@ query($owner: String!, $repo: String!, $number: Int!, $after: String) {
           startDiffSide
           subjectType
           comments(first: 100) {
+            pageInfo { hasNextPage endCursor }
             nodes {
               databaseId
               body
@@ -145,10 +147,13 @@ func FetchReviewThreads(
 	return threads, nil
 }
 
+// ErrUnheldComments is a pending review holding comments a draft can't: replies to existing threads.
+var ErrUnheldComments = errors.New("conflict: your pending review on GitHub has replies gitura can't edit; submit or discard it on GitHub")
+
 // FetchPendingReviewDrafts returns the threads that the pending review reviewID starts, as drafts.
 // The REST review-comments endpoint omits line and side on pending comments, so threads are read instead.
 // Errors are prefixed with "github:" on API failures, "auth:" on HTTP 401, and "conflict:" when the
-// review holds comments a draft can't (replies to existing threads), since submitting would drop them.
+// review holds comments a draft can't (ErrUnheldComments), since submitting would drop them.
 func FetchPendingReviewDrafts(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -172,7 +177,7 @@ func FetchPendingReviewDrafts(
 		return nil, err
 	}
 	if unheld > 0 {
-		return nil, fmt.Errorf("conflict: your pending review on GitHub has replies gitura can't edit; submit or discard it on GitHub")
+		return nil, ErrUnheldComments
 	}
 	return drafts, nil
 }
@@ -181,6 +186,10 @@ func FetchPendingReviewDrafts(
 // ok is false when the review has a comment in the thread that a draft can't hold.
 func pendingDraft(node graphQLThread, reviewID int64) (*model.DraftCommentDTO, bool) {
 	inReview := func(c graphQLComment) bool { return c.Review != nil && c.Review.DatabaseID == reviewID }
+	if node.Comments.PageInfo.HasNextPage {
+		// The review may hold a reply past the first page, which submitting would drop.
+		return nil, false
+	}
 	if len(node.Comments.Nodes) == 0 {
 		return nil, true
 	}
