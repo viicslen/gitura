@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.14.0](https://github.com/viicslen/gitura/compare/v1.13.1...v1.14.0) (2026-11-27)
+
+
+### Features
+
+* **diff:** see and comment on the files a submodule bump changes, in local and PR review ([#106](https://github.com/viicslen/gitura/issues/106)) ([69deb78](https://github.com/viicslen/gitura/commit/69deb780ae82484156cecdef6b816b3d5a3e7991))
+
+
+### Bug Fixes
+
+* **diff:** clear a gitura-kept Viewed mark when a submodule file's mode changes, and list submodules nested in added or removed ones ([46ccf2e](https://github.com/viicslen/gitura/commit/46ccf2e9169d233281ab2a936316138712cdb9f8))
+* **diff:** give a submodule nested in a deleted one its own group in local review ([cf59331](https://github.com/viicslen/gitura/commit/cf593317e20e8d8b6e6cbd35962debcb9ebd0854))
+* **diff:** keep files of a submodule two levels inside a deleted one in their own group ([0339053](https://github.com/viicslen/gitura/commit/033905334c3cb1aecd2fff73c98085d16916bff3))
+* **review:** announce the submodule destination choice as a radio group, not tabs that control nothing ([6068521](https://github.com/viicslen/gitura/commit/60685211e9e58d3d5e1cbbb23a17eddceb1aa8f9))
+* **review:** close the risks and limits left after submodule review ([#108](https://github.com/viicslen/gitura/issues/108)) ([ccbe248](https://github.com/viicslen/gitura/commit/ccbe24853ccc1ceb1c7c0f72e37d9f0f3cd0c8fd))
+* **review:** leave a pending review alone when a thread's comments run past one page ([9eb0cf8](https://github.com/viicslen/gitura/commit/9eb0cf88f17e2ae53eb4edd199f5fe6b629d8e8f))
+* **review:** let a retry clear the pending review a failed submit left on GitHub ([#105](https://github.com/viicslen/gitura/issues/105)) ([d67e154](https://github.com/viicslen/gitura/commit/d67e154c82c36fa3e6e69983677bca37d2e5ff51))
+* **review:** look for an immediate comment's earlier post before sending it again after an unclear failure ([f85a9d5](https://github.com/viicslen/gitura/commit/f85a9d5edbd70a4c8e817e0ac764eabea60d261c))
+* **review:** match a pending review a failed create may have left on its comments' lines, not just their text ([d046edd](https://github.com/viicslen/gitura/commit/d046edd7297673e01f760b3cc6f0aa7217f07407))
+* **review:** settle an immediate comment's earlier send to an older commit before sending it again ([cb9e59d](https://github.com/viicslen/gitura/commit/cb9e59dcdc4c535ceb5036e1c384ff15f466b110))
+
 ## [1.13.1](https://github.com/viicslen/gitura/compare/v1.13.0...v1.13.1) (2026-11-24)
 
 
