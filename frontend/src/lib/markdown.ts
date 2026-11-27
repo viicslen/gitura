@@ -1,5 +1,20 @@
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import hljs from 'highlight.js/lib/common'
+
+const escapeHTML = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+marked.use({
+  renderer: {
+    code({ text, lang }: { text: string; lang?: string }) {
+      if (lang?.trim().toLowerCase() === 'mermaid') return `<div class="mermaid">${escapeHTML(text)}</div>`
+      const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext'
+      const highlighted = hljs.highlight(text, { language }).value
+      return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`
+    },
+  },
+})
 
 export interface MarkdownRenderOptions {
   /** Page the markdown came from; relative links and images resolve against it. */
@@ -78,6 +93,13 @@ function imageURL(rawSrc: string, opts: MarkdownRenderOptions): string {
     }
   }
   return resolved
+}
+
+const IMAGE_NODE = /(\bimg:\s*)(["'])(.*?)\2/g
+
+/** Sends a mermaid diagram's image nodes through the same proxy as markdown images; the webview cannot load them directly. */
+export function proxyMermaidImages(source: string): string {
+  return source.replace(IMAGE_NODE, (_, key: string, quote: string, url: string) => `${key}${quote}${imageURL(url, {})}${quote}`)
 }
 
 function srcsetURLs(srcset: string, opts: MarkdownRenderOptions): string {
