@@ -13,13 +13,16 @@ static char *gitura_decoration_layout(void) {
 	return layout;
 }
 
-// -1 when unknown: the window is not realized yet, or GTK predates the capabilities API.
-static int gitura_toplevel_capabilities(void *window) {
+// Both stay 1 when unknown: the window is not realized yet, or GTK predates the capabilities API (4.20).
+static void gitura_toplevel_can(void *window, int *minimize, int *maximize) {
+	*minimize = *maximize = 1;
 #if GTK_CHECK_VERSION(4, 20, 0)
 	GdkSurface *surface = gtk_native_get_surface(GTK_NATIVE(window));
-	if (surface && GDK_IS_TOPLEVEL(surface)) return gdk_toplevel_get_capabilities(GDK_TOPLEVEL(surface));
+	if (!surface || !GDK_IS_TOPLEVEL(surface)) return;
+	GdkToplevelCapabilities caps = gdk_toplevel_get_capabilities(GDK_TOPLEVEL(surface));
+	*minimize = (caps & GDK_TOPLEVEL_CAPABILITIES_MINIMIZE) != 0;
+	*maximize = (caps & GDK_TOPLEVEL_CAPABILITIES_MAXIMIZE) != 0;
 #endif
-	return -1;
 }
 */
 import "C"
@@ -37,17 +40,15 @@ func wmWindowButtons() []string {
 		return allWindowButtons
 	}
 	layout := "menu:minimize,maximize,close"
-	caps := C.int(-1)
+	canMinimize, canMaximize := C.int(1), C.int(1)
 	application.InvokeSync(func() {
 		if l := C.gitura_decoration_layout(); l != nil {
 			layout = C.GoString(l)
 			C.g_free(C.gpointer(unsafe.Pointer(l)))
 		}
 		if p := w.NativeWindow(); p != nil {
-			caps = C.gitura_toplevel_capabilities(p)
+			C.gitura_toplevel_can(p, &canMinimize, &canMaximize)
 		}
 	})
-	return windowButtons(layout,
-		caps < 0 || caps&C.GDK_TOPLEVEL_CAPABILITIES_MINIMIZE != 0,
-		caps < 0 || caps&C.GDK_TOPLEVEL_CAPABILITIES_MAXIMIZE != 0)
+	return windowButtons(layout, canMinimize != 0, canMaximize != 0)
 }
