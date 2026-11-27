@@ -45,7 +45,8 @@ type graphQLThread struct {
 }
 
 type graphQLCommentConnection struct {
-	Nodes []graphQLComment `json:"nodes"`
+	PageInfo graphQLPageInfo  `json:"pageInfo"`
+	Nodes    []graphQLComment `json:"nodes"`
 }
 
 type graphQLComment struct {
@@ -93,6 +94,7 @@ query($owner: String!, $repo: String!, $number: Int!, $after: String) {
           startDiffSide
           subjectType
           comments(first: 100) {
+            pageInfo { hasNextPage endCursor }
             nodes {
               databaseId
               body
@@ -184,6 +186,10 @@ func FetchPendingReviewDrafts(
 // ok is false when the review has a comment in the thread that a draft can't hold.
 func pendingDraft(node graphQLThread, reviewID int64) (*model.DraftCommentDTO, bool) {
 	inReview := func(c graphQLComment) bool { return c.Review != nil && c.Review.DatabaseID == reviewID }
+	if node.Comments.PageInfo.HasNextPage {
+		// The review may hold a reply past the first page, which submitting would drop.
+		return nil, false
+	}
 	if len(node.Comments.Nodes) == 0 {
 		return nil, true
 	}
