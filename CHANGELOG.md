@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.15.0](https://github.com/viicslen/gitura/compare/v1.14.0...v1.15.0) (2026-11-27)
+
+
+### Features
+
+* **markdown:** click a diagram to see it full size ([59287c8](https://github.com/viicslen/gitura/commit/59287c814d25588bdfdcef13ec8d7a48f657bbd0))
+* **markdown:** draw mermaid diagrams instead of showing their source ([#109](https://github.com/viicslen/gitura/issues/109)) ([981d1fe](https://github.com/viicslen/gitura/commit/981d1fe83cd202df39a3b334e5f87506663111b0))
+* **markdown:** render mermaid diagrams in PR descriptions and comments ([26efa1b](https://github.com/viicslen/gitura/commit/26efa1bb88374ea58d0e49bdce67a47c739393a3))
+* **shell:** drop window buttons the window manager asks to hide ([#110](https://github.com/viicslen/gitura/issues/110)) ([6920516](https://github.com/viicslen/gitura/commit/6920516b7eb479136f93c0b3ec0e575b7ef1973c))
+* **shell:** hide window buttons the window manager asks to leave out ([e06bbbb](https://github.com/viicslen/gitura/commit/e06bbbb454a163c2441e02100c48a58d15a69d73))
+
+
+### Bug Fixes
+
+* **markdown:** keep linked diagrams as links and show image nodes when zoomed ([29e4c4a](https://github.com/viicslen/gitura/commit/29e4c4abf12eb5a99bbf4c537b258b8ca2d6e0f2))
+* **markdown:** sanitize the rendered diagram before inserting it ([2b30b18](https://github.com/viicslen/gitura/commit/2b30b180e6f6e2ddb74d1b6ccaba8cccb6628584))
+* **markdown:** show a diagram's source when mermaid cannot draw it, and load image nodes ([b418d76](https://github.com/viicslen/gitura/commit/b418d763d8029273ae2917e92e9d3d55eea600c9))
+* **shell:** build the window-button probe against GTK older than 4.20 ([e614adc](https://github.com/viicslen/gitura/commit/e614adc8fe2c886851292a611653b9e7441e2616))
+
 ## [1.14.0](https://github.com/viicslen/gitura/compare/v1.13.1...v1.14.0) (2026-11-27)
 
 
