@@ -206,6 +206,35 @@ func TestPostImmediateComment_5xxThenLookupFails_RetryLooksForTheEarlierPostBefo
 	}
 }
 
+func TestPostImmediateComment_5xxThenLookupFailsThenHeadMoves_RetryFindsThePostAtTheOldHeadAndSendsNothing(t *testing.T) {
+	posts, lookups := 0, 0
+	app := subApp(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path != "/repos/o/r/pulls/1/comments":
+			w.WriteHeader(http.StatusTeapot)
+		case r.Method == http.MethodPost:
+			posts++
+			w.WriteHeader(http.StatusBadGateway)
+		default:
+			if lookups++; lookups == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			_, _ = w.Write([]byte(`[{"path":"a.go","line":1,"side":"RIGHT","commit_id":"sha","body":"hm","id":3,"user":{"login":"me"},"html_url":"https://first","created_at":"` + stamp(0) + `"}]`))
+		}
+	})
+	comment := model.DraftCommentDTO{Path: "a.go", Line: 1, Side: "RIGHT", Body: "hm"}
+	_, err := app.PostImmediateComment(comment)
+	require.Error(t, err)
+	app.prCache.HeadSHA = "moved"
+
+	_, err = app.PostImmediateComment(comment)
+
+	require.ErrorIs(t, err, errPostedEarlier)
+	assert.Equal(t, 1, posts)
+	assert.Empty(t, app.immediate)
+}
+
 func TestSubmitReview_TwoIdenticalDraftsSecondAnswers5xx_DoesNotAdoptTheFirstOnesComment(t *testing.T) {
 	posts := 0
 	app := subApp(t, func(w http.ResponseWriter, r *http.Request) {

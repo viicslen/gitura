@@ -149,10 +149,16 @@ type immediateKey struct {
 	comment       commentKey
 }
 
+// errPostedEarlier is a retried comment found already posted by a send to an earlier commit of the pull request.
+var errPostedEarlier = errors.New("conflict: this comment was already posted on an earlier commit; reload to see it")
+
 // sendOnce is sendUnlessPosted for the single comment key, which a retry sends again: an earlier send of it of
 // unknown outcome is looked for first, and when found nothing is sent.
 func (a *App) sendOnce(key immediateKey) sender {
 	return func(find finder, send func() (*github.Response, error)) error {
+		if err := a.settleMoved(key); err != nil {
+			return err
+		}
 		if u := a.immediate[key]; u != nil {
 			_, found, err := find(u.start)
 			if err != nil {
@@ -174,6 +180,25 @@ func (a *App) sendOnce(key immediateKey) sender {
 		}
 		return err
 	}
+}
+
+// settleMoved looks, before key is sent, for an earlier send of the same comment of unknown outcome to another
+// commit, which only that send's own finder can match; found, the comment is not sent again.
+func (a *App) settleMoved(key immediateKey) error {
+	for k, u := range a.immediate {
+		if k.where != key.where || k.comment != key.comment || k.commit == key.commit {
+			continue
+		}
+		_, found, err := u.find(u.start)
+		if err != nil {
+			return uncheckedError(u, err)
+		}
+		delete(a.immediate, k)
+		if found {
+			return errPostedEarlier
+		}
+	}
+	return nil
 }
 
 // settle records, for drafts just sent as review sent (or single comments, when sent has no verdict) to s's PR,
