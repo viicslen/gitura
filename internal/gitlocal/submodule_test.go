@@ -315,6 +315,53 @@ func TestDiff_DeletedSubmoduleCommitGone_ListsOnlyPointerRow(t *testing.T) {
 	}
 }
 
+func TestDiff_SubmoduleHoldingASubmoduleDeleted_ListsNestedOneAsItsOwnGroup(t *testing.T) {
+	dir := subRepo(t)
+	run(t, dir, "rm", "-q", "lib")
+
+	files, err := Diff(context.Background(), dir, BaseHEAD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type row struct{ name, status, sub, in string }
+	var got []row
+	for _, f := range files {
+		got = append(got, row{f.Diff.Filename, f.Diff.Status, f.Submodule, f.SubmoduleIn})
+	}
+	want := []row{
+		{".gitmodules", "modified", "", ""},
+		{"lib", "submodule", "lib", ""},
+		{"lib/.gitmodules", "removed", "lib", ""},
+		{"lib/a.txt", "removed", "lib", ""},
+		{"lib/nest", "submodule", "lib/nest", "lib"},
+		{"lib/nest/n.txt", "removed", "lib/nest", ""},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %v\nwant %v", got, want)
+	}
+	if r := files[4].SubmoduleRange; !strings.HasSuffix(r, "..0000000") || len(r) != len("1234567..0000000") {
+		t.Errorf("lib/nest range %q: want old..0000000", r)
+	}
+}
+
+func TestDiff_SubmoduleHoldingANeverCheckedOutSubmoduleDeleted_FlagsNestedPointerRow(t *testing.T) {
+	dir := subRepo(t)
+	run(t, filepath.Join(dir, "lib"), "submodule", "deinit", "-q", "-f", "nest")
+	if err := os.RemoveAll(filepath.Join(dir, ".git", "modules", "lib", "modules", "nest")); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "rm", "-q", "lib")
+
+	files, err := Diff(context.Background(), dir, BaseHEAD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := files[len(files)-1]
+	if last.Diff.Filename != "lib/nest" || last.Diff.Status != "submodule" || last.SubmoduleUnavailable != "not checked out" {
+		t.Errorf("last row: got %s %s %q, want the lib/nest pointer row flagged not checked out", last.Diff.Filename, last.Diff.Status, last.SubmoduleUnavailable)
+	}
+}
+
 // dirToSubRepo builds parent/ tracking lib/.keep and lib/a.txt, then replaces directory lib with a
 // submodule holding a.txt and b.txt, uncommitted.
 func dirToSubRepo(t *testing.T) string {
