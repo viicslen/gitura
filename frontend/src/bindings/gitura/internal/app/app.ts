@@ -341,7 +341,8 @@ export function ListSystemFonts(): $CancellablePromise<string[]> {
  * Progress events ("pr:load-progress") are emitted during the paginated GraphQL fetch.
  * Ignored-commenter threads are filtered out before caching.
  * 
- * Error prefixes: "auth:" — no client; "notfound:" — PR absent; "github:" — API error.
+ * Error prefixes: "auth:" — no client; "notfound:" — PR absent; "github:" — API error;
+ * "conflict:" — a later LoadPR started before this one finished, so this one changed nothing.
  */
 export function LoadPR(owner: string, repo: string, $number: number): $CancellablePromise<model$0.PullRequestSummary> {
     return $Call.ByID(19891564, owner, repo, $number).then(($result: any) => {
@@ -672,6 +673,16 @@ export function UpdateCommand(name: string, cmd: model$0.CommandDTO): $Cancellab
 export function UpdateDraftComment(index: number, expected: string, body: string): $CancellablePromise<model$0.PendingReviewDTO> {
     return $Call.ByID(769416035, index, expected, body).then(($result: any) => {
         return $$createType2($result);
+    });
+}
+
+/**
+ * WindowButtons lists the title strip's window buttons the window manager wants shown,
+ * in order, from "minimize", "maximize" and "close".
+ */
+export function WindowButtons(): $CancellablePromise<string[]> {
+    return $Call.ByID(2303012303).then(($result: any) => {
+        return $$createType18($result);
     });
 }
 
