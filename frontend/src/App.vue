@@ -90,7 +90,7 @@
         @click="zoomOpen = false"
       >
         <DialogTitle class="sr-only">{{ zoomedImage?.alt || 'Image' }}</DialogTitle>
-        <img v-if="zoomedImage" :src="zoomedImage.src" :alt="zoomedImage.alt" class="max-h-[90vh] max-w-[95vw] object-contain cursor-zoom-out rounded-md" />
+        <img v-if="zoomedImage" :src="zoomedImage.src" :alt="zoomedImage.alt" class="max-h-[90vh] max-w-[95vw] object-contain cursor-zoom-out rounded-md" :class="{ 'bg-background p-6': zoomedImage.diagram }" />
       </DialogContent>
     </Dialog>
     </div>
@@ -309,19 +309,35 @@ function openExternalLink(event: MouseEvent): void {
 useEventListener(document, 'click', openExternalLink)
 useEventListener(document, 'auxclick', openExternalLink)
 
-const zoomedImage = ref<{ src: string; alt: string; origin: string } | null>(null)
+const zoomedImage = ref<{ src: string; alt: string; origin: string; diagram?: boolean } | null>(null)
 // Separate from zoomedImage so the image stays rendered through the dialog's close animation.
 const zoomOpen = ref(false)
 // Linked images (badges, preview buttons) keep their link behaviour.
 useEventListener(document, 'click', (event: MouseEvent) => {
-  const img = event.target instanceof Element ? event.target.closest<HTMLImageElement>('.markdown-body img') : null
-  if (!img || img.closest('a[href]')) return
-  const box = img.getBoundingClientRect()
+  const target = event.target instanceof Element ? event.target : null
+  const img = target?.closest<HTMLImageElement>('.markdown-body img')
+  const diagram = target?.closest<SVGSVGElement>('.markdown-body .mermaid > svg')
+  if (img && !img.closest('a[href]')) zoom(img, { src: img.currentSrc || img.src, alt: img.alt })
+  else if (diagram) zoom(diagram, { src: diagramImage(diagram), alt: 'Diagram', diagram: true })
+})
+
+function zoom(from: Element, image: { src: string; alt: string; diagram?: boolean }): void {
+  const box = from.getBoundingClientRect()
   // The dialog is centred in the window, so this origin makes it grow from the image that was clicked.
   const origin = `calc(50% + ${box.x + box.width / 2 - innerWidth / 2}px) calc(50% + ${box.y + box.height / 2 - innerHeight / 2}px)`
-  zoomedImage.value = { src: img.currentSrc || img.src, alt: img.alt, origin }
+  zoomedImage.value = { ...image, origin }
   zoomOpen.value = true
-})
+}
+
+/** The diagram as an image URL at its natural size; inline it is scaled down to the column. */
+function diagramImage(svg: SVGSVGElement): string {
+  const copy = svg.cloneNode(true) as SVGSVGElement
+  const { width, height } = svg.viewBox.baseVal
+  copy.setAttribute('width', String(width))
+  copy.setAttribute('height', String(height))
+  copy.style.maxWidth = ''
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(copy))}`
+}
 </script>
 
 <!-- Unscoped: view-transition pseudo-elements hang off <html>. Every rule is scoped to the transition's name in html[data-vt]. -->

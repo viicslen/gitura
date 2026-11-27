@@ -293,6 +293,9 @@ html[data-effects="off"] :is(.wow-glow, .wow-ring, .wow-sheen)::after {
 button, [role="button"], [role="switch"], label[for], summary { cursor: pointer; }
 
 /* GitHub-flavoured comment rendering shared by MarkdownBody and PlainMarkdownBody. */
+.markdown-body .mermaid > svg {
+  cursor: zoom-in;
+}
 .markdown-body img {
   display: inline;
   cursor: zoom-in;
